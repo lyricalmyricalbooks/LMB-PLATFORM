@@ -110,7 +110,8 @@ describe("browsing the looks (theme store)", () => {
     expect(feels.reduce((n, f) => n + ids(f).length, 0)).toBe(all.length);
     for (const t of all) expect(feels).toContain(lookFeel(t));
     expect(filterLooks(all, "all")).toHaveLength(all.length);
-    expect(LOOK_FILTERS.map(f => f.id)).toEqual(["all", "quiet", "bold", "warm", "dark"]);
+    expect(LOOK_FILTERS.map(f => f.id)).toEqual(["all", "websites", "quiet", "bold", "warm", "dark"]);
+    expect(ids("websites")).toEqual(["juniper-slow-season", "juniper-catalogue"]);
   });
   it("every look gives the try-on what it draws", () => {
     for (const theme of THEME_LIBRARY as any[]) {

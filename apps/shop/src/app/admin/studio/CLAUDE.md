@@ -818,3 +818,9 @@ owner's schemes are never replaced. `markupProblems` (themeReadability.ts) now r
 add one if missing); 2) add a library entry with `global`, a palette, `content.sections` (pages and every-page groups) and
 `productBlocks`; 3) add its id to `STARTER_SITES`; 4) run the theme, readability and font tests, then screenshot it in the
 Studio fixture. Existing shops are untouched.
+
+### Starter websites, step 5: gallery and Sample labels (23 November 2026)
+`LOOK_FILTERS` has **Whole websites** (`websites`: `STARTER_SITES`), shared by Choose your look (sign-up) and Studio ›
+Themes; Preview / Try on is the try-before-use. Sections a starter adds carry `sample: true` (`applyPresetSections`);
+`patchSectionSettings` and `patchBlockField` drop it, and `StudioOutline` shows a **Sample** badge until then. The 10 saved
+designs limit is `MAX_SAVED_THEMES`. Not done: sample photos (no licensed photo set in the repo yet).

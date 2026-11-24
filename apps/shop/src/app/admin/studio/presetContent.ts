@@ -96,7 +96,8 @@ export function wordedSettings(settings: Record<string, any>, w: (text: string) 
 export function applyPresetSections(design: any, preset: PresetLike, meta: (type: string) => any, w: (text: string) => string = (t) => t): any {
   let next = design;
   for (const [id, specs] of Object.entries(presetSections(preset))) {
-    const sections = specs.map(s => makeSection(s.type, wordedSettings({ ...(meta(s.type)?.defaults || {}), ...(s.settings || {}) }, w)));
+    // Marked as the starter's sample until the owner edits it (Studio's Sample badge).
+    const sections = specs.map(s => ({ ...makeSection(s.type, wordedSettings({ ...(meta(s.type)?.defaults || {}), ...(s.settings || {}) }, w)), sample: true }));
     next = setSections(next, targetOf(id), sections);
   }
   const blocks = preset?.content?.productBlocks;

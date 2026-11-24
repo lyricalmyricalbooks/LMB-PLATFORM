@@ -44,6 +44,7 @@
 .studio-tree-row { display: flex; align-items: center; gap: 2px; min-height: 46px; padding: 3px; border-radius: 5px; }
 .studio-tree-row[data-selected=true] { background: var(--rp-primary-tint); box-shadow: inset 3px 0 var(--rp-primary); }
 .studio-tree-row[data-hidden=true] .studio-tree-label { opacity: .6; text-decoration: line-through; }
+.studio-sample-badge { display: inline-block; margin-right: 6px; padding: 1px 6px; border-radius: 999px; background: var(--rp-tile-mint); color: var(--rp-on-tile); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; vertical-align: 1px; }
 .studio-grip, .studio-expand { display: flex; align-items: center; justify-content: center; width: 24px; min-height: 36px; flex-shrink: 0; color: var(--rp-text-subtle); }
 .studio-grip { cursor: grab; }
 .studio-tree-label { flex: 1; min-width: 0; text-align: left; padding: 6px 2px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
