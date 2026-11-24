@@ -263,6 +263,15 @@
 }
 /* How your team did (plan 4, 5.2): the same head and numbers as Coming up, then a table. */
 .rp .bkg-perf { display: grid; gap: 16px; }
+/* No-shows (plan 4, 5.3): the who-missed table beside the weekday bars. */
+.rp .bkg-noshow-lead { background: var(--rp-tile-apricot); color: var(--rp-on-tile); }
+.rp .bkg-noshow-lead span, .rp .bkg-noshow-lead small { color: var(--rp-on-tile); }
+.rp .bkg-noshow-body { display: grid; grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr); gap: 20px; align-items: start; }
+.rp .bkg-noshow-sub { margin: 0; font: 600 15px/1.3 var(--rp-font-body); }
+.rp .bkg-noshow-days .bkg-bars { margin-top: 10px; }
+.rp .bkg-noshow-who { display: grid; gap: 2px; min-width: 0; }
+.rp .bkg-noshow-who small { color: var(--rp-text-muted); font-size: 12px; overflow-wrap: anywhere; }
+@media (max-width: 900px) { .rp .bkg-noshow-body { grid-template-columns: minmax(0, 1fr); } }
 /* Figures: four number tiles, the months as columns, weekdays and services as bars */
 .rp .bkg-figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .rp .bkg-figs-months { grid-column: span 4; }

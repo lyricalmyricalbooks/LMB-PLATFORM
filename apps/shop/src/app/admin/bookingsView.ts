@@ -979,3 +979,51 @@ export function performanceRows(perf: TeamPerformance): string[][] {
   const row = (l: PerformanceLine) => [l.name, String(l.visits), money(l.takenMinor), money(l.perVisitMinor), (l.minutes / 60).toFixed(2), String(l.clients), pct(l.rebookPercent), String(l.noShows), pct(l.noShowPercent)];
   return [["Person", "Visits", "Taken before tax", "Per visit", "Hours booked", "Clients", "Rebooked %", "No-shows", "No-show %"], ...perf.people.map(row), row(perf.total)];
 }
+
+/** One client's no-shows in the no-show report (plan 4, 5.3). */
+export type NoShowClient = { email: string; name: string; phone: string; count: number; lastDay: string; keptMinor: number };
+export type NoShowReport = {
+  /** Bookings due in the stretch (confirmed, time passed) and how many of them were no-shows. */
+  due: number; count: number; percent: number | null;
+  /** The price of the missed visits not covered, and what was kept anyway (a deposit, card payment or missed-visit fee). */
+  lostMinor: number; keptMinor: number;
+  /** Who missed, most first; `repeat` counts clients with two or more. */
+  clients: NoShowClient[]; repeat: number;
+  /** No-shows by weekday, Monday first. */
+  weekdays: { day: string; count: number }[];
+};
+
+/**
+ * The no-show report (plan 4, 5.3): over `from`–`to`, how many booked visits didn't happen because the client didn't come,
+ * what that cost and what was kept, which clients miss (repeat ones first) and which weekdays they fall on.
+ */
+export function noShowReport(rows: readonly Booking[], zone: string, from: string, to: string, nowMs: number): NoShowReport {
+  let due = 0, count = 0, lostMinor = 0, keptMinor = 0;
+  const clients = new Map<string, NoShowClient>();
+  const weekdays = [0, 0, 0, 0, 0, 0, 0];
+  for (const b of rows) {
+    if (b.status !== "confirmed" || Date.parse(b.start) > nowMs) continue;
+    const day = dayOf(Date.parse(b.start), zone);
+    if (day < from || day >= to) continue;
+    due++;
+    if (!b.noShow) continue;
+    count++;
+    const kept = moneyKept(b);
+    keptMinor += kept;
+    lostMinor += Math.max(0, (b.priceMinor || 0) - kept);
+    weekdays[(weekdayOf(day) + 6) % 7]++;
+    const key = String(b.customer?.email || b.customer?.name || b.id).trim().toLowerCase();
+    const c = clients.get(key) || { email: b.customer?.email || "", name: b.customer?.name || "", phone: b.customer?.phone || "", count: 0, lastDay: "", keptMinor: 0 };
+    c.count++; c.keptMinor += kept;
+    if (day > c.lastDay) { c.lastDay = day; c.name = b.customer?.name || c.name; c.phone = b.customer?.phone || c.phone; }
+    clients.set(key, c);
+  }
+  const list = [...clients.values()].sort((a, b) => b.count - a.count || b.lastDay.localeCompare(a.lastDay) || a.name.localeCompare(b.name));
+  return { due, count, percent: due ? Math.round((count / due) * 100) : null, lostMinor, keptMinor, clients: list, repeat: list.filter((c) => c.count >= 2).length,
+    weekdays: [1, 2, 3, 4, 5, 6, 0].map((d, i) => ({ day: WEEKDAYS[d], count: weekdays[i] })) };
+}
+
+/** The no-show list as spreadsheet rows. */
+export function noShowRows(r: NoShowReport): string[][] {
+  return [["Client", "Email", "Phone", "No-shows", "Last one", "Kept"], ...r.clients.map((c) => [c.name, c.email, c.phone, String(c.count), c.lastDay, (c.keptMinor / 100).toFixed(2)])];
+}

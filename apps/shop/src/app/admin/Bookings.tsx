@@ -19,7 +19,7 @@ import { ShiftsPanel } from "./ShiftsPanel";
 import { RotaPanel } from "./RotaPanel";
 import type { ShiftRow } from "./shifts";
 import { hoursText } from "../../shared/timeClock";
-import { answerWithin, requestsWaiting, teamPerformance, performanceRows, spanDays, PERFORMANCE_SPANS, SPAN_NAMES, type PerformanceSpan, type PerformanceLine, futureFigures, futureList, futureRows, FUTURE_WINDOWS, type FutureDays, expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, CLOCK_ONLY, type PayLine, bookingShareLink, bookButtonHtml, bookButtonScript, bookingPosterHtml, bookedThrough, SOCIAL_PLACES, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { answerWithin, requestsWaiting, noShowReport, noShowRows, type NoShowClient, teamPerformance, performanceRows, spanDays, PERFORMANCE_SPANS, SPAN_NAMES, type PerformanceSpan, type PerformanceLine, futureFigures, futureList, futureRows, FUTURE_WINDOWS, type FutureDays, expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, CLOCK_ONLY, type PayLine, bookingShareLink, bookButtonHtml, bookButtonScript, bookingPosterHtml, bookedThrough, SOCIAL_PLACES, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
 import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, cleanCommissionSteps, MAX_COMMISSION_STEPS, commissionStepsText, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT, MAX_FORMS, FORM_RENEW_CHOICES, MAX_BIO_LENGTH, type TeamShown, approvalAllowed, APPROVAL_HOURS, cleanAreas, confirmState } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { MONEY_SIGN, SHOP_CURRENCY } from "./moneySign";
@@ -1010,7 +1010,76 @@ const FIGURE_MONTHS = 6;
 /** The last six months at a glance: bookings and money month by month, the busiest days, the most booked services. */
 /** Figures: what is coming up (plan 4, 5.1) above the last six months. */
 function FiguresPanel({ staff }: { staff: StaffMember[] }) {
-  return <div className="bkg-figs-stack"><ComingUp />{staff.some((p) => p.active) && <TeamPerformancePanel staff={staff} />}<PastFigures /></div>;
+  return <div className="bkg-figs-stack"><ComingUp />{staff.some((p) => p.active) && <TeamPerformancePanel staff={staff} />}<NoShowsPanel /><PastFigures /></div>;
+}
+
+/**
+ * No-shows (plan 4, 5.3, Beta): for this month, last month or the last three months, how many booked visits nobody came
+ * to, what they cost and what was kept, the weekdays they fall on, and who misses (repeat clients first).
+ */
+function NoShowsPanel() {
+  const [span, setSpan] = useState<PerformanceSpan>("quarter");
+  const [rows, setRows] = useState<Booking[] | null>(null);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [now] = useState(() => Date.now());
+  const day = today();
+  const widest = spanDays("quarter", day);
+  useEffect(() => {
+    let stale = false;
+    setRows(null); setError("");
+    readBookingsBetween(new Date(Date.parse(`${widest.from}T00:00:00Z`) - 86_400_000).toISOString(), new Date(now + 86_400_000).toISOString())
+      .then((r) => { if (!stale) setRows(r); })
+      .catch((e) => { if (!stale) setError(e?.message || "Couldn't load your no-shows."); });
+    return () => { stale = true; };
+  }, [attempt, now, widest.from]);
+  const { from, to } = spanDays(span, day);
+  const report = useMemo(() => (rows ? noShowReport(rows, ZONE, from, to, now) : null), [rows, from, to, now]);
+  const money = (minor: number) => moneyText(minor, SHOP_CURRENCY);
+  const topDay = Math.max(1, ...(report?.weekdays.map((w) => w.count) || [1]));
+  const columns = [
+    { key: "name", header: "Client", lead: true, render: (c: NoShowClient) => <span className="bkg-noshow-who"><strong>{c.name || c.email}</strong>{c.email && c.name ? <small>{c.email}</small> : null}</span> },
+    { key: "count", header: "No-shows", numeric: true, render: (c: NoShowClient) => (c.count >= 2 ? <StatusBadge tone="danger" glyph={false}>{c.count}</StatusBadge> : c.count) },
+    { key: "last", header: "Last one", render: (c: NoShowClient) => dayText(c.lastDay, "long") },
+    { key: "kept", header: "Kept", numeric: true, render: (c: NoShowClient) => (c.keptMinor ? money(c.keptMinor) : "—") },
+  ];
+  return (
+    <section className="bkg-tile bkg-perf" aria-labelledby="bkg-noshows">
+      <div className="bkg-ahead-head">
+        <div>
+          <h2 id="bkg-noshows" className="bkg-figs-title">No-shows <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></h2>
+          <p className="bkg-figs-lead">Booked visits nobody came to, what they cost you and who misses most.</p>
+        </div>
+        <Tabs<PerformanceSpan> label="Which stretch" idPrefix="bkg-noshows-" value={span} onChange={setSpan} tabs={PERFORMANCE_SPANS.map((id) => ({ id, label: SPAN_NAMES[id] }))} />
+      </div>
+      {error ? <ErrorState title="Couldn't load your no-shows" description={error} onRetry={() => setAttempt((n) => n + 1)} />
+        : !report ? <LoadingState label="Counting no-shows…" />
+        : !report.count ? <EmptyState inline title={report.due ? "No no-shows. Lovely." : "No visits to count yet"} description={report.due ? `All ${report.due} booked ${report.due === 1 ? "visit" : "visits"} in this stretch happened.` : "Once clients come in, anyone who misses a booking shows here."} />
+        : (<>
+          <div className="bkg-ahead-nums">
+            <div className="bkg-ahead-num bkg-noshow-lead"><span>No-shows</span><strong>{report.count}</strong><small>{report.percent}% of {report.due} booked {report.due === 1 ? "visit" : "visits"}</small></div>
+            <div className="bkg-ahead-num"><span>Not paid for</span><strong>{money(report.lostMinor)}</strong><small>the price of missed visits</small></div>
+            <div className="bkg-ahead-num"><span>Kept anyway</span><strong>{money(report.keptMinor)}</strong><small>deposits, payments, fees</small></div>
+            <div className="bkg-ahead-num"><span>Repeat clients</span><strong>{report.repeat}</strong><small>missed two or more</small></div>
+          </div>
+          <div className="bkg-noshow-body">
+            <DataTable caption={`Who missed: ${SPAN_NAMES[span].toLowerCase()}`} columns={columns} rows={report.clients.slice(0, 50)} rowKey={(c) => `${c.email}|${c.name}`} stackOnPhone />
+            <div className="bkg-noshow-days">
+              <h3 className="bkg-noshow-sub">Which days</h3>
+              <ul className="bkg-bars">
+                {report.weekdays.map((w) => (
+                  <li key={w.day}><span>{w.day.slice(0, 3)}</span><span className="bkg-bars-track" aria-hidden>{w.count > 0 && <i style={{ width: `${Math.round((w.count / topDay) * 100)}%` }} />}</span><strong>{w.count}</strong></li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <div className="bkg-ahead-foot">
+            <span className="rp-hint">To cut no-shows, ask for a deposit or a card on file in a service, and keep reminders on.</span>
+            <SecondaryButton size="sm" icon={<FileSpreadsheet size={15} aria-hidden />} onClick={() => saveFile(`no-shows-${span}-${day}.csv`, `\uFEFF${toCsv(noShowRows(report))}`, "text/csv;charset=utf-8")}>Spreadsheet</SecondaryButton>
+          </div>
+        </>)}
+    </section>
+  );
 }
 
 /**

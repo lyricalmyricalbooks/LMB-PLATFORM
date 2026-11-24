@@ -1271,6 +1271,11 @@ over `spanDays` (this month / last month / last 3 months): visits that happened,
 does, per visit, minutes of their own part, clients, booked again (the client has a later booking that isn't cancelled,
 with anyone) and no-shows. `performanceRows` is the spreadsheet.
 
+**No-shows (Beta, 24 November 2026, plan 4 step 5.3):** Figures › `NoShowsPanel` (always shown). One read from three
+months back to tomorrow; `noShowReport` over a `spanDays` stretch: confirmed bookings whose time passed (`due`), the
+no-shows among them, `lostMinor` (price less `moneyKept`), `keptMinor`, clients grouped by lower-case email (repeat = 2+),
+weekdays Monday first. `noShowRows` is the spreadsheet.
+
 **Their Google Calendar (Beta, 17 November 2026, B6, `tasks/todo/2026-11-17-team-google-calendars.md`):** a saved
 person's dialog has `PersonGoogle`: op `teamCalendar` steps `status` (Linked / Needs linking again, the account),
 `link` (`send: true` emails it to the person's address; else Copy a link) and `unlink` (asks first). "Coming soon" while
