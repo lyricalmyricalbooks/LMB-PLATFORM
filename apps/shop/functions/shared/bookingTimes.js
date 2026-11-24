@@ -949,6 +949,7 @@ function cleanBookingSettings(raw) {
         ...(s.birthdayEmail === true ? { birthdayEmail: true } : {}),
         ...(exports.MISS_YOU_WEEKS.includes(Number(s.missYouWeeks)) ? { missYouWeeks: Number(s.missYouWeeks) } : {}),
         ...(s.loyalty && typeof s.loyalty === "object" ? { loyalty: (0, loyalty_1.cleanLoyalty)(s.loyalty) } : {}),
+        ...(s.promoTexts === true ? { promoTexts: true } : {}),
         ...(() => { const words = awayText(s.awayWords); return words ? { awayWords: words } : {}; })(),
         ...(() => { const messages = (0, bookingMessages_1.cleanMessages)(s.messages); return Object.keys(messages).length ? { messages } : {}; })(),
         ...(() => { const forms = cleanIntakeForms(s.intakeForms, s.intakeForm); return forms.length ? { intakeForms: forms } : {}; })(),

@@ -532,7 +532,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   const TEAM = new URLSearchParams(window.location.search).get("team") === "1" || new URLSearchParams(window.location.search).has("desk");
   let settings = { ...DEFAULT_BOOKING_SETTINGS, live: mode !== "new", tips: mode === "on", askToConfirm: mode === "on", textReminders: mode === "on", textReplies: mode === "on",
     // Loyalty points (plan 4, 5.5): on in the full sample, with one double-points week.
-    ...(mode === "on" ? { loyalty: { on: true, perDollar: 1, perVisit: 5, onOrders: true, rewardPoints: 100, rewardMinor: 1000, rewardDays: 180, bonusWeeks: [{ from: "2026-12-14", to: "2026-12-20", times: 2 }] } } : {}),
+    ...(mode === "on" ? { promoTexts: true, loyalty: { on: true, perDollar: 1, perVisit: 5, onOrders: true, rewardPoints: 100, rewardMinor: 1000, rewardDays: 180, bonusWeeks: [{ from: "2026-12-14", to: "2026-12-20", times: 2 }] } } : {}),
     // Emails and texts to clients (plan 4, 3.5): the owner changed the confirmation's words.
     ...(mode === "on" ? { awayReply: true, awayWords: "Thanks for writing! We're at the print fair this weekend and back at the studio soon." } : {}),
     ...(mode === "on" ? { messages: { en: { booked: { subject: "You're in, {client}: {service}, {when}", lead: "We can't wait to see you. Come ten minutes early for a cup of tea." } } } } : {}),
@@ -648,6 +648,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     id: id.repeat(40).slice(0, 40), last4: name.slice(0, 2).toUpperCase() + "7Q", serviceId: "riso", serviceName: "Risograph printing session", name, email: `${name.split(" ")[0].toLowerCase()}@example.com`,
     visits: 5, left, status: "active", priceMinor: 18000, currency: "CAD", expiresOn: dayAhead(300), paidAt: at(-20, 10), refundMinor: 0, uses: [], ...extra,
   });
+  const fixturePromos: Array<Record<string, unknown>> = [{ id: "p1", text: "Two openings this Saturday morning. Book online any time.", group: "recent", serviceId: "", at: "2026-11-17T15:00:00.000Z", status: "sent", people: 9, sent: 9, failed: 0, stopped: 0 }];
   const fixturePoints: Record<string, number> = {};
   let packRows: PackRow[] = mode === "on" ? [
     pk("p", "Kai Example", 3), pk("q", "Lea Example", 1), pk("r", "Mo Example", 5, { paidAt: at(-1, 9) }), pk("s", "Ned Example", 2, { expiresOn: dayAhead(9) }),
@@ -769,6 +770,10 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
       const sample = first ? [{ id: "visit_1", kind: "visit", points: 65, at: "2026-11-11T15:00:00.000Z", note: "Cut", code: "" }] : [];
       return { on: loyal?.on === true, points: points % step, earned: points, rewards: Math.floor(points / step), toNext: step - (points % step), rewardPoints: step, rewardMinor: loyal?.rewardMinor || 1000, rows: sample, rewardsSent: 0 };
     }
+    // Promo texts: one sent last week; sending records it (always open in the fixture, whatever the hour).
+    if (op === "promoAudience") return { available: !textsSoon, price: "1.6¢", count: body.group === "recent" ? 9 : body.group === "service" ? 4 : 14, open: true, lastAt: fixturePromos[0]?.at || null, nextAt: null };
+    if (op === "promoSend") { fixturePromos.unshift({ id: `p${fixturePromos.length + 1}`, text: String(body.text || ""), group: String(body.group || "all"), serviceId: String(body.serviceId || ""), at: new Date().toISOString(), status: "sent", people: 14, sent: 13, failed: 0, stopped: 1 }); return { sent: 13, failed: 0, stopped: 1 }; }
+    if (op === "promoHistory") return { promos: fixturePromos };
     if (op === "packClose") { packRows = packRows.map((p) => (p.id === id ? { ...p, status: "closed", refundMinor: Number(body.refundMinor || 0) } : p)); return { ok: true }; }
     if (op === "removeWaiting") { waiting = waiting.filter((w) => w.id !== id); return { ok: true }; }
     if (op === "calendarFeed") return { path: `/calendar/${"c".repeat(48)}.ics` };

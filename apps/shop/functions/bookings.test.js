@@ -25,14 +25,14 @@ function fakeDb() {
   });
   // Only the collection's own documents, never those of a sub-collection under them.
   const list = (c) => [...store.keys()].filter((k) => k.startsWith(`${c}/`) && !k.slice(c.length + 1).includes("/")).map((k) => snapOf(c, k.slice(c.length + 1)));
-  const query = (c, filters = [], n = 1000, by = "") => ({
-    where: (f, op, v) => query(c, [...filters, [f, v, op]], n, by),
-    limit: (m) => query(c, filters, m, by),
-    orderBy: (f) => query(c, filters, n, f),
-    select: () => query(c, filters, n, by),
+  const query = (c, filters = [], n = 1000, by = "", desc = false) => ({
+    where: (f, op, v) => query(c, [...filters, [f, v, op]], n, by, desc),
+    limit: (m) => query(c, filters, m, by, desc),
+    orderBy: (f, dir) => query(c, filters, n, f, dir === "desc"),
+    select: () => query(c, filters, n, by, desc),
     async get() {
       const hits = list(c).filter((d) => filters.every(([f, v, op]) => { const x = f.split(".").reduce((o, k) => o?.[k], d.data()); return op === "in" ? v.includes(x) : op === "<" ? x < v : op === "<=" ? x <= v : op === ">" ? x > v : op === ">=" ? x >= v : x === v; }));
-      if (by) hits.sort((a, b) => String(a.data()[by]).localeCompare(String(b.data()[by])));
+      if (by) hits.sort((a, b) => String(a.data()[by]).localeCompare(String(b.data()[by])) * (desc ? -1 : 1));
       const docs = hits.slice(0, n);
       return { docs, empty: docs.length === 0 };
     },
@@ -761,6 +761,72 @@ describe("text-message reminders", () => {
       expect(t2.db.store.get(`bookings/${near}`).status).toBe("confirmed");
       expect(d.sent.at(-1).body).toMatch(/too close to cancel by text/);
     });
+  });
+});
+
+describe("promo texts (plan 4, 5.6)", () => {
+  const textDoor = ({ answer = null } = {}) => {
+    const sent = [];
+    return { sent, status: async () => ({ available: true, price: "1.6¢" }), send: async (m) => { sent.push(m); return answer ? answer(m) : { ok: true, id: `SM${sent.length}`, parts: 1 }; } };
+  };
+  const turnOn = (t, on = true) => t.db.collection("bookingSettings").doc("main").set({ ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, textReminders: true, promoTexts: on });
+  const book = (t, start, who) => t.pub({ action: "bookingStart", serviceId: "visit", start, ...who });
+  const ADA = { name: "Ada", email: "ada@example.com", phone: "416 555 0199", promoOk: true };
+
+  test("a client's yes is kept only while the owner's switch is on, and the form offers it then", async () => {
+    const t = setup({ texts: textDoor() });
+    await t.seed();
+    await turnOn(t, false);
+    expect((await t.pub({ action: "bookingInfo" })).body.promoTexts).toBeUndefined();
+    const off = await book(t, at("2026-11-18", "10:00"), ADA);
+    expect(t.db.store.get(`bookings/${off.body.id}`).customer.promoOk).toBeUndefined();
+    await turnOn(t);
+    expect((await t.pub({ action: "bookingInfo" })).body.promoTexts).toBe(true);
+    const on = await book(t, at("2026-11-19", "14:00"), ADA);
+    expect(on.statusCode).toBe(200);
+    expect(t.db.store.get(`bookings/${on.body.id}`).customer.promoOk).toBe(true);
+    const noPhone = await book(t, at("2026-11-20", "14:00"), { name: "Bo", email: "bo@example.com", promoOk: true });
+    expect(t.db.store.get(`bookings/${noPhone.body.id}`).customer.promoOk).toBeUndefined();
+  });
+
+  test("one text per person, by day only, at most one promo a day, and STOP takes them off", async () => {
+    const door = textDoor({ answer: (m) => (m.to.includes("0100") ? { ok: false, retryable: false, optedOut: true } : { ok: true, id: "SM1", parts: 1 }) });
+    const t = setup({ texts: door, now: "2026-11-17T12:00:00Z" });
+    await t.seed();
+    await turnOn(t);
+    await book(t, at("2026-11-18", "10:00"), ADA);
+    await book(t, at("2026-11-19", "10:00"), { ...ADA, phone: "+1 (416) 555-0199" });
+    const bo = await book(t, at("2026-11-18", "13:00"), { name: "Bo", email: "bo@example.com", phone: "416 555 0100", promoOk: true });
+    await book(t, at("2026-11-18", "15:00"), { name: "Cy", email: "cy@example.com", phone: "416 555 0111" });
+    const aud = (await t.adm({ op: "promoAudience", group: "all" })).body;
+    expect(aud).toMatchObject({ available: true, count: 2, open: false });
+    const night = await t.adm({ op: "promoSend", group: "all", text: "Openings this Friday afternoon." });
+    expect(night.statusCode).toBe(400);
+    t.clock.now = new Date(Date.parse(at("2026-11-17", "14:00")));
+    expect((await t.adm({ op: "promoSend", group: "all", text: "Hi" })).statusCode).toBe(400);
+    const r = await t.adm({ op: "promoSend", group: "all", text: "Openings this Friday afternoon." });
+    expect(r.statusCode).toBe(200);
+    expect(r.body).toMatchObject({ sent: 1, stopped: 1 });
+    expect(door.sent).toHaveLength(2);
+    expect(door.sent[0].body).toBe("Moth Press: Openings this Friday afternoon. Reply STOP to stop texts.");
+    expect(door.sent.every((m) => m.kind === "booking-promo")).toBe(true);
+    expect(t.db.store.get(`bookings/${bo.body.id}`).customer.promoOk).toBe(false);
+    const again = await t.adm({ op: "promoSend", group: "all", text: "One more thing for you today." });
+    expect(again.statusCode).toBe(409);
+    const hist = (await t.adm({ op: "promoHistory" })).body.promos;
+    expect(hist).toHaveLength(1);
+    expect(hist[0]).toMatchObject({ status: "sent", sent: 1, stopped: 1 });
+  });
+
+  test("nothing goes while the switch is off or texts aren't open", async () => {
+    const t = setup({ texts: textDoor(), now: "2026-11-17T19:00:00Z" });
+    await t.seed();
+    await turnOn(t, false);
+    expect((await t.adm({ op: "promoSend", group: "all", text: "Openings this Friday afternoon." })).statusCode).toBe(400);
+    const closed = setup({ texts: { status: async () => ({ available: false }), send: async () => ({ ok: true }) }, now: "2026-11-17T19:00:00Z" });
+    await closed.seed();
+    await turnOn(closed);
+    expect((await closed.adm({ op: "promoSend", group: "all", text: "Openings this Friday afternoon." })).statusCode).toBe(400);
   });
 });
 

@@ -6,6 +6,7 @@ import { serviceFromText } from "./bookFromMessage";
 import { BookingMessagesTile } from "./BookingMessagesTile";
 import { AwayReplyTile } from "./AwayReplyTile";
 import { LoyaltyTile } from "./LoyaltyTile";
+import { PromoTextsTile } from "./PromoTextsTile";
 import { PastVisitsDialog } from "./PastVisitsDialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BellRing, CalendarOff, CheckCircle2, CircleHelp, CalendarPlus, DoorOpen, UserRound, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, FileSpreadsheet, Hourglass, Mail, MapPin, Plus, Printer, QrCode, Trash2, Video, X } from "lucide-react";
@@ -218,7 +219,7 @@ export function Bookings({ shopName = "" }: { shopName?: string } = {}) {
         </TabPanel>
       )}
       <TabPanel tabId="hours" active={tab === "hours"}>
-        <HoursPanel settings={setup.settings} services={setup.services} saved={setup.saved} onSaved={reloadSetup} active={tab === "hours"} />
+        <HoursPanel settings={setup.settings} services={setup.services} shopName={shopName} saved={setup.saved} onSaved={reloadSetup} active={tab === "hours"} />
       </TabPanel>
 
       {open && <BookingDrawer booking={open} services={setup.services} settings={setup.settings} onClose={() => setOpen(null)} />}
@@ -3015,7 +3016,7 @@ export function ServiceDialog({ service, rooms, groups = [], onClose, onSaved }:
 
 const ORDERED_DAYS = [1, 2, 3, 4, 5, 6, 0];
 
-function HoursPanel({ settings, services, saved, onSaved, active }: { settings: BookingSettings; services: BookingService[]; saved: boolean; onSaved: () => void; active: boolean }) {
+function HoursPanel({ settings, services, shopName, saved, onSaved, active }: { settings: BookingSettings; services: BookingService[]; shopName: string; saved: boolean; onSaved: () => void; active: boolean }) {
   const [form, setForm] = useState<BookingSettings>(settings);
   const [saving, setSaving] = useState(false);
   // The on/off switch lives at the top of the page and saves by itself, so flipping it never throws away hours being edited.
@@ -3087,6 +3088,7 @@ function HoursPanel({ settings, services, saved, onSaved, active }: { settings: 
         </section>
         <AwayReplyTile form={form} zone={ZONE} onChange={(patch) => setForm({ ...form, ...patch })} />
         <TextsTile on={form.textReminders === true} reminders={form.reminderHours > 0 || form.secondReminderHours > 0} replies={form.textReplies === true} onChange={(textReminders) => setForm({ ...form, textReminders })} onReplies={(textReplies) => setForm({ ...form, textReplies })} />
+        <PromoTextsTile on={form.promoTexts === true} services={services} shop={shopName} onChange={(promoTexts) => setForm({ ...form, promoTexts })} />
         <TipsTile tips={form.tips} percents={form.tipPercents} onChange={(tips, tipPercents) => setForm({ ...form, tips, tipPercents })} />
         <ThanksTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
         <KeepInTouchTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />

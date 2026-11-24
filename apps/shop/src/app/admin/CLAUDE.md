@@ -1288,6 +1288,12 @@ typed; saving cleans them). Customers › client card › `ClientPoints` (above 
 and writes op `pointsAdjust` (owner only) with `AdjustDialog`. The admin fixture answers both and turns points on in the full
 sample. The reward email's words are Messages › Points reward (`loyaltyReward`, placeholder `{code}`).
 
+**Promo texts (Beta, 24 November 2026, plan 4 step 5.6):** Hours & rules › `PromoTextsTile` (its own file, after Text
+reminders): the `promoTexts` switch ("Opening soon" while op `textStatus` says texts aren't open), **Send a promo text**
+(`SendDialog`: group from `PROMO_GROUPS`, a service for the service group, the message up to `MAX_PROMO`, a preview through
+the shared `promoBody`, count and cost from op `promoAudience`, sent with op `promoSend`) and the last ten (op
+`promoHistory`). HoursPanel now takes `shopName` for the preview. Fixture: `?page=bookings` (the full sample has it on).
+
 **Their Google Calendar (Beta, 17 November 2026, B6, `tasks/todo/2026-11-17-team-google-calendars.md`):** a saved
 person's dialog has `PersonGoogle`: op `teamCalendar` steps `status` (Linked / Needs linking again, the account),
 `link` (`send: true` emails it to the person's address; else Copy a link) and `unlink` (asks first). "Coming soon" while
