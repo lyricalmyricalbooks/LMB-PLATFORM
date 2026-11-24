@@ -440,6 +440,8 @@ export function Dashboard() {
   const brandWords = wordmarkWords(shopNameFromSettings(settings));
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [catalogRefreshKey, setCatalogRefreshKey] = useState(0);
+  // Round 3, Make a copy: the copy opens with its name selected, ready to type over.
+  const [renameBookId, setRenameBookId] = useState<string | null>(null);
   const [showLogs, setShowLogs] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -710,9 +712,14 @@ export function Dashboard() {
     }
   };
 
-  const handleEditBook = (book: any) => {
+  const handleEditBook = (book: any, opts?: { rename?: boolean }) => {
+    setRenameBookId(opts?.rename ? book.id : null);
     setEditingBook(book);
     setShowEditor(true);
+  };
+  const openCopy = (copy: any) => {
+    setCatalogRefreshKey((prev) => prev + 1);
+    handleEditBook(copy, { rename: true });
   };
   openBookById.current = (id: string) => {
     adminApi.getBook(id)
@@ -1155,6 +1162,8 @@ export function Dashboard() {
                 key={editingBook ? `book-${editingBook.id}` : `new-${newBookRound}`}
                 book={editingBook}
                 onAddAnother={editingBook ? undefined : (start) => { startProduct(start); window.scrollTo({ top: 0 }); }}
+                onOpenCopy={openCopy}
+                renameOnOpen={!!editingBook && renameBookId === editingBook.id}
                 prefill={editingBook ? null : newBookStart?.prefill}
                 onCreated={editingBook ? undefined : newBookStart?.onCreated}
                 onClose={() => setShowEditor(false)}

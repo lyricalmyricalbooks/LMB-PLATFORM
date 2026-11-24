@@ -27,7 +27,7 @@ import {
   Sparkles,
   Undo2,
   Play,
-  Film, Crop } from "lucide-react";
+  Film, Crop, CopyPlus } from "lucide-react";
 import toast from "react-hot-toast";
 import { 
   DndContext, 
@@ -167,6 +167,10 @@ interface BookEditorProps {
   onCreated?: (id: string) => void;
   /** A new product only: after it is saved, start the next one from it (product types plan, change 11). */
   onAddAnother?: (start: Record<string, any>) => void;
+  /** Round 3, Make a copy: open the copy just made (a saved draft). */
+  onOpenCopy?: (copy: any) => void;
+  /** Open with the name selected, ready to type over (a copy just made). */
+  renameOnOpen?: boolean;
 }
 
 const DESC_TOOLS: { action: FormatAction; label: string; Icon: typeof Bold }[] = [
@@ -183,7 +187,7 @@ const DESC_TOOLS: { action: FormatAction; label: string; Icon: typeof Bold }[] =
 // The combined admin (shop + stockroom plan): the book page has a Stock and sales tab from the stockroom.
 const COMBINED_ADMIN = combinedAdmin();
 
-export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, onCreated, onAddAnother }: BookEditorProps) {
+export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, onCreated, onAddAnother, onOpenCopy, renameOnOpen }: BookEditorProps) {
   const { rates } = useCurrency();
   // The record being edited: the opened book, or the new one once a first Save has created it.
   const [book, setBook] = useState<Book | null>(bookProp);
@@ -1285,6 +1289,29 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     { id: "details" as BookTab, label: "Details", count: checklist.filter((c) => !c.ok).length || undefined },
     ...(tabs.some((t) => t.id === "stock") ? [{ id: "stock" as BookTab, label: "Stock and sales" }] : []),
   ];
+  // Round 3, Make a copy: a saved draft with everything but the photos, stock and codes, opened ready to rename.
+  const [copying, setCopying] = useState(false);
+  const makeCopy = async () => {
+    if (!book?.id || !onOpenCopy || copying) return;
+    if (isDirty) { toast.error(w("Save your changes first, so the copy has them too.")); return; }
+    setCopying(true);
+    try {
+      const copy = await adminApi.duplicateBook(book.id);
+      toast.success(bookKind ? "Copy made as a draft. Give it its own name, ISBN, photos and stock." : "Copy made as a draft. Give it its own name, photos and stock.");
+      onOpenCopy(copy);
+    } catch {
+      toast.error("Couldn't make the copy. Check your connection and try again.");
+    } finally { setCopying(false); }
+  };
+  useEffect(() => {
+    if (!renameOnOpen) return;
+    // After the page's own first focus and layout, so nothing moves the caret off the selected name.
+    const timer = window.setTimeout(() => {
+      const input = document.querySelector<HTMLInputElement>('.book-editor-riso input[name="title"]');
+      if (input) { input.focus(); input.select(); }
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [renameOnOpen]);
   const STATUS_WORDS: Record<string, string> = { published: "Published", draft: "Draft", archived: "Archived" };
 
   // Product types plan, change 10: on a new product every part but the essentials is a row with a plain summary.
@@ -1341,6 +1368,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
             <ActionMenu label={w("More for this book")} actions={[
               ...((book.slug || formData.slug) ? [{ label: "Preview page (new tab)", icon: <ExternalLink size={14} aria-hidden />, onSelect: () => { window.open(`${import.meta.env.BASE_URL.replace(/\/$/, "")}${productHref(encodeURIComponent(book.id))}?preview=true`, "_blank", "noreferrer"); } }] : []),
               ...(book.slug ? [{ label: w("Copy link to this book"), icon: <Copy size={14} aria-hidden />, onSelect: () => void copyBookLink() }] : []),
+              ...(onOpenCopy ? [{ label: "Make a copy", icon: <CopyPlus size={14} aria-hidden />, onSelect: () => void makeCopy() }] : []),
               ...(book.slug && book.status === "published" ? [{ label: "Design this page", icon: <Palette size={14} aria-hidden />, onSelect: () => {
                 if (isDirty) { toast.error(w("Save the book first, then design its page in the Design studio.")); return; }
                 window.location.hash = studioHash({ templateId: "productPage", productSlug: book.slug });
@@ -1373,9 +1401,12 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
               )}
               {live && justCreated.slug && (
                 <a className="rp-btn rp-btn-ghost rp-btn-sm" href={`${import.meta.env.BASE_URL.replace(/\/$/, "")}${productHref(justCreated.slug)}`} target="_blank" rel="noreferrer">
-                  View in shop <ExternalLink size={13} aria-hidden />
+                  See it in the shop <ExternalLink size={13} aria-hidden />
                 </a>
               )}
+              {/* Round 3, the done moment: the next steps after a save, in one row. */}
+              {onOpenCopy && <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={copying} onClick={() => void makeCopy()}><CopyPlus size={14} aria-hidden /> Make a copy</button>}
+              <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={onClose}>{w("Back to books")}</button>
               <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => setJustCreated(null)}>Keep editing this one</button>
             </div>
           </div>

@@ -3,21 +3,27 @@
 // filters, exports and drag-to-arrange left with the redesign; each row keeps a ⋯ menu (edit, duplicate, view, post,
 // delete) because nothing else on the page deletes a product. v4 (12 November 2026): tick boxes and a bulk bar with Set
 // as draft. The mockup's Mark sold out is left out: sold out comes from stock counts, which the stockroom owns.
+import { isBookKind, productKind } from "../../shared/productOptions";
 import { isExampleProduct } from "./exampleProducts";
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Upload } from "lucide-react";
+import { Plus, Rows3, Upload } from "lucide-react";
 import "./books.css";
 import { useShopSells, useShopWords } from "./shopWords";
 import { sellsBooks } from "./sells";
 import { compareShopOrder } from "../features/site/shopOrder";
 import { BookImportDialog } from "./BookImportDialog";
+import { AddSeveralDialog } from "./AddSeveralDialog";
+import { useProductGroups } from "./productGroups";
+import { sellsGroups } from "../../shared/productTypes";
+import { draftsWord } from "./addSeveral";
 import { BulkSaleDialog } from "./BulkSaleDialog";
 import { planEndSale } from "./bulkPricing";
 import { adminApi } from "./api";
 import { lowStockThreshold } from "./inventoryInsights";
 import toast from "react-hot-toast";
 import { ActionMenu, PageActions, ConfirmDialog, EmptyState, ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
-import { LOW_STOCK, bookAuthor, bookReferences, draftableOf, bookTiles, listStatus, priceInfo, stockInfo, stockroomCount } from "./catalogList";
+import { LOW_STOCK, bookAuthor, bookReferences, draftableOf, bookTiles, listStatus, priceInfo, publicationState, stockInfo, stockroomCount } from "./catalogList";
+import { attentionReasons } from "./needsAttention";
 import { combinedAdmin } from "./combined";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import type { InventoryLinks } from "./inventoryLink";
@@ -25,7 +31,7 @@ import { productHref } from "../lib/productHref";
 import { stockText } from "../../shared/soldByAmount";
 
 interface BookCatalogProps {
-  onEdit: (book: any) => void;
+  onEdit: (book: any, opts?: { rename?: boolean }) => void;
   onAdd: () => void;
   refreshTrigger?: number;
 }
@@ -52,6 +58,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [severalOpen, setSeveralOpen] = useState(false);
+  const groups = useProductGroups(sellsGroups(sells));
   const [deleting, setDeleting] = useState<any | null>(null);
   /** Rows ticked on the list (v4 bulk bar). */
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
@@ -95,6 +103,11 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   // The storefront's "Featured" order: arranged books first, then newest.
   const rows = useMemo(() => [...books].sort((a, b) => compareShopOrder(a, b) || String(b.createdAt || "").localeCompare(String(a.createdAt || ""))), [books]);
   const tiles = useMemo(() => bookTiles(books, stockOf), [books, stockOf]);
+  // Round 3, "Needs attention": live products shoppers can see with no photo, weight or stock, or a blank legal fact.
+  const reasons = useMemo(() => new Map(books.map((b) => [b.id, attentionReasons(b, stockOf(b), publicationState(b) === "published")])), [books, stockOf]);
+  const attentionCount = books.filter((b) => (reasons.get(b.id) || []).length).length;
+  const [attentionOnly, setAttentionOnly] = useState(false);
+  const shownRows = attentionOnly ? rows.filter((b) => (reasons.get(b.id) || []).length) : rows;
 
   const references = useMemo(() => (deleting ? bookReferences([deleting.id], books) : []), [deleting, books]);
   const referenceText = references.length
@@ -112,16 +125,16 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const duplicate = async (b: any) => {
     try {
       const copy = await adminApi.duplicateBook(b.id);
-      toast.success("Copy created as a draft — add its own ISBN, item code and stock");
+      toast.success(isBookKind(productKind(b)) ? "Copy made as a draft. Give it its own name, ISBN, photos and stock." : "Copy made as a draft. Give it its own name, photos and stock.");
       loadBooks();
-      onEdit(copy);
-    } catch { toast.error("Failed to duplicate"); }
+      onEdit(copy, { rename: true });
+    } catch { toast.error("Couldn't make the copy. Check your connection and try again."); }
   };
 
   const actionsOf = (b: any) => (
     <ActionMenu label={`Actions for ${b.title}`} actions={[
       { label: "Edit", onSelect: () => onEdit(b) },
-      { label: "Duplicate", onSelect: () => duplicate(b) },
+      { label: "Make a copy", onSelect: () => duplicate(b) },
       { label: "View listing", onSelect: () => window.open(listingUrl(b), "_blank", "noopener") },
       // Social posts' composer, started with this product (plan 27.6).
       ...(b.slug ? [{ label: "Post to social", onSelect: () => { window.location.hash = `#social-posts/book/${encodeURIComponent(b.id)}`; } }] : []),
@@ -172,6 +185,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   };
 
   const importDialog = importOpen && <BookImportDialog books={books} onClose={() => setImportOpen(false)} onDone={() => loadBooks()} />;
+  const severalDialog = severalOpen && <AddSeveralDialog groups={groups} onClose={() => { setSeveralOpen(false); void loadBooks(); }}
+    onDone={(made, finished) => { if (!finished) return; setSeveralOpen(false); toast.success(`${draftsWord(made)} added. Finish each one when you're ready.`); setLoading(true); void loadBooks(); }} />;
 
   if (loading) return <LoadingState label={w("Loading books…")} />;
   if (failed) return <ErrorState description={w("Your books could not be loaded.")} onRetry={() => { setLoading(true); loadBooks(); }} />;
@@ -182,6 +197,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         <EmptyState sketch="cards" icon="📚" title={w("No books yet")} description={w("Add your first title to start selling — it shows on your website as soon as it's published.")}
           action={<div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
             <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>{w("Add book")}</PrimaryButton>
+            <SecondaryButton icon={<Rows3 size={16} aria-hidden />} onClick={() => setSeveralOpen(true)}>{w("Add several books")}</SecondaryButton>
             <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setImportOpen(true)}>Import spreadsheet</SecondaryButton>
             <SecondaryButton onClick={async () => {
               try { await adminApi.addExampleProducts(sells); toast.success("Example products added. They disappear when you add your first real product."); setLoading(true); await loadBooks(); }
@@ -189,6 +205,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
             }}>Show example products</SecondaryButton>
           </div>} />
         {importDialog}
+        {severalDialog}
       </SectionCard>
     );
   }
@@ -197,14 +214,15 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     <div className="bk-tile" data-tone={value > 0 ? tone : undefined}><span>{label}</span><strong>{value}</strong></div>
   );
 
-  const tickedHere = rows.filter((b) => picked.has(b.id)).length;
-  const allTicked = rows.length > 0 && tickedHere === rows.length;
+  const tickedHere = shownRows.filter((b) => picked.has(b.id)).length;
+  const allTicked = shownRows.length > 0 && tickedHere === shownRows.length;
   const tick = (id: string, on: boolean) => setPicked((p) => { const next = new Set(p); if (on) next.add(id); else next.delete(id); return next; });
 
   return (
     <div className="bk-list-page">
       <PageActions>
         <SecondaryButton onClick={() => setImportOpen(true)}>Import</SecondaryButton>
+        <SecondaryButton onClick={() => setSeveralOpen(true)}>Add several</SecondaryButton>
         <PrimaryButton onClick={onAdd}>{w("Add book")}</PrimaryButton>
       </PageActions>
       <div className="bk-tiles">
@@ -214,6 +232,14 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         {tile("Sold out", tiles.soldOut, "out")}
       </div>
       {books.some(isExampleProduct) && <p className="rp-hint" role="status" style={{ margin: 0 }}>Some of these are examples so your shop isn't empty. They disappear when you add your first real product.</p>}
+      {(attentionCount > 0 || attentionOnly) && (
+        <div className="bk-views" role="group" aria-label={w("Which books to show")}>
+          <button type="button" className="bk-view" aria-pressed={!attentionOnly} onClick={() => setAttentionOnly(false)}>All <span>{books.length}</span></button>
+          <button type="button" className="bk-view" data-tone="attention" aria-pressed={attentionOnly} onClick={() => setAttentionOnly(true)}>Needs attention <span>{attentionCount}</span></button>
+          {attentionOnly && <p className="bk-views-note">{w("Live books shoppers can see that are missing a photo, a weight, stock or a fact the law asks for.")}</p>}
+        </div>
+      )}
+      {attentionOnly && attentionCount === 0 && <p className="rp-hint" role="status" style={{ margin: 0 }}>Nothing needs attention now.</p>}
       <div className="bk-table-card">
         {picked.size > 0 && (
           <div className="bk-bulk" role="region" aria-label={w("Selected books")}>
@@ -229,7 +255,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
           <thead><tr>
             <th scope="col" className="bk-check"><input type="checkbox" aria-label={w("Select every book")} checked={allTicked}
               ref={(el) => { if (el) el.indeterminate = tickedHere > 0 && !allTicked; }}
-              onChange={(e) => setPicked(e.target.checked ? new Set(rows.map((b) => b.id)) : new Set())} /></th>
+              onChange={(e) => setPicked(e.target.checked ? new Set(shownRows.map((b) => b.id)) : new Set())} /></th>
             <th scope="col">{w("Book")}</th>
             <th scope="col" className="bk-wide">{sellsBooks(sells) ? "Format · ISBN" : "Format · item code"}</th>
             <th scope="col" className="bk-num bk-wide">Price</th>
@@ -239,7 +265,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
             <th scope="col"><span className="rp-sr-only">Actions</span></th>
           </tr></thead>
           <tbody>
-            {rows.map((b, i) => {
+            {shownRows.map((b, i) => {
               const stock = stockOf(b);
               const st = listStatus(b, stock);
               const photo = b.photoUrl || b.photos?.[0]?.url;
@@ -255,6 +281,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
                       <span className="bk-list-who">
                         <button type="button" className="bk-list-title" onClick={(e) => { e.stopPropagation(); onEdit(b); }}>{b.title || "Untitled"}</button>
                         {by && <span className="bk-list-sub">{by}</span>}
+                        {attentionOnly && (reasons.get(b.id) || []).length > 0 && <span className="bk-list-why">{(reasons.get(b.id) || []).join(" · ")}</span>}
                       </span>
                     </span>
                   </td>
@@ -271,6 +298,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         </table>
       </div>
       {importDialog}
+      {severalDialog}
       {saleOpen && <BulkSaleDialog books={books.filter((b) => picked.has(b.id))} onClose={() => setSaleOpen(false)}
         onSave={async (changes) => { await savePatches(changes, (n) => `${n} put on sale.`); setSaleOpen(false); }} />}
       <ConfirmDialog open={!!deleting} title="Delete this title?" confirmLabel="Delete title"
