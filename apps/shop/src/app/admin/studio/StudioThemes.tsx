@@ -13,6 +13,7 @@ import type { SavedTheme } from "./savedThemes";
 import { themedDesign } from "./themeLook";
 import { filterLooks, LOOK_FILTERS, type LookFilter } from "../lookGallery";
 import { THEME_LIBRARY } from "./themeLibrary";
+import { styledName, withStyle, type StarterStyle } from "./starterStyles";
 import { switchSummary, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
 
 const COLOR = /^(#[0-9a-f]{3,8}|rgba?\(.*\))$/i;
@@ -193,6 +194,10 @@ type Props = {
   /** Starters the control room marked New (platform/starters). */
   newStarterIds?: readonly string[];
   onTryStarter?: (preset: any) => void;
+  /** A starter's named styles this shop is offered (lookGallery `offeredStyles`), its own first; none for a plain look. */
+  stylesOf?: (id: string) => StarterStyle[];
+  /** The style the current starter was applied in (themeBase.style). */
+  currentStyleId?: string;
   /** The last switch to a ready-made look (themeSwitch.ts), or null. */
   switchReport?: ThemeSwitchReport | null;
   onBringBack?: (items: SwitchItem[]) => void;
@@ -222,6 +227,8 @@ export function StudioThemes(p: Props) {
   const [links, setLinks] = useState<PreviewLink[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [feel, setFeel] = useState<LookFilter>("all");
+  // The style picked on each starter card (starter id → style id); the card's drawing and buttons follow it.
+  const [picked, setPicked] = useState<Record<string, string>>({});
   const [unavailable, setUnavailable] = useState(false);
   // The list couldn't be read (not a rules problem): say so with Retry instead of showing no links.
   const [linksFailed, setLinksFailed] = useState(false);
@@ -350,25 +357,44 @@ export function StudioThemes(p: Props) {
           ))}
         </div>
         <div className="studio-theme-grid">
-          {filterLooks(p.presets as any[], feel).map((preset: any) => {
+          {filterLooks(p.presets as any[], feel).map((base: any) => {
+            const styles = p.stylesOf?.(base.id) || [];
+            const ownStyle = p.currentPresetId === base.id ? p.currentStyleId : undefined;
+            const styleId = picked[base.id] ?? ownStyle ?? styles[0]?.id;
+            const preset = styles.length ? withStyle(base, styleId) : base;
+            const name = styledName(preset);
+            const isCurrent = p.currentPresetId === base.id && (styleId || "") === (ownStyle || styles[0]?.id || "");
             // Exactly what Use this look would write (palette colours included), so the drawing and Preview match it.
             const look = themedDesign(preset, p.design);
             return (
               <article key={preset.id} className="studio-theme-card" data-theme-card={`preset:${preset.id}`}>
-                {thumb(`preset:${preset.id}`, preset.name, look)}
+                {thumb(`preset:${preset.id}`, name, look)}
                 <div>
-                  <strong>{preset.name}</strong> {p.currentPresetId === preset.id && <StatusBadge tone="success">Current</StatusBadge>}
+                  <strong>{name}</strong> {isCurrent && <StatusBadge tone="success">Current</StatusBadge>}
                   {p.currentPresetId !== preset.id && p.newStarterIds?.includes(preset.id) && <span data-new-starter><StatusBadge tone="info">New</StatusBadge></span>}
                   {preset.mood && <small>{w(preset.mood)}</small>}
                   {hasPresetContent(preset) && <small data-preset-content>Comes with: {presetContentLabel(preset)}</small>}
+                  {styles.length > 1 && (
+                    <div className="studio-starter-styles" role="radiogroup" aria-label={`Styles of ${base.name}`} data-starter-styles={base.id}>
+                      {styles.map((s) => (
+                        <button key={s.id} type="button" role="radio" aria-checked={s.id === styleId} data-starter-style={`${base.id}/${s.id}`}
+                          className="studio-starter-style" onClick={() => setPicked((all) => ({ ...all, [base.id]: s.id }))}>
+                          <span className="studio-starter-style-swatch" aria-hidden="true">
+                            {s.swatches.map((c, i) => <span key={i} style={{ background: c }} />)}
+                          </span>
+                          {s.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <div className="studio-theme-actions">
                     {p.onTryStarter && p.starterIds?.includes(preset.id) ? <>
                       <PrimaryButton size="sm" data-try-starter={preset.id} onClick={() => p.onTryStarter!(preset)}>Try this starter</PrimaryButton>
-                      {previewButton(`preset:${preset.id}`, preset.name, look)}
+                      {previewButton(`preset:${preset.id}`, name, look)}
                       <SecondaryButton size="sm" onClick={() => p.onApplyPreset(preset)}>Use only its look</SecondaryButton>
                     </> : <>
                       <PrimaryButton size="sm" onClick={() => p.onApplyPreset(preset)}>Use this look</PrimaryButton>
-                      {previewButton(`preset:${preset.id}`, preset.name, look)}
+                      {previewButton(`preset:${preset.id}`, name, look)}
                     </>}
                   </div>
                 </div>

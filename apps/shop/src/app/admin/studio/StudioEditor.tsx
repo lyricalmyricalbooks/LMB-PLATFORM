@@ -42,10 +42,11 @@ import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, sampleSectionsLeft, starterSampleBooks, wordedSettings } from "./presetContent";
 import { applyStarter, starterForShop } from "./starterDesign";
+import { styledName } from "./starterStyles";
 import { useCatalogWords, useShopSells, useShopWords } from "../shopWords";
 import { starterPhotos } from "./starterPhotos";
 import { applyThemeKeysToSurfaces } from "../themeScope";
-import { STARTER_SITES, builtLooks, libraryLook, newStarters, offeredStarters, ownBooks, pressNameOf } from "../lookGallery";
+import { STARTER_SITES, builtLooks, libraryLook, newStarters, offeredStarters, offeredStyles, ownBooks, pressNameOf } from "../lookGallery";
 import { usePlatformStarters } from "../platformStarters";
 import { applyLook, bringBack, ownEdits, resetToLook, switchSummary, themeSwitchReport, updateLookKeepingEdits, updatedTheme, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
 import { importedThemeProblems } from "./themeCheck";
@@ -881,11 +882,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
    */
   const tryStarter = async (theme: any) => {
     setThemePreview(null);
-    const keptName = keptDesignName(savedThemes, theme.name);
+    const name = styledName(theme);
+    const keptName = keptDesignName(savedThemes, name);
     const problem = savedThemeLimitProblem(savedThemes, keptName);
     if (problem) { say("err", `${problem} Studio keeps your current design there before trying a starter.`); return; }
     if (!(await persistThemes(addSavedTheme(savedThemes, keptName, designRef.current), null))) return;
-    change((d) => applyStarter(d, starterForShop(theme, shopSells), getSectionMeta, shopWords, starterPhotos(shopSells)), { label: `Try “${theme.name}”` });
+    change((d) => applyStarter(d, starterForShop(theme, shopSells), getSectionMeta, shopWords, starterPhotos(shopSells)), { label: `Try “${name}”` });
     setSwitchReport(null);
     setTemplateId("heroPage"); setShowGlobal(false);
     let added = 0;
@@ -896,11 +898,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         added++;
       }
     } catch (err: any) {
-      say("err", `“${theme.name}” is in your draft, but ${friendlyError(err, "add its starter pages").replace(/^./, (c) => c.toLowerCase())}`);
+      say("err", `“${name}” is in your draft, but ${friendlyError(err, "add its starter pages").replace(/^./, (c) => c.toLowerCase())}`);
       return;
     }
     const pagesNote = added ? ` ${added} draft page${added === 1 ? "" : "s"} added under Pages.` : "";
-    say("ok", `Trying “${theme.name}” in your draft. Your design before it is saved in My themes as “${keptName}”.${pagesNote} Your shop doesn't change until you Publish.`, undoAction());
+    say("ok", `Trying “${name}” in your draft. Your design before it is saved in My themes as “${keptName}”.${pagesNote} Your shop doesn't change until you Publish.`, undoAction());
   };
   /** Saving or renaming onto another theme's name replaces that theme: ask first. */
   const confirmThemeName = async (name: string, exceptId?: string) => {
@@ -2718,6 +2720,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 onDelete={t => { void askConfirm({ title: "Delete saved theme?", message: `“${t.name}” will be removed from My themes. This can't be undone.`, confirmLabel: "Delete theme" }).then(ok => { if (ok) persistThemes(removeSavedTheme(savedThemes, t.id), "Theme deleted."); }); }}
                 onApplyPreset={preset => { setThemePreview(null); applyLibraryTheme(preset); }}
                 starterIds={offeredStarters(starterChoice)} newStarterIds={newStarters(starterChoice)} onTryStarter={preset => { void tryStarter(preset); }}
+                stylesOf={id => offeredStyles(id, starterChoice)} currentStyleId={design.themeBase?.style}
                 switchReport={switchReport && design.themeLibraryPreset === switchReport.themeId ? switchReport : null}
                 onBringBack={bringBackEdits} onDismissSwitch={() => setSwitchReport(null)}
                 ownEdits={ownEditsList} updatedTheme={updatedTheme(design)} onResetEdits={resetOwnEdits} onUpdateLook={updateOwnLook}

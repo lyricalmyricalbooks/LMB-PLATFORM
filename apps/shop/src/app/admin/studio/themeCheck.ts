@@ -20,7 +20,8 @@ import { STYLE_GROUPS } from "./styleSchema";
 import { PALETTES, THEME_APPLIED_KEYS } from "./themeLibrary";
 
 /** Keys that describe the theme rather than set the shop. */
-export const THEME_META_KEYS = ["id", "name", "mood", "global", "homeLayoutTemplate", "palettePreset", "content"];
+// styleId / styleName: the named style a starter is in (starterStyles.ts); checkId only names a style in the tests.
+export const THEME_META_KEYS = ["id", "name", "mood", "global", "homeLayoutTemplate", "palettePreset", "content", "styleId", "styleName", "checkId"];
 /** Older keys some themes still carry; the shop never reads them and Apply doesn't copy them. */
 export const THEME_LEGACY_KEYS = ["fontSize", "cornerStyle", "animationLevel"];
 

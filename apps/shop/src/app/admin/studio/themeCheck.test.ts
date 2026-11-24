@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { themeProblems } from "./themeCheck";
 import { THEME_LIBRARY } from "./themeLibrary";
+import { STYLED_LOOKS } from "./starterStyles";
 
 // Plan 1.24: a theme only uses settings that have a Studio control. Every theme in the library is checked, so a new
 // theme file fails here until each setting it carries can be changed in Studio afterwards.
 describe("the theme check", () => {
-  it.each((THEME_LIBRARY as any[]).map(t => [t.id, t] as const))("%s only uses settings Studio can change", (_id, theme) => {
+  it.each([...(THEME_LIBRARY as any[]), ...STYLED_LOOKS].map(t => [t.checkId || t.id, t] as const))("%s only uses settings Studio can change", (_id, theme) => {
     expect(themeProblems(theme)).toEqual([]);
   });
 

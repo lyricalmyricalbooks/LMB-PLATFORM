@@ -557,6 +557,12 @@
 .studio-switch-kept > button { margin-top: 6px; }
 .studio-switch-kept summary { cursor: pointer; font-size: 12px; font-weight: 700; min-height: 32px; display: flex; align-items: center; }
 .studio-theme-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
+.studio-starter-styles { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 2px; }
+.studio-starter-style { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 10px 4px 5px; font: inherit; font-size: 12px; font-weight: 600; color: var(--rp-text); background: var(--rp-surface); border: 1px solid var(--rp-border); border-radius: 999px; cursor: pointer; }
+.studio-starter-style:hover { border-color: var(--rp-border-strong); }
+.studio-starter-style[aria-checked=true] { border-color: var(--rp-text); box-shadow: inset 0 0 0 1px var(--rp-text); font-weight: 800; }
+.studio-starter-style-swatch { display: inline-flex; border-radius: 999px; overflow: hidden; border: 1px solid var(--rp-border-strong); }
+.studio-starter-style-swatch > span { display: block; width: 10px; height: 20px; }
 .studio-theme-thumb { position: relative; height: 72px; overflow: hidden; border: 1px solid var(--rp-border-strong); padding: 6px; display: grid; align-content: start; gap: 2px; }
 .studio-theme-thumb > span:first-child { font-size: 18px; font-weight: 800; line-height: 1; }
 .studio-theme-thumb > span.studio-theme-thumb-name { font-size: 10px; line-height: 1.1; display: flex; align-items: flex-start; gap: 3px; min-width: 0; max-width: calc(100% - 26px); overflow: hidden; }

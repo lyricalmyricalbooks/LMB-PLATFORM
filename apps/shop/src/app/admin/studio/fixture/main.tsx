@@ -11,6 +11,7 @@ import { parseStudioLocation } from "../../../lib/studioLocation";
 import { setAiTransport } from "../../aiWriter";
 import { applyAdminLook } from "../../riso/adminLook";
 import { startersData } from "../../platformStarters";
+import { STARTER_SITES } from "../../lookGallery";
 import { ShopSellsContext, ShopWordsContext } from "../../shopWords";
 import { wordsFor } from "../../../../shared/shopSells";
 
@@ -31,7 +32,10 @@ const fixture = createStudioFixture({
 {
   const listed = (new URLSearchParams(location.search).get("starters") || "").split(",").filter(Boolean);
   const order = listed.map((id) => id.replace(/\*$/, ""));
-  const choice = listed.length ? { order, hidden: [], fresh: listed.filter((id) => id.endsWith("*")).map((id) => id.slice(0, -1)), known: order } : null;
+  // `?hiddenStyles=aurel-editorial/sand` hides that style, as the control room's switch does.
+  const hiddenStyles = (new URLSearchParams(location.search).get("hiddenStyles") || "").split(",").filter(Boolean);
+  const choice = listed.length ? { order, hidden: [], fresh: listed.filter((id) => id.endsWith("*")).map((id) => id.slice(0, -1)), known: order, hiddenStyles }
+    : hiddenStyles.length ? { order: STARTER_SITES, hidden: [], fresh: [], known: STARTER_SITES, hiddenStyles } : null;
   startersData.watch = (onChange) => { onChange(choice); return () => {}; };
 }
 if (new URLSearchParams(location.search).has("bookings")) fixture.settings.bookingsLive = true;

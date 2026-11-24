@@ -687,7 +687,7 @@ export const THEME_LIBRARY = [
       sections: {
         heroPage: [
           { type: "PhotoOpeningSection", settings: { eyebrow: "New season \u00b7 01", title: "Your big\nheadline.", body: "Say what makes your shop special in a sentence or two.", ctaText: "Explore the collection", ctaUrl: "/collections/all", imageUrl: "/starters/slow-season/hero.jpg", imageAlt: "Your opening photo", captionLeft: "Your season", captionRight: "A short caption" } },
-          { type: "BigIntroSection", settings: { eyebrow: "Look 01 / 03", title: "Your\ncollection", body: "Introduce this season or collection in a few lines: what it is, who it's for and why it's worth a look.", bgColor: "#f2eddf" } },
+          { type: "BigIntroSection", settings: { eyebrow: "Look 01 / 03", title: "Your\nseason", body: "Introduce this season or collection in a few lines: what it is, who it's for and why it's worth a look.", bgColor: "#f2eddf" } },
           { type: "FeatureDuoSection", settings: { number: "01", imageUrl: "/starters/slow-season/book.jpg", imageAlt: "Your featured product", detail: "A short detail about this product", buttonText: "Add \u00b7 $00", buttonUrl: "/collections/all", leftBgColor: "#bd5238", kicker: "What we believe", quote: "\u201cA short line that sums up your shop.\u201d", rightBgColor: "#87977f", accentFont: "Instrument Serif", sideImageUrl: "/starters/slow-season/still-life.jpg" } },
           { type: "ProductShowcaseGridSection", settings: { eyebrow: "Featured", title: "Shop the collection", columnsDesktop: 4, columnsMobile: 2, showQuickAdd: true, showCategoryTag: false, grainOpacity: 0 } },
           { type: "StoryOrbitSection", settings: { eyebrow: "Our approach", title: "Your story,\ntold", accentWord: "well.", body: "Share who you are, how your products are made and why you started. A few warm lines help shoppers trust a new shop.", ctaText: "Read our story", ctaUrl: "/page/about", colorSchemeId: "scheme-inverse", bgColor: "#2d392e", accentColor: "#dbe568", accentFont: "Instrument Serif" } },
@@ -696,7 +696,7 @@ export const THEME_LIBRARY = [
       },
       productBlocks: [{ type: "tag" }, { type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
-    global: { themeStyle: "slowseason", logoPosition: "left", headerLayout: "modern", announcementScrolling: false, backgroundColor: "#f9f7f0", textColor: "#151613", primaryColor: "#bd5238", secondaryColor: "#f2eddf", surfaceColor: "#ede9de",
+    global: { themeStyle: "slowseason", logoPosition: "left", navCentred: true, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 13, navLinkSpacing: 0, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "modern", announcementScrolling: false, backgroundColor: "#f9f7f0", textColor: "#151613", primaryColor: "#bd5238", secondaryColor: "#f2eddf", surfaceColor: "#ede9de",
       mutedTextColor: "#55564f", borderColor: "#d6d3ca", headingFont: "Syne", bodyFont: "DM Sans", headingWeight: 600, lineHeight: 1.6,
       buttonColor: "#151613", buttonTextColor: "#f9f7f0", buttonHoverBgColor: "#bd5238", buttonHoverTextColor: "#ffffff", buttonRadius: 0, buttonUppercase: true,
       headerBg: "#f9f7f0", headerColor: "#151613", footerBg: "#151613", footerTextColor: "#f9f7f0", footerHeadingColor: "#f9f7f0",
@@ -719,14 +719,14 @@ export const THEME_LIBRARY = [
       sections: {
         heroPage: [
           { type: "SplitOpeningSection", settings: { eyebrow: "A short line about your shop", title: "Your headline,", accentWord: "in a few words.", body: "Say what you sell and what makes it special in a sentence or two.", imageUrl: "/starters/catalogue/still-life.jpg", imageAlt: "Your opening photo", layout: "image-right", ctaText: "Enter the collection", ctaUrl: "/collections/all", captionText: "A short caption\nNo. 01" } },
-          { type: "MarqueeSection", settings: { text: "Your first message  \u25cf  A second short line  \u25cf  Something shoppers should know", separator: "\u25cf", colorSchemeId: "scheme-inverse", fontSize: 10, speed: 40, uppercase: true, bold: false, letterSpacing: 0.14 } },
+          { type: "MarqueeSection", settings: { text: "Your first message \u25cf A second short line \u25cf Something shoppers should know", separator: "\u25cf", still: true, colorSchemeId: "scheme-inverse", fontSize: 10, speed: 40, uppercase: true, bold: false, letterSpacing: 0.14 } },
           { type: "ProductShowcaseGridSection", settings: { eyebrow: "The collection", title: "Everything in the shop", columnsDesktop: 3, columnsMobile: 2, imageAspectRatio: "1:1", showCategoryTag: false, showQuickAdd: true, grainOpacity: 0 } },
         ],
         globalSections: [{ type: "NewsletterSection", settings: { title: "Join our letter", description: "Tell shoppers what you send and how often.", align: "center", colorSchemeId: "scheme-accent" } }],
       },
       productBlocks: [{ type: "tag" }, { type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
-    global: { themeStyle: "catalogue", logoPosition: "left", headerLayout: "modern", announcementScrolling: false, backgroundColor: "#f2f0e8", textColor: "#161815", primaryColor: "#c4401f", secondaryColor: "#d8ff43", warningColor: "#e34f2a", surfaceColor: "#dfddd4",
+    global: { themeStyle: "catalogue", logoPosition: "left", navCentred: true, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 13, navLinkSpacing: 0, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "modern", announcementScrolling: false, backgroundColor: "#f2f0e8", textColor: "#161815", primaryColor: "#c4401f", secondaryColor: "#d8ff43", warningColor: "#e34f2a", surfaceColor: "#dfddd4",
       mutedTextColor: "#55554f", borderColor: "#b9b8af", headingFont: "Newsreader", bodyFont: "Manrope", headingWeight: 400, lineHeight: 1.5,
       buttonColor: "#161815", buttonTextColor: "#f2f0e8", buttonHoverBgColor: "#d8ff43", buttonHoverTextColor: "#161815", buttonRadius: 0, buttonUppercase: false,
       headerBg: "#f2f0e8", headerColor: "#161815", footerBg: "#161815", footerTextColor: "#f2f0e8", footerHeadingColor: "#d8ff43", showAnnouncement: false,
@@ -749,7 +749,7 @@ export const THEME_LIBRARY = [
       sections: {
         heroPage: [
           { type: "SplitOpeningSection", settings: { eyebrow: "New season \u2014 Your collection", title: "Your headline,", accentWord: "in style.", body: "Say what makes your shop special in a sentence or two.", imageUrl: "/starters/aurel/arc-bag.jpg", imageAlt: "Your featured product", layout: "image-right", ctaText: "Explore the collection", ctaUrl: "/collections/all", captionNumber: "01", captionText: "Your featured product\nShort detail \u00b7 price", plusUrl: "/collections/all", plusLabel: "View the featured product" } },
-          { type: "MarqueeSection", settings: { text: "Your first message  \u2726  A second short line  \u2726  Something shoppers should know", fontSize: 12, speed: 40, uppercase: true, bold: false, letterSpacing: 0.12 } },
+          { type: "MarqueeSection", settings: { text: "Your first message \u2726 A second short line \u2726 Something shoppers should know", separator: "\u2726", still: true, fontSize: 10, speed: 40, uppercase: true, bold: false, letterSpacing: 0.12 } },
           { type: "ProductShowcaseGridSection", settings: { eyebrow: "Featured", title: "Shop the collection", columnsDesktop: 3, columnsMobile: 2, imageAspectRatio: "4:5", showCategoryTag: false, showQuickAdd: true, grainOpacity: 0 } },
           { type: "ImageWithTextSection", settings: { eyebrow: "About us", title: "Tell your story", body: "Share who you are, how your products are made and why you started. A few warm lines help shoppers trust a new shop.", imageUrl: "/starters/aurel/atelier.jpg", imageAlt: "Your studio or workshop", layout: "image-left" } },
         ],

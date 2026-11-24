@@ -27,6 +27,7 @@ const { CurrencyProvider } = await import("../../CurrencyContext");
 const { CartProvider } = await import("../../CartContext");
 const { SECTION_REGISTRY } = await import("../ThemeEditorExtensions");
 const { THEME_LIBRARY } = await import("./themeLibrary");
+const { STYLED_LOOKS } = await import("./starterStyles");
 const { presetSections } = await import("./presetContent");
 const { defaultSettings } = await import("../defaultSettings");
 const { BUILT_IN_BLOCKS, CUSTOM_BLOCKS } = await import("../../features/site/productBlocks");
@@ -41,7 +42,7 @@ const BOOKS = [
 ];
 
 const BASE = defaultSettings().design;
-const THEMES: any[] = [{ id: "starting-look", name: "The starting look" }, ...(THEME_LIBRARY as any[])];
+const THEMES: any[] = [{ id: "starting-look", name: "The starting look" }, ...(THEME_LIBRARY as any[]), ...STYLED_LOOKS];
 const designFor = (theme: any) => (theme.id === "starting-look" ? BASE : themedDesign(theme, BASE));
 
 function renderSections(sections: any[], design: any): HTMLElement {

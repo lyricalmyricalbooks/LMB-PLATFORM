@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FONT_CHOICES } from "../../features/site/fonts";
 import { THEME_LIBRARY } from "./themeLibrary";
+import { STYLED_LOOKS } from "./starterStyles";
 
 // A look's font that the pickers don't list showed as "Default (not set)" in Essentials and Style after Use
 // this look (Marquee's Big Shoulders Display, 13 November 2026), and was loaded in two weights only, so its heavy
@@ -8,7 +9,7 @@ import { THEME_LIBRARY } from "./themeLibrary";
 const fonts = new Map(FONT_CHOICES.map(f => [f.name, f.weights]));
 
 describe("every ready-made look's fonts", () => {
-  for (const theme of THEME_LIBRARY as any[]) {
+  for (const theme of [...(THEME_LIBRARY as any[]), ...STYLED_LOOKS]) {
     const g = theme.global || {};
     // `font` (Theme font) is a typed-in control, so it may name any family; the two pickers may not.
     const used: [string, string | undefined, number | undefined][] = [

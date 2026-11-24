@@ -533,6 +533,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "navLinkSpacing", label: "Link letter spacing", kind: "range", defaultValue: 0.22, min: 0, max: 0.6, step: 0.02, suffix: "em" },
       { key: "navLinkActiveColor", label: "Current page link color (empty = link hover color)", kind: "color" },
       { key: "navLinkOpacity", label: "Inactive link brightness", kind: "range", defaultValue: 0.6, min: 0.1, max: 1, step: 0.05 },
+      { key: "navCentred", label: "Links in the middle (logo on the left)", kind: "toggle", defaultValue: false },
       { key: "navPlacement", label: "Category bar position", kind: "select", options: [{ value: "auto", label: "Auto (own row when it doesn’t fit)" }, { value: "inline", label: "Always beside logo" }, { value: "below", label: "Always full-width row below" }] },
       { key: "navGap", label: "Space between links (the category bar uses Shop page masthead & covers › Space between category links when that is set)", kind: "range", defaultValue: 28, min: 4, max: 64, step: 1, suffix: "px" },
       { key: "navLineMode", label: "When links don’t fit on one line", kind: "select", options: [{ value: "fit", label: "Shrink to fit on one line" }, { value: "scroll", label: "One line, scroll sideways" }, { value: "wrap", label: "Wrap onto a second line" }] },

@@ -38,9 +38,23 @@ about 2 to 3 days per starter. Existing shops are never changed by a new starter
 - If the control room has saved a starter choice, the new starter waits there as "new, waiting for you", hidden from
   shops. That gives the owner a yes before it is listed.
 
+## 4b. Make its three styles (about half a day)
+Every starter comes in three named styles: the same layout with its own colours and fonts (Aurel Cobalt, Aurel Sand,
+Aurel Night). Shops see them as swatches on the starter's card in Studio › Themes.
+- Add the starter to `STARTER_STYLES` in `admin/studio/starterStyles.ts`. The first style is the starter as it ships
+  (only `id`, `name` and `swatches`). Give the other two a `global` (use the `palette({...})` helper so every colour the
+  look sets is covered: page, words, accent, raised boxes, logo, bag, footer, picture tint) and, for bands with their
+  own colour, a `sections` patch by section type. Pick names that say the feel (Sand, Sage, Night), not numbers.
+- Fonts come from `FONT_CHOICES` in listed weights. A dark style sets `overlay: "#000000"` so words over pictures stay
+  readable, and switches bands that flip to a light colour scheme (`scheme-inverse`) to `scheme-default`.
+- Add the same ids and names to the starter's `styles` in `control-room/starterSites.js` (its test compares them), so
+  the owner can hide a style under Starter websites › Styles.
+- The theme checks run every style (`STYLED_LOOKS`, id `starter/style`); fix the colour, never loosen a check.
+- Screenshot each style in Studio (pick the swatch, then Try this starter) at desktop and phone.
+
 ## 5. Check
 - Tests: `starterDesign.test.ts`, `themeCheck.test.ts`, `themeReadability.test.tsx`, `templateCoverage.test.ts`,
-  `themeFonts.test.ts`, `neutralStarters.test.ts`, `sectionDesigns.test.ts`, `starterSamples.test.ts`, and root
+  `themeFonts.test.ts`, `starterStyles.test.ts`, `neutralStarters.test.ts`, `sectionDesigns.test.ts`, `starterSamples.test.ts`, and root
   `control-room/starterSites.test.js`.
 - Every starter on every shop type: `scripts/studio-e2e.mjs` reads `STARTER_SITES` and tries each one in Studio as a
   bookshop, a clothing shop and a salon (`?sells=`), at desktop and phone. It fails when the look is unstyled, the page
