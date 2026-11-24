@@ -102,6 +102,7 @@ export const ARTICLES = Object.freeze([
       "Bookings › Figures › Coming up shows the next 30, 60 or 90 days: bookings, what they're worth, what's paid and what's left to take. Save it as a spreadsheet.",
       "Bookings › Figures › How your team did shows each person's visits, takings, hours and how many of their clients booked again, for this month or longer.",
       "Bookings › Figures › No-shows shows who missed a booking, what it cost and which days it happens. Clients who miss twice or more are marked.",
+      "Bookings › Hours & rules › Keep in touch sends a welcome after a first visit, a birthday note and a \"we miss you\" email. Clients who unsubscribed get none.",
     ],
   },
   {

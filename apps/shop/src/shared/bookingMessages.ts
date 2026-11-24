@@ -13,7 +13,7 @@ export type MessageLanguage = "en" | "fr";
 
 export type EmailKind =
   | "booked" | "requested" | "moved" | "cancelled" | "classCancelled" | "declined" | "reminder" | "reminderConfirm"
-  | "soon" | "thanks" | "tip" | "tipPaid" | "payRest" | "restPaid" | "fee" | "notCleared";
+  | "soon" | "thanks" | "tip" | "tipPaid" | "payRest" | "restPaid" | "fee" | "notCleared" | "welcome" | "birthday" | "missYou";
 export type TextKind = "textReminder" | "textSoon";
 export type MessageKind = EmailKind | TextKind;
 
@@ -40,6 +40,9 @@ export const MESSAGE_LIST: ReadonlyArray<{ kind: MessageKind; label: string; whe
   { kind: "tipPaid", label: "Tip received", when: "Sent when a tip comes in.", amount: true },
   { kind: "fee", label: "Missed-booking fee", when: "Sent when you charge the fee for a missed or late-cancelled booking.", amount: true },
   { kind: "notCleared", label: "Bank payment didn't clear", when: "Sent when a bank payment is still clearing at the start." },
+  { kind: "welcome", label: "Welcome", when: "Sent the day after a client's first visit, while Keep in touch › Welcome is on." },
+  { kind: "birthday", label: "Happy birthday", when: "Sent on a client's birthday, while Keep in touch › Birthdays is on." },
+  { kind: "missYou", label: "We miss you", when: "Sent when a client hasn't been back for the weeks set under Keep in touch. {when} is their last visit." },
   { kind: "textReminder", label: "Reminder text", when: "The reminder by text, while Text reminders are on.", text: true },
   { kind: "textSoon", label: "Second reminder text", when: "The second reminder by text.", text: true },
 ];
@@ -71,6 +74,9 @@ export const DEFAULT_MESSAGES: { [L in MessageLanguage]: { [K in EmailKind]: Ema
     tipPaid: { subject: "Tip received: {service}, {when}", heading: "Tip received", lead: "Thank you! Your {amount} tip for your visit to {shop} has gone through." },
     fee: { subject: "Fee charged: {service}, {when}", heading: "Fee receipt", lead: "{shop} charged {amount} to your card for this booking, as agreed when you booked. Questions? Just reply to this email." },
     notCleared: { subject: "Not booked: {service}, {when}", heading: "Payment didn't clear", lead: "Your bank payment for this booking with {shop} didn't clear in time, so the time has been released. Nothing was taken. You're welcome to book again." },
+    welcome: { subject: "Welcome to {shop}", heading: "Welcome", lead: "Hi {client}, thank you for your first visit to {shop}. We loved having you, and we hope to see you again soon." },
+    birthday: { subject: "Happy birthday from {shop}", heading: "Happy birthday", lead: "Hi {client}, everyone at {shop} wishes you a very happy birthday. Treat yourself to something nice today." },
+    missYou: { subject: "We miss you at {shop}", heading: "We miss you", lead: "Hi {client}, it's been a while since your last visit to {shop} on {when}. Whenever you're ready, you can pick your next time online." },
     textReminder: { text: "Reminder: {service} at {shop}, {when} {with}." },
     textSoon: { text: "Soon: {service} at {shop}, {when} {with}." },
   },
@@ -91,6 +97,9 @@ export const DEFAULT_MESSAGES: { [L in MessageLanguage]: { [K in EmailKind]: Ema
     tipPaid: { subject: "Pourboire reçu : {service}, {when}", heading: "Pourboire reçu", lead: "Merci! Votre pourboire de {amount} pour votre visite chez {shop} a bien été reçu." },
     fee: { subject: "Frais facturés : {service}, {when}", heading: "Reçu des frais", lead: "{shop} a facturé {amount} sur votre carte pour cette réservation, comme convenu lors de la réservation. Des questions? Répondez simplement à ce courriel." },
     notCleared: { subject: "Non réservé : {service}, {when}", heading: "Paiement non reçu", lead: "Votre paiement bancaire pour cette réservation chez {shop} n'a pas été reçu à temps, alors la plage horaire a été libérée. Rien n'a été prélevé. Vous pouvez réserver de nouveau." },
+    welcome: { subject: "Bienvenue chez {shop}", heading: "Bienvenue", lead: "Bonjour {client}, merci pour votre première visite chez {shop}. Ce fut un plaisir de vous accueillir, et on espère vous revoir bientôt." },
+    birthday: { subject: "Joyeux anniversaire de la part de {shop}", heading: "Joyeux anniversaire", lead: "Bonjour {client}, toute l'équipe de {shop} vous souhaite un très joyeux anniversaire. Faites-vous plaisir aujourd'hui." },
+    missYou: { subject: "Vous nous manquez chez {shop}", heading: "Vous nous manquez", lead: "Bonjour {client}, votre dernière visite chez {shop} remonte au {when}. Quand vous le voudrez, vous pouvez choisir votre prochaine heure en ligne." },
     textReminder: { text: "Rappel : {service} chez {shop}, {when} {with}." },
     textSoon: { text: "Bientôt : {service} chez {shop}, {when} {with}." },
   },

@@ -20,7 +20,7 @@ import { RotaPanel } from "./RotaPanel";
 import type { ShiftRow } from "./shifts";
 import { hoursText } from "../../shared/timeClock";
 import { answerWithin, requestsWaiting, noShowReport, noShowRows, type NoShowClient, teamPerformance, performanceRows, spanDays, PERFORMANCE_SPANS, SPAN_NAMES, type PerformanceSpan, type PerformanceLine, futureFigures, futureList, futureRows, FUTURE_WINDOWS, type FutureDays, expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, CLOCK_ONLY, type PayLine, bookingShareLink, bookButtonHtml, bookButtonScript, bookingPosterHtml, bookedThrough, SOCIAL_PLACES, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, cleanCommissionSteps, MAX_COMMISSION_STEPS, commissionStepsText, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT, MAX_FORMS, FORM_RENEW_CHOICES, MAX_BIO_LENGTH, type TeamShown, approvalAllowed, APPROVAL_HOURS, cleanAreas, confirmState } from "../../shared/bookingTimes";
+import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, cleanCommissionSteps, MAX_COMMISSION_STEPS, commissionStepsText, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT, MAX_FORMS, FORM_RENEW_CHOICES, MAX_BIO_LENGTH, type TeamShown, approvalAllowed, APPROVAL_HOURS, cleanAreas, confirmState, MISS_YOU_WEEKS } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { MONEY_SIGN, SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -1983,6 +1983,27 @@ function ThanksTile({ form, onChange }: { form: BookingSettings; onChange: (patc
   );
 }
 
+/** Keep in touch (plan 4, 5.4, Beta): welcome, birthday and "we miss you" emails, each its own switch. */
+function KeepInTouchTile({ form, onChange }: { form: BookingSettings; onChange: (patch: Partial<BookingSettings>) => void }) {
+  const weeks = form.missYouWeeks || 0;
+  return (
+    <section className="bkg-tile" data-keep-tile>
+      <h2 className="bkg-tile-title">Keep in touch <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></h2>
+      <div className="bkg-form">
+        <Toggle label="Welcome new clients" checked={form.welcomeEmail === true} onChange={(v) => onChange({ welcomeEmail: v })} />
+        <p className="bkg-cal-text">{form.welcomeEmail ? "The day after a client's first visit, they get a short welcome with a button to book again." : "First-time clients get no welcome email."}</p>
+        <Toggle label="Wish clients a happy birthday" checked={form.birthdayEmail === true} onChange={(v) => onChange({ birthdayEmail: v })} />
+        <p className="bkg-cal-text">{form.birthdayEmail ? "Your booking page asks for a birthday (month and day, optional). On the day, after 9 a.m., they get a birthday email." : "Your booking page doesn't ask for a birthday."}</p>
+        <SelectField label="Send “we miss you”" hint="Only to clients with nothing booked since their last visit." value={String(weeks)} onChange={(e) => onChange({ missYouWeeks: Number(e.target.value) })}>
+          <option value="0">Never</option>
+          {MISS_YOU_WEEKS.map((w) => <option key={w} value={w}>{w} weeks after their last visit</option>)}
+        </SelectField>
+        <p className="bkg-cal-text">Each one has an unsubscribe link, and nobody who unsubscribed gets them. Change the words under Emails and texts to clients.</p>
+      </div>
+    </section>
+  );
+}
+
 /** Pickup times at checkout: shoppers choosing "Pick up" pick a time inside the opening hours below. */
 function PickupTile({ form, onChange }: { form: BookingSettings; onChange: (patch: Partial<BookingSettings>) => void }) {
   return (
@@ -3067,6 +3088,7 @@ function HoursPanel({ settings, services, saved, onSaved, active }: { settings: 
         <TextsTile on={form.textReminders === true} reminders={form.reminderHours > 0 || form.secondReminderHours > 0} replies={form.textReplies === true} onChange={(textReminders) => setForm({ ...form, textReminders })} onReplies={(textReplies) => setForm({ ...form, textReplies })} />
         <TipsTile tips={form.tips} percents={form.tipPercents} onChange={(tips, tipPercents) => setForm({ ...form, tips, tipPercents })} />
         <ThanksTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
+        <KeepInTouchTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
         <FormsTile forms={form.intakeForms || []} services={services} onChange={(intakeForms) => setForm({ ...form, intakeForms })} />
         <BookingMessagesTile messages={form.messages} onChange={(messages) => setForm({ ...form, messages })} />
         <PickupTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />

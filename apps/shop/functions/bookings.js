@@ -74,6 +74,7 @@ const {
   cleanRun, runStarts, runSettings, runsOnline, withExtras, withLength, processingStretch,
   MAX_VISIT_PARTS, joinsVisit, visitService, visitTimeline, visitStaff, visitFreeTimes, visitName, visitPlan,
   answerBy, approvalAllowed, bookingChannel, cleanVisitAddress, inArea, addressLine, cleanZone, zonesDiffer,
+  cleanBirthday, birthdaysOn, visitHappened, WELCOME_AFTER_HOURS, KEEP_IN_TOUCH_WINDOW_DAYS,
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
 const { cleanShift, clockState, clockStep, shiftMinutes, MAX_SHIFT_HOURS } = require("./shared/timeClock");
@@ -278,7 +279,7 @@ function cleanCustomer(body) {
   if (!EMAIL.test(email)) return { problem: "Please add an email address we can send your booking to." };
   const phone = text(body?.phone, 40);
   // Text reminders only with a number and the client's own tick (the shop's switch is checked when sending).
-  return { name, email, phone, textOk: body?.textOk === true && /\d{7}/.test(phone.replace(/\D/g, "")), note: typeof body?.note === "string" ? body.note.trim().slice(0, 1000) : "" };
+  return { name, email, phone, textOk: body?.textOk === true && /\d{7}/.test(phone.replace(/\D/g, "")), note: typeof body?.note === "string" ? body.note.trim().slice(0, 1000) : "", birthday: cleanBirthday(body?.birthday) };
 }
 
 /** A booking's add-ons in words ("Deep conditioning, Long hair"), "" with none. */
@@ -2122,6 +2123,8 @@ function bookingActions({
           reviews: settings.siteReviews ? await visitReviews() : [],
           // Whether the form offers "Text me reminders": the owner's switch, and the platform sending texts.
           texts: !!settings.textReminders && (await textsOpen()),
+          // Whether the form asks for a birthday (plan 4, 5.4): only while the shop sends birthday emails.
+          ...(settings.birthdayEmail ? { birthday: true } : {}),
           // The people a client can pick (the "With" choice); none when the shop books as one calendar.
           // With "anyone available" the page lists them (the Your team section) but offers no choice; with names hidden, nobody.
           staff: booksByPerson(settings) && settings.teamShown !== "hidden" ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds, rates, photo, bio }) => ({ id, name, serviceIds, ...(rates?.length ? { rates } : {}), ...(photo ? { photo } : {}), ...(bio ? { bio } : {}) })) : [],
@@ -2480,7 +2483,8 @@ function bookingActions({
           serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, ...processingRecord(service),
           // A visit at the client's place happens at their address: emails, calendars and the day list all show it.
           location: visitAt ? addressLine(visitAt) : service.location, ...(visitAt ? { atClient: true } : {}),
-          customer: { name: customer.name, email: customer.email, phone: customer.phone, ...(customer.textOk ? { textOk: true } : {}) }, note: customer.note, answers: answered.answers,
+          // A birthday (month and day only) is kept only while the shop sends birthday emails (plan 4, 5.4).
+          customer: { name: customer.name, email: customer.email, phone: customer.phone, ...(customer.textOk ? { textOk: true } : {}), ...(customer.birthday && settings.birthdayEmail ? { birthday: customer.birthday } : {}) }, note: customer.note, answers: answered.answers,
           status: paid ? "held" : asking ? "requested" : "confirmed", payment: pack ? "pack" : deposit ? "deposit" : upFront > 0 ? "card" : price > 0 ? "atShop" : "free",
           priceMinor: price, ...taxFields(tax), ...(deposit ? { depositMinor: upFront, depositPaid: false } : {}), currency: currency(),
           ...(priced ? { discount: priced.discount, listPriceMinor: service.priceMinor } : {}),
@@ -4181,6 +4185,130 @@ function bookingActions({
   }
 
   /**
+   * Keep in touch (plan 4, 5.4, Beta): the welcome email the day after a client's first visit, the birthday email on the
+   * day, and "we miss you" `missYouWeeks` after their last visit with nothing booked since. One record per client,
+   * `clientMail/<hash of the email>` (server only, no address kept), says what went: `welcomeAt`, `birthdayYear`,
+   * `missYouFor` (the visit it was about). Marked before sending, so a second sweep never sends twice. Marketing mail:
+   * an unsubscribe link, and nobody who unsubscribed. At most MAX_KEEP_IN_TOUCH of each a sweep.
+   */
+  const MAX_KEEP_IN_TOUCH = 50;
+  const clientMail = (email) => db.collection("clientMail").doc(hash(email));
+  /** Every booking a client made, at most 200 (the same read the rebook reminder uses). */
+  const bookingsOf = async (email) => (await bookings().where("customer.email", "==", email).limit(200).get()).docs.map((d) => ({ id: d.id, ...d.data() }));
+  async function sweepKeepInTouch() {
+    const none = { welcomed: 0, birthdays: 0, missed: 0 };
+    if (!optedOut || !unsubscribeUrl || !(await featureOn())) return none;
+    const settings = await readSettings();
+    if (!settings.welcomeEmail && !settings.birthdayEmail && !(settings.missYouWeeks > 0)) return none;
+    const nowMs = now().getTime();
+    const out = { ...none };
+    const emailOf = (b) => String(b?.customer?.email || "").trim().toLowerCase();
+    /** Claims one kind for a client in a transaction; false when it went already (or the record says not to). */
+    const claim = (email, fits, mark) => db.runTransaction(async (tx) => {
+      const ref = clientMail(email);
+      const doc = await tx.get(ref);
+      const had = doc.exists ? doc.data() : {};
+      if (!fits(had)) return false;
+      tx.set(ref, { ...mark, updatedAt: new Date(nowMs).toISOString() }, { merge: true });
+      return true;
+    });
+
+    if (settings.welcomeEmail) {
+      // First visits that ended WELCOME_AFTER_HOURS ago, within the window.
+      const to = new Date(nowMs - WELCOME_AFTER_HOURS * HOUR).toISOString();
+      const from = new Date(nowMs - WELCOME_AFTER_HOURS * HOUR - KEEP_IN_TOUCH_WINDOW_DAYS * DAY).toISOString();
+      const snap = await bookings().where("end", ">=", from).where("end", "<=", to).limit(500).get();
+      for (const doc of snap.docs) {
+        if (out.welcomed >= MAX_KEEP_IN_TOUCH) break;
+        const b = doc.data();
+        const email = emailOf(b);
+        if (!EMAIL.test(email) || !visitHappened(b, nowMs)) continue;
+        // Their first: no earlier visit that happened.
+        const theirs = await bookingsOf(b.customer.email);
+        if (theirs.some((o) => o.id !== doc.id && o.start < b.start && visitHappened(o, nowMs))) continue;
+        if (await optedOut(email)) continue;
+        if (!(await claim(email, (had) => !had.welcomeAt, { welcomeAt: new Date(nowMs).toISOString() }))) continue;
+        await tellKeepInTouch("welcome", { id: doc.id, ...b }, email, settings);
+        out.welcomed += 1;
+      }
+    }
+
+    if (settings.birthdayEmail) {
+      const today = dayOf(nowMs, zone());
+      const year = today.slice(0, 4);
+      // From 9 a.m. shop time, so nobody is woken by it.
+      if (nowMs >= zonedTime(today, "09:00", zone())) {
+        const seen = new Set();
+        for (const md of birthdaysOn(today)) {
+          const snap = await bookings().where("customer.birthday", "==", md).limit(500).get();
+          for (const doc of snap.docs) {
+            if (out.birthdays >= MAX_KEEP_IN_TOUCH) break;
+            const b = doc.data();
+            const email = emailOf(b);
+            if (!EMAIL.test(email) || seen.has(email) || b.status === "held") continue;
+            seen.add(email);
+            // Their newest birthday wins: a later booking may have corrected it.
+            const theirs = (await bookingsOf(b.customer.email)).filter((o) => o.customer?.birthday).sort((x, y) => String(y.createdAt || y.start).localeCompare(String(x.createdAt || x.start)));
+            if (theirs[0] && theirs[0].customer.birthday !== md) continue;
+            if (await optedOut(email)) continue;
+            if (!(await claim(email, (had) => had.birthdayYear !== year, { birthdayYear: year }))) continue;
+            await tellKeepInTouch("birthday", { id: doc.id, ...b }, email, settings);
+            out.birthdays += 1;
+          }
+        }
+      }
+    }
+
+    if (settings.missYouWeeks > 0) {
+      const dueAt = nowMs - settings.missYouWeeks * 7 * DAY;
+      const from = new Date(dueAt - KEEP_IN_TOUCH_WINDOW_DAYS * DAY).toISOString();
+      const snap = await bookings().where("end", ">=", from).where("end", "<=", new Date(dueAt).toISOString()).limit(500).get();
+      for (const doc of snap.docs) {
+        if (out.missed >= MAX_KEEP_IN_TOUCH) break;
+        const b = doc.data();
+        const email = emailOf(b);
+        if (!EMAIL.test(email) || !visitHappened(b, nowMs)) continue;
+        // Their last: nothing booked since (still to come or already been), and no rebook reminder about this visit.
+        if (b.rebookSentAt) continue;
+        const theirs = await bookingsOf(b.customer.email);
+        if (theirs.some((o) => o.id !== doc.id && o.start > b.start && o.status !== "cancelled")) continue;
+        if (await optedOut(email)) continue;
+        if (!(await claim(email, (had) => had.missYouFor !== doc.id, { missYouFor: doc.id }))) continue;
+        await tellKeepInTouch("missYou", { id: doc.id, ...b }, email, settings);
+        out.missed += 1;
+      }
+    }
+    return out;
+  }
+
+  /** One keep-in-touch email (welcome, birthday, missYou) in the client's language and the owner's words. Never throws. */
+  async function tellKeepInTouch(kind, b, email, settings) {
+    try {
+      const brand = await emailBrand();
+      const lang = await clientLanguage(b);
+      const shop = brand.shopName || shopName() || (lang === "fr" ? "la boutique" : "the shop");
+      const T = EMAIL_LABELS[lang];
+      const words = emailWords(settings?.messages, lang, kind);
+      const lastDay = new Date(b.start).toLocaleDateString(lang === "fr" ? "fr-CA" : "en-CA", { timeZone: zone(), day: "numeric", month: "long", year: "numeric" });
+      const values = { client: String(b.customer?.name || "").trim().split(/\s+/)[0] || "", service: visitName(b), when: kind === "missYou" ? lastDay : "", shop };
+      const fill = (template) => fillMessage(template, values);
+      const lead = escapeHtml(fill(words.lead)).replace(/\n/g, "<br>");
+      // With names hidden, the Book link doesn't pick the person either.
+      const withPerson = b.staffId && settings?.teamShown !== "hidden" ? `&with=${encodeURIComponent(b.staffId)}` : "";
+      const link = siteLink(kind === "birthday" || !b.serviceId ? "/book" : `/book?service=${encodeURIComponent(b.serviceId)}${withPerson}`);
+      const html = risoLayout(`
+        <h2 style="margin:0 0 12px;">${escapeHtml(fill(words.heading))}</h2>
+        <p style="margin:0 0 16px;">${lead}</p>
+        ${risoButton(escapeHtml(link), kind === "birthday" ? T.bookATime : T.bookNext, brand.accent, brand.theme)}
+        <p style="margin-top:28px;font-size:11px;color:#888;">${escapeHtml(T.noMoreEmails)} <a href="${escapeHtml(await unsubscribeUrl(email))}">${escapeHtml(T.unsubscribe)}</a>.</p>
+      `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop });
+      await sendEmail({ to: email, subject: fill(words.subject), html });
+    } catch (err) {
+      console.error(`bookings: ${kind} email failed:`, err?.message || err);
+    }
+  }
+
+  /**
    * Minimum number to run (Classes, 17 November 2026). For each class time with a minimum whose decide time has come
    * (`runDecisionDue`: from `decideHours` before it starts), once: with at least `minPlaces` confirmed it runs; with fewer,
    * that time closes (a `closed` item on its days, on every date of a course, so nobody signs up after) and every
@@ -4554,7 +4682,7 @@ function bookingActions({
     }
   }
 
-  return { handlePublic, handleAdmin, handleDesk, sweepHolds, sweepReminders, sweepSecondReminders, sweepTextReplies, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, sweepMinimum, sweepTeamCalendars, featureOn, pickupCheck };
+  return { handlePublic, handleAdmin, handleDesk, sweepHolds, sweepReminders, sweepSecondReminders, sweepTextReplies, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, sweepKeepInTouch, sweepMinimum, sweepTeamCalendars, featureOn, pickupCheck };
 }
 
 /** A pickup time checkout can't take; `code` goes back to the shop's page with the words. */
@@ -4685,6 +4813,7 @@ const EMAIL_LABELS = Object.freeze({
     addGoogle: "Add to Google Calendar", addApple: "Add to Apple Calendar",
     addTip: "Add a tip", pay: (amount) => `Pay ${amount}`, seeOrChange: "See or change your booking", yesThere: "Yes, I'll be there",
     leaveReview: "Leave a review", bookAgain: "Book again",
+    bookNext: "Book your next visit", bookATime: "Book a time", noMoreEmails: "Don't want emails like this?", unsubscribe: "Unsubscribe",
     beforeVisit: "Before your visit:", fillIn: (titles) => `please fill in ${titles.join(" and ")} on your booking page. It takes a minute.`,
     answerBy: (when) => `They'll answer by ${when} at the latest.`,
     tipIncluded: (amount) => `That includes your ${amount} tip.`,
@@ -4706,6 +4835,7 @@ const EMAIL_LABELS = Object.freeze({
     addGoogle: "Ajouter à Google Agenda", addApple: "Ajouter au calendrier Apple",
     addTip: "Laisser un pourboire", pay: (amount) => `Payer ${amount}`, seeOrChange: "Voir ou modifier votre réservation", yesThere: "Oui, je serai là",
     leaveReview: "Laisser un avis", bookAgain: "Réserver de nouveau",
+    bookNext: "Réserver votre prochaine visite", bookATime: "Réserver une heure", noMoreEmails: "Vous ne voulez plus recevoir ces courriels?", unsubscribe: "Se désabonner",
     beforeVisit: "Avant votre visite :", fillIn: (titles) => `veuillez remplir ${titles.join(" et ")} sur votre page de réservation. Ça prend une minute.`,
     answerBy: (when) => `On vous répondra au plus tard le ${when}.`,
     tipIncluded: (amount) => `Cela comprend votre pourboire de ${amount}.`,

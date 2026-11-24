@@ -1500,6 +1500,15 @@ email, no `rebookSentAt`). A client with any later booking that isn't cancelled 
 is one in `marketing-optout` (`"unsubscribed"`); both are still marked `rebookSentAt`. It is marketing mail: index.js passes
 `optedOut` and `unsubscribeUrl` (the review requests' signed `/track?unsubscribe=1` link) and without them nothing is sent.
 Book again opens `/book?service=<id>&with=<staffId>`. At most 50 a sweep.
+**Keep in touch (Beta, 24 November 2026, plan 4 step 5.4).** Settings `welcomeEmail`, `birthdayEmail`, `missYouWeeks`
+(`MISS_YOU_WEEKS`, 0 = off; Bookings › Hours & rules › Keep in touch). `bookingSweep` calls `sweepKeepInTouch` (at most 50 of
+each): **welcome** for a visit that ended `WELCOME_AFTER_HOURS` to `KEEP_IN_TOUCH_WINDOW_DAYS` ago when the client has no earlier
+visit that happened (`visitHappened`); **birthday** from 9:00 shop time, `customer.birthday == md` for each `birthdaysOn(today)`
+(Feb 29 birthdays on Feb 28 outside leap years), once a year; **we miss you** for a visit that ended N weeks ago (7-day window)
+with nothing booked since and no `rebookSentAt`. The birthday ("MM-DD", `cleanBirthday`, never a year) is kept on the booking
+only while `birthdayEmail` is on, and `bookingInfo.birthday` shows the form's month/day picker then. Each send is claimed first
+in `clientMail/<sha256(email)>` (`welcomeAt`, `birthdayYear`, `missYouFor`) inside a transaction; it is marketing mail, so
+`optedOut` clients are skipped and an unsubscribe line is added. Tests: bookings.test.js › keep in touch emails.
 **Reviews of visits (17 November 2026, Services plan phase 7).** Bookings › Hours & rules › After the visit ›
 **Collect reviews for your website** saves `siteReviews`. With it on, `reviewOpen` (shared) lets a confirmed, started visit
 that wasn't a no-show be reviewed once from its booking page (`publicBooking.canReview` / `reviewed`). The thank-you and

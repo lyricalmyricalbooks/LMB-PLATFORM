@@ -39,6 +39,14 @@ const bookingLocale = (): { locale?: string } => {
   } catch { return {}; }
 };
 
+/** The month names in the page's language, January first (the birthday picker, plan 4, 5.4). */
+const monthNames = (): string[] => {
+  const fmt = new Intl.DateTimeFormat(bookingLocale().locale || undefined, { month: "long", timeZone: "UTC" });
+  return Array.from({ length: 12 }, (_, i) => fmt.format(Date.UTC(2024, i, 1)));
+};
+/** Days to offer for a birthday month ("02" has 29: no year is asked); 31 before a month is picked. */
+const daysInMonth = (month: string): number => [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][Number(month) - 1] || 31;
+
 /** True while the page is framed on another website by the Book button (bookEmbed.ts). */
 const Embedded = createContext(false);
 
@@ -129,7 +137,7 @@ function NewBooking({ c }: { c: Copy }) {
     });
     return withVisit(first, more);
   }, [listed, info, staffId, picked.join(","), alsoKey, lengthId]);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", note: "", textOk: false });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", note: "", textOk: false, month: "", day: "" });
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [problems, setProblems] = useState<{ name?: string; email?: string; address?: string; answers?: Record<string, string> }>({});
   // A visit at the client's place (plan 4, 2.8): where to go.
@@ -253,7 +261,7 @@ function NewBooking({ c }: { c: Copy }) {
     try {
       const from = bookingFrom(window.location.search, embedded);
       const held = service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : {};
-      const answer = await ask("bookingStart", { serviceId: service.id, start, ...alsoBody, ...(picked.length ? { extras: picked } : {}), ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), answers, ...(service.atClient ? { address: place } : {}), ...(view !== zone ? { zone: view } : {}), ...bookingLocale(), ...held, ...(from ? { from } : {}), ...(run ? { run } : {}), ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
+      const answer = await ask("bookingStart", { serviceId: service.id, start, ...alsoBody, ...(picked.length ? { extras: picked } : {}), ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), ...(info.birthday && form.month && form.day ? { birthday: `${form.month}-${form.day}` } : {}), answers, ...(service.atClient ? { address: place } : {}), ...(view !== zone ? { zone: view } : {}), ...bookingLocale(), ...held, ...(from ? { from } : {}), ...(run ? { run } : {}), ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
       if (answer.url) { goToPayment(answer.url, embedded); return; }
       navigate(`/book?booking=${encodeURIComponent(answer.id)}&key=${answer.key}`, { replace: true });
     } catch (err: any) {
@@ -452,6 +460,24 @@ function NewBooking({ c }: { c: Copy }) {
                 </label>
                 <p id="bt-text-ok-hint" className="fm-muted text-xs mt-1">{c(form.phone.trim() ? "bookTimeTextOkHint" : "bookTimeTextOkNeedsPhone")}</p>
               </div>
+            )}
+            {info.birthday && (
+              <fieldset {...regionProps("bookingsBirthday")} className="min-w-0 border-0 p-0 mx-0 space-y-2" aria-describedby="bt-birthday-hint">
+                <legend className="fm-track-mono">{c("bookTimeBirthday")}</legend>
+                <div className="fm-book-birthday grid grid-cols-[2fr_1fr] gap-3">
+                  <select id="bt-birthday-month" aria-label={c("bookTimeBirthdayMonth")} className="fm-track-input" autoComplete="bday-month" value={form.month}
+                    onChange={(e) => setForm({ ...form, month: e.target.value })}>
+                    <option value="">{c("bookTimeBirthdayMonth")}</option>
+                    {monthNames().map((name, i) => <option key={name} value={String(i + 1).padStart(2, "0")}>{name}</option>)}
+                  </select>
+                  <select id="bt-birthday-day" aria-label={c("bookTimeBirthdayDay")} className="fm-track-input" autoComplete="bday-day" value={form.day}
+                    onChange={(e) => setForm({ ...form, day: e.target.value })}>
+                    <option value="">{c("bookTimeBirthdayDay")}</option>
+                    {Array.from({ length: daysInMonth(form.month) }, (_, i) => <option key={i} value={String(i + 1).padStart(2, "0")}>{i + 1}</option>)}
+                  </select>
+                </div>
+                <p id="bt-birthday-hint" className="fm-muted text-xs">{c("bookTimeBirthdayHint")}</p>
+              </fieldset>
             )}
             {questions.map((q) => {
               const id = `bt-q-${q.id}`;

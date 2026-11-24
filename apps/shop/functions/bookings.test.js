@@ -6,7 +6,7 @@ import { createRequire } from "module";
 
 const realRequire = createRequire(import.meta.url);
 const { bookingActions, busyFrom } = realRequire("./bookings");
-const { zonedTime, DEFAULT_BOOKING_SETTINGS, cleanBookingSettings, cleanRates } = realRequire("./shared/bookingTimes");
+const { zonedTime, DEFAULT_BOOKING_SETTINGS, cleanBookingSettings, cleanRates, cleanBirthday, birthdaysOn } = realRequire("./shared/bookingTimes");
 
 const ZONE = "America/Toronto";
 const at = (day, hhmm) => new Date(zonedTime(day, hhmm, ZONE)).toISOString();
@@ -2769,6 +2769,102 @@ describe("rebook reminders", () => {
     weeksAfter(old, "2026-11-18", 6, 20);
     expect(await old.desk.sweepRebook()).toEqual({ reminded: 0 });
     expect(rebooks(again).length + rebooks(out).length + rebooks(missed).length + rebooks(off).length + rebooks(old).length).toBe(0);
+  });
+});
+
+describe("keep in touch emails (plan 4, 5.4)", () => {
+  const seedKeep = async (t, extra = {}) => {
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ welcomeEmail: true, birthdayEmail: true, missYouWeeks: 8, ...extra }, { merge: true });
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Cut", minutes: 30, gapAfter: 0, payment: "atShop", priceMinor: 6000 });
+  };
+  const book = (t, day, extra = {}) => t.pub({ action: "bookingStart", serviceId: "cut", start: at(day, "15:00"), ...CUSTOMER, ...extra });
+  const hoursAfter = (t, day, hours) => { t.clock.now = new Date(Date.parse(at(day, "15:30")) + hours * 3_600_000); };
+  const kinds = (t) => t.emails.map((e) => e.subject);
+
+  test("a welcome the day after the first visit, once; never after a later visit", async () => {
+    const t = setup();
+    await seedKeep(t, { birthdayEmail: false, missYouWeeks: 0 });
+    await book(t, "2026-11-18");
+    hoursAfter(t, "2026-11-18", 10);
+    expect((await t.desk.sweepKeepInTouch()).welcomed).toBe(0);
+    hoursAfter(t, "2026-11-18", 21);
+    expect((await t.desk.sweepKeepInTouch()).welcomed).toBe(1);
+    expect((await t.desk.sweepKeepInTouch()).welcomed).toBe(0);
+    const welcome = t.emails.find((e) => e.subject === "Welcome to Moth Press");
+    expect(welcome.to).toBe(CUSTOMER.email);
+    expect(welcome.html).toContain("Hi Ada, thank you for your first visit");
+    expect(welcome.html).toContain("/book?service=cut");
+    expect(welcome.html).toContain("unsubscribe=1");
+    // A second visit later gets no welcome.
+    await book(t, "2026-11-25");
+    hoursAfter(t, "2026-11-25", 21);
+    expect((await t.desk.sweepKeepInTouch()).welcomed).toBe(0);
+    // Nor does a missed first visit.
+    const missed = setup();
+    await seedKeep(missed, { birthdayEmail: false, missYouWeeks: 0 });
+    await book(missed, "2026-11-18");
+    await missed.db.collection("bookings").doc("booking001").set({ noShow: true }, { merge: true });
+    hoursAfter(missed, "2026-11-18", 21);
+    expect((await missed.desk.sweepKeepInTouch()).welcomed).toBe(0);
+  });
+
+  test("the form keeps a birthday only while birthdays are on; the email goes on the day, once a year, from 9 a.m.", async () => {
+    const off = setup();
+    await seedKeep(off, { birthdayEmail: false });
+    expect((await off.pub({ action: "bookingInfo" })).body.birthday).toBeUndefined();
+    await book(off, "2026-11-18", { birthday: "12-03" });
+    expect(off.db.store.get("bookings/booking001").customer.birthday).toBeUndefined();
+
+    const t = setup();
+    await seedKeep(t, { welcomeEmail: false, missYouWeeks: 0 });
+    expect((await t.pub({ action: "bookingInfo" })).body.birthday).toBe(true);
+    await book(t, "2026-11-18", { birthday: { month: 12, day: 3 } });
+    expect(t.db.store.get("bookings/booking001").customer.birthday).toBe("12-03");
+    t.clock.now = new Date(at("2026-12-03", "07:00"));
+    expect((await t.desk.sweepKeepInTouch()).birthdays).toBe(0);
+    t.clock.now = new Date(at("2026-12-03", "10:00"));
+    expect((await t.desk.sweepKeepInTouch()).birthdays).toBe(1);
+    expect((await t.desk.sweepKeepInTouch()).birthdays).toBe(0);
+    expect(kinds(t)).toContain("Happy birthday from Moth Press");
+    t.clock.now = new Date(at("2027-12-03", "10:00"));
+    expect((await t.desk.sweepKeepInTouch()).birthdays).toBe(1);
+    // Unsubscribed: nothing.
+    t.optOuts.add(CUSTOMER.email);
+    t.clock.now = new Date(at("2028-12-03", "10:00"));
+    expect((await t.desk.sweepKeepInTouch()).birthdays).toBe(0);
+  });
+
+  test("we miss you after the set weeks with nothing booked since, in French for a French booking", async () => {
+    const t = setup();
+    await seedKeep(t, { welcomeEmail: false, birthdayEmail: false });
+    await book(t, "2026-11-18", { locale: "fr-CA" });
+    hoursAfter(t, "2026-11-18", 7 * 24 * 7);
+    expect((await t.desk.sweepKeepInTouch()).missed).toBe(0);
+    hoursAfter(t, "2026-11-18", 8 * 7 * 24 + 24);
+    expect((await t.desk.sweepKeepInTouch()).missed).toBe(1);
+    expect((await t.desk.sweepKeepInTouch()).missed).toBe(0);
+    const email = t.emails.find((e) => /manquez/.test(e.subject));
+    expect(email.subject).toBe("Vous nous manquez chez Moth Press");
+    expect(email.html).toContain("18 novembre 2026");
+    expect(email.html).toContain("Se désabonner");
+
+    const back = setup();
+    await seedKeep(back, { welcomeEmail: false, birthdayEmail: false });
+    await book(back, "2026-11-18");
+    await book(back, "2026-12-30");
+    hoursAfter(back, "2026-11-18", 8 * 7 * 24 + 24);
+    expect((await back.desk.sweepKeepInTouch()).missed).toBe(0);
+  });
+
+  test("birthdays are month and day only", () => {
+    expect(cleanBirthday("2-29")).toBe("02-29");
+    expect(cleanBirthday({ month: 4, day: 31 })).toBe("");
+    expect(cleanBirthday("1990-05-01")).toBe("");
+    expect(birthdaysOn("2027-02-28")).toEqual(["02-28", "02-29"]);
+    expect(birthdaysOn("2028-02-28")).toEqual(["02-28"]);
+    expect(cleanBookingSettings({ missYouWeeks: 5 }).missYouWeeks).toBeUndefined();
+    expect(cleanBookingSettings({ missYouWeeks: 8, welcomeEmail: true }).missYouWeeks).toBe(8);
   });
 });
 

@@ -5130,6 +5130,9 @@ exports.bookingSweep = onSchedule({ schedule: "every 5 minutes", name: "bookingS
   if (thanks.thanked) console.log(`bookingSweep: ${thanks.thanked} thank-you emails sent`);
   const rebook = await bookingDesk.sweepRebook();
   if (rebook.reminded) console.log(`bookingSweep: ${rebook.reminded} rebook reminders sent`);
+  // Keep in touch (plan 4, 5.4): welcome, birthday and "we miss you" emails.
+  const kept = await bookingDesk.sweepKeepInTouch().catch(err => { console.warn("bookingSweep: keep in touch failed:", err?.message || err); return {}; });
+  if (kept.welcomed || kept.birthdays || kept.missed) console.log(`bookingSweep: ${kept.welcomed} welcome, ${kept.birthdays} birthday, ${kept.missed} we-miss-you emails sent`);
   // Each team member's own Google Calendar: their busy times close those times for them (at most every 15 minutes).
   const team = await bookingDesk.sweepTeamCalendars().catch(err => { console.warn("bookingSweep: team calendars failed:", err?.message || err); return {}; });
   if (team.days) console.log(`bookingSweep: team busy times changed on ${team.days} days`);
