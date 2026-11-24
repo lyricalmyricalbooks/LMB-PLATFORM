@@ -29,6 +29,7 @@ import { cleanShift, clockState, clockStep, forgotten, shiftMinutes, type ClockS
 import { DEFAULT_BOOKING_SETTINGS, addDays, cleanBlocks, dayOf, zonedTime, type BookingService, type BookingSettings } from "../shared/bookingTimes";
 import { shopTimeZone } from "../shared/shopTimeZone";
 import { waysData } from "../app/admin/waysApi";
+import { startersData } from "../app/admin/platformStarters";
 import { typeApprovalData } from "../app/admin/typeApprovalApi";
 import { clientVisitsData } from "../app/admin/clientVisitsApi";
 import { clientFilesData } from "../app/admin/clientFilesApi";
@@ -99,6 +100,15 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
     if (body.email) { log = [{ id: `l${log.length + 1}`, at: at(0), to: String(body.email), subject: "Test: Order confirmed", status: "sent" }, ...log]; return { ok: true }; }
     return {};
   };
+}
+
+// ── Starter websites (platform/starters, control-room/starterSites.js): `?starters=aurel-editorial*,juniper-catalogue`
+// offers those starters in that order, a trailing * marks one New; the rest are hidden. None without it (every starter). ──
+{
+  const listed = (new URLSearchParams(window.location.search).get("starters") || "").split(",").filter(Boolean);
+  const order = listed.map((id) => id.replace(/\*$/, ""));
+  const choice = listed.length ? { order, hidden: [], fresh: listed.filter((id) => id.endsWith("*")).map((id) => id.slice(0, -1)), known: order } : null;
+  startersData.watch = (onChange) => { onChange(choice); return () => {}; };
 }
 
 // ── Settings › General › Ways to sell (beta): `?ways=events,classes` are the ways the platform turned on for the shop

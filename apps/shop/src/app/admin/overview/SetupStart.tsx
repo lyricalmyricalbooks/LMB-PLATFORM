@@ -11,6 +11,7 @@ import { PressDetailsStage } from "./PressDetailsStage";
 import { BringShopStage } from "./BringShopStage";
 import type { BringMarker } from "../bringShop";
 import { ownBooks } from "../lookGallery";
+import { usePlatformStarters } from "../platformStarters";
 import { ShippingStage } from "./ShippingStage";
 import type { ShippingMarker } from "../shippingStage";
 import type { FinalCheckMarker } from "../finalCheckStage";
@@ -48,6 +49,8 @@ export function SetupStart({ books, orders, readiness, settings, bookings, onOpe
   onRetrySettings?: () => void;
 }) {
   const [doc, setDoc] = useState<FirstWeekDoc | null>(null);
+  // Which whole-website starters the control room offers (control-room/starterSites.js).
+  const starters = usePlatformStarters();
   // What the press set up before its shop existed (code plan 18.9); null for a shop made without setup.
   const [handover, setHandover] = useState<SetupHandover | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -143,7 +146,7 @@ export function SetupStart({ books, orders, readiness, settings, bookings, onOpe
       }
       return (
         <Suspense fallback={<SectionCard title="Choose your look"><LoadingState label="Opening the looks…" /></SectionCard>}>
-          <ChooseLookWelcome publishes={doc.publishes} books={ownBooks(books)} settings={settings} onDone={done} onRetrySettings={onRetrySettings} chosen={chosenLook(handover)} />
+          <ChooseLookWelcome publishes={doc.publishes} books={ownBooks(books)} settings={settings} onDone={done} onRetrySettings={onRetrySettings} chosen={chosenLook(handover)} starters={starters} />
         </Suspense>
       );
     }

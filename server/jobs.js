@@ -62,7 +62,11 @@ export const RUNNERS = Object.freeze({
   "connection-check": ({ parts }) => () => runConnectionCheck({ platform: parts.platform, registry: parts.registry, tokens: parts.googleLink?.link?.tokens ?? null }),
   bookkeeping: ({ parts }) => (parts?.accounting ? () => parts.accounting.service.nightly() : notConnectedFn(NOT_CONNECTED.bookkeeping)),
   "income-record": ({ parts }) => async () => runBusinessNightly({ registry: parts.registry, settings: await parts.live(), incomeHistory: parts.incomeHistory, billing: parts.billing, now: parts.now }),
-  "press-messages": ({ pressMessages }) => () => pressMessages.sweep(),
+  // The starter websites choice (control-room/starterSites.js) rides along: shops made since the last save get it.
+  "press-messages": ({ pressMessages, starterSites }) => async () => {
+    const messages = await pressMessages.sweep();
+    return starterSites ? { messages, starters: await starterSites.sweep() } : messages;
+  },
   // Colophon's own apps are put (back) on the store first, so their alerts always have a listing to go to.
   "app-alerts": ({ appAlerts, parts }) => async () => {
     await parts?.ownApps?.ensure();

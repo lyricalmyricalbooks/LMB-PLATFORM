@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { ChevronLeft, ChevronRight, Monitor, Smartphone } from "lucide-react";
 import {
-  feelLabel, lookFeel, filterLooks, builtLooks, libraryLook, suggestedThemes, LOOK_FILTERS, lookPreview, pressNameOf, sampleProducts,
-  type LibraryTheme, type LookFilter, type PreviewProduct,
+  feelLabel, lookFeel, filterLooks, builtLooks, libraryLook, suggestedThemes, LOOK_FILTERS, lookPreview, pressNameOf, sampleProducts, newStarters,
+  type LibraryTheme, type LookFilter, type PreviewProduct, type StarterChoice,
 } from "../lookGallery";
 import type { WelcomeDone } from "../firstWeek";
 import { friendlyError } from "../studio/friendlyError";
@@ -19,7 +19,7 @@ import { LookStage, ScaledStage, STAGE_WIDTH, type StageDevice, type StagePage }
  * `settings` is settings/website as the Overview read it: undefined while it loads, null when it couldn't be read.
  * `onDone` gets what to record once the look is in the draft; the parent saves it (and puts the welcome away).
  */
-export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onRetrySettings, apply, intro: introWords, keep, chosen, settled = false }: {
+export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onRetrySettings, apply, intro: introWords, keep, chosen, settled = false, starters }: {
   publishes?: string | null;
   /** The press's own books (ownBooks), shown with their covers, titles and prices in each look's preview (plan 17.8). */
   books?: { title: string; photo: string; price?: string }[];
@@ -38,8 +38,11 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   chosen?: { theme: string } | null;
   /** The chosen look is already saved (setup mode's Design page): show it as "Your look", with no Use button on it. */
   settled?: boolean;
+  /** The control room's starter choice (platformStarters.ts): which whole-website starters show, their order and New tags. */
+  starters?: StarterChoice;
 }) {
-  const others = useMemo(() => builtLooks(), []);
+  const others = useMemo(() => builtLooks(starters), [starters]);
+  const fresh = useMemo(() => newStarters(starters), [starters]);
   // One general list. The sign-up answer only decides which look "Skip for now" uses.
   const first = useMemo(() => suggestedThemes(publishes)[0], [publishes]);
   const [busy, setBusy] = useState("");
@@ -107,7 +110,10 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   // The feel as a small coloured pill, in the Colophon tile colours.
   const FEEL_TILE = { quiet: "var(--rp-info-tint)", warm: "var(--rp-success-tint)", bold: "var(--rp-warning-tint)", dark: "var(--rp-surface-inset)" } as const;
   const badges = (theme: LibraryTheme) => (
-    <span style={{ fontSize: 12, fontWeight: 500, padding: "4px 10px", borderRadius: 999, background: FEEL_TILE[lookFeel(theme)], color: "var(--rp-text)" }}>{feelLabel(theme)}</span>
+    <span style={{ display: "flex", gap: 6 }}>
+      {fresh.includes(theme.id) && <span data-new-starter style={{ fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 999, background: "var(--rp-text)", color: "var(--rp-surface)" }}>New</span>}
+      <span style={{ fontSize: 12, fontWeight: 500, padding: "4px 10px", borderRadius: 999, background: FEEL_TILE[lookFeel(theme)], color: "var(--rp-text)" }}>{feelLabel(theme)}</span>
+    </span>
   );
   const dots = (colours: string[], size: number, label: string) => (
     <span aria-label={label} role="img" style={{ display: "flex", gap: 6, marginLeft: "auto" }}>

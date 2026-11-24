@@ -10,6 +10,7 @@ import { createStudioFixture, installFakeStudioApi } from "./fakeStudioApi";
 import { parseStudioLocation } from "../../../lib/studioLocation";
 import { setAiTransport } from "../../aiWriter";
 import { applyAdminLook } from "../../riso/adminLook";
+import { startersData } from "../../platformStarters";
 import { ShopSellsContext, ShopWordsContext } from "../../shopWords";
 import { wordsFor } from "../../../../shared/shopSells";
 
@@ -25,6 +26,14 @@ const fixture = createStudioFixture({
   mediaDenied: new URLSearchParams(location.search).get("media") === "denied",
 });
 // `?bookings=1` shows Studio as a shop that takes bookings sees it (the Book a time links in the header and footer).
+// ── Starter websites (platform/starters, control-room/starterSites.js): `?starters=aurel-editorial*,juniper-catalogue`
+// offers those starters in that order, a trailing * marks one New; the rest are hidden. None without it (every starter). ──
+{
+  const listed = (new URLSearchParams(location.search).get("starters") || "").split(",").filter(Boolean);
+  const order = listed.map((id) => id.replace(/\*$/, ""));
+  const choice = listed.length ? { order, hidden: [], fresh: listed.filter((id) => id.endsWith("*")).map((id) => id.slice(0, -1)), known: order } : null;
+  startersData.watch = (onChange) => { onChange(choice); return () => {}; };
+}
 if (new URLSearchParams(location.search).has("bookings")) fixture.settings.bookingsLive = true;
 if (new URLSearchParams(location.search).has("events")) fixture.settings.eventsLive = true;
 if (new URLSearchParams(location.search).has("classes")) fixture.settings.classesLive = true;
