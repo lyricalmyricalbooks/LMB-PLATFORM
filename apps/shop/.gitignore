@@ -5,6 +5,8 @@ dist/
 *.log
 .env
 .env.*
+# The server's shared, non-secret settings (functions/.env explains why it is committed)
+!functions/.env
 temp_*.json
 *.ps1
 backend/data/store.json

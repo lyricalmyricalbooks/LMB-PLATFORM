@@ -323,3 +323,23 @@ describe("a drawn page from an app that is no longer online", () => {
     expect((await ask("press-a.example", "/")).body).toContain("index-OLD123.js");
   });
 });
+
+// Google's functions runtime swallows /robots.txt (an empty 404) before the function runs, unless IGNORED_ROUTES is set
+// (the Functions Framework's default ignored routes are /favicon.ico and /robots.txt). Every live shop's robots.txt
+// was "not found" until functions/.env set it; this keeps the setting from being dropped.
+describe("the runtime lets robots.txt reach the front door", () => {
+  const { readFileSync } = require("node:fs");
+  const { join } = require("node:path");
+  const env = readFileSync(join(__dirname, ".env"), "utf8");
+  const routes = /^IGNORED_ROUTES="([^"]*)"$/m.exec(env)?.[1];
+
+  it("sets the runtime's ignored routes, to the icon only", () => {
+    expect(routes).toBe("/favicon.ico");
+    expect(routes.toLowerCase()).not.toContain("robots");
+  });
+
+  it("keeps the shared settings file free of secrets", () => {
+    const keys = env.split("\n").filter(line => line.trim() && !line.startsWith("#")).map(line => line.split("=")[0]);
+    expect(keys).toEqual(["IGNORED_ROUTES"]);
+  });
+});
