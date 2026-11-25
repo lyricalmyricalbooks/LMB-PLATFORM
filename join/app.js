@@ -3,8 +3,8 @@
 // and stockroom). "Setting up your store…" follows the shop maker until the way into the store's admin is ready. New and returning presses come in the same way. Plain browser JavaScript with no
 // framework (docs/decisions.md); Firebase's own browser library is loaded from Google for sign-in only. Every check the
 // page makes, the server makes again (signup/frontDoor.js).
-import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE, SETUP_ADMIN_URL } from "../signup/config.js";
-import { ALSO_SELLS, COUNTRIES, PRODUCT_GROUPS, SERVICE_SELLS, SHOP_TYPES, countryFromTimeZone, isEmail, sellsForGroups, shopTypeOf } from "../signup/form.js";
+import { API_BASE, DEMO_URL, FIREBASE_SDK, PLATFORM_FIREBASE, SETUP_ADMIN_URL } from "../signup/config.js";
+import { COUNTRIES, PRODUCT_GROUPS, SERVICE_SELLS, SHOP_TYPES, countryFromTimeZone, isEmail, sellsForGroups, shopTypeOf } from "../signup/form.js";
 import { ROW_WORDS, makingView } from "../signup/making.js";
 import { takeHandOff } from "../waitlist/frontPage.js";
 
@@ -36,6 +36,8 @@ function show(view, { focus = true } = {}) {
   }
   status.textContent = "";
   $("#main").dataset.at = STEP_OF[view];
+  // Signed in, Sign out sits in the header.
+  $("#sign-out").hidden = STEP_OF[view] !== "brand";
   if (focus) $(`#view-${view} [tabindex="-1"]`)?.focus?.();
 }
 
@@ -191,7 +193,7 @@ api("GET", "/plans").then((answer) => {
   termsVersion = plans?.termsVersion ?? "";
   if (Number.isInteger(plans?.trialDays)) {
     $("#new-days").textContent = `${plans.trialDays} days`;
-    $("#story-lede").textContent = `A few quick questions, then you're in your store. Everything is included for ${plans.trialDays} days. No card needed.`;
+    $("#strip-days").textContent = `${plans.trialDays} days free`;
   }
   // Countries Colophon isn't open in yet say so in the list.
   if (Array.isArray(plans?.openCountries)) {
@@ -252,12 +254,29 @@ function showTypes(withServices) {
     return tile;
   }));
 }
-// A product shop picks every kind of thing it sells (product types plan, change 12; form.js PRODUCT_GROUPS).
-$("#sells-choices").replaceChildren(...PRODUCT_GROUPS.options.map((o) => {
+// A product shop picks every kind of thing it sells (product types plan, change 12; form.js PRODUCT_GROUPS). Six of the
+// commonest show first and "Show N more" opens the rest (25 November 2026: sixteen chips made the step look like work).
+// The order on screen doesn't change the answer: `sells` follows the list's own order (form.js sellsForGroups).
+const COMMON_GROUPS = ["clothing", "jewelry", "art", "home", "beauty", "food"];
+const groupsShown = [...COMMON_GROUPS.map((id) => PRODUCT_GROUPS.options.find((o) => o.id === id)).filter(Boolean), ...PRODUCT_GROUPS.options.filter((o) => !COMMON_GROUPS.includes(o.id))];
+$("#sells-choices").replaceChildren(...groupsShown.map((o) => {
   const label = choice(PRODUCT_GROUPS.id, o.id, o.label);
   label.querySelector("input").type = "checkbox";
+  if (!COMMON_GROUPS.includes(o.id)) { label.classList.add("fd-extra"); label.hidden = true; }
   return label;
 }));
+const moreGroups = $("#sells-more");
+moreGroups.textContent = `Show ${groupsShown.length - COMMON_GROUPS.length} more`;
+/** Opens the rest of the chips (once opened they stay open). */
+function showAllGroups() {
+  for (const label of $("#sells-choices").querySelectorAll(".fd-extra")) label.hidden = false;
+  moreGroups.hidden = true;
+  moreGroups.setAttribute("aria-expanded", "true");
+}
+moreGroups.addEventListener("click", () => {
+  showAllGroups();
+  $("#sells-choices .fd-extra input")?.focus();
+});
 /** The product groups ticked, in the list's order. */
 const pickedGroups = () => [...startForm.querySelectorAll(`input[name=${PRODUCT_GROUPS.id}]:checked`)].map((input) => input.value);
 /** A press saved before groups were asked: its one-word answer's group. */
@@ -265,26 +284,6 @@ const GROUP_OF_SELLS = { clothing: "clothing", shoes: "shoes", jewelry: "jewelry
 $("#does-choices").replaceChildren(...SERVICE_SELLS.map((o) => choice("does", o.id, o.label)));
 // A bookshop that signed up as zines or comics keeps that answer; a new bookshop is "books".
 let bookAnswer = "books";
-// "Selling somewhere already?", optional (ids from form.js QUESTION, which the server checks). It picks the setup
-// guide's first step: bring a shop over, import a spreadsheet, or add the first product.
-const SELLING_TODAY = [
-  { id: "online", label: "Another online shop", line: "Bring your products and old links over" },
-  { id: "spreadsheet", label: "A spreadsheet", line: "Import it in one go" },
-  { id: "fairs", label: "Fairs and markets", line: "Add what you sell as you go" },
-  { id: "starting", label: "Not yet", line: "Start fresh" },
-];
-$("#today-choices").replaceChildren(...SELLING_TODAY.map((o) => {
-  return choice("sellingToday", o.id, o.label);
-}));
-// "Anything else you'll sell?" (signup/form.js ALSO_SELLS): six more ways to sell, pick any; each says Beta.
-$("#also-label").append(ALSO_SELLS.label, " ", Object.assign(document.createElement("span"), { className: "fd-optional", textContent: "(optional)" }));
-$("#also-hint").textContent = ALSO_SELLS.hint;
-$("#also-choices").replaceChildren(...ALSO_SELLS.options.map((o) => {
-  const label = choice(ALSO_SELLS.id, o.id, o.label);
-  label.querySelector("input").type = "checkbox";
-  label.append(Object.assign(document.createElement("span"), { className: "fd-beta", textContent: "Beta" }));
-  return label;
-}));
 $("#country").replaceChildren(new Option("Choose a country", ""), ...Object.entries(COUNTRIES).map(([code, c]) => new Option(c.name, code)));
 
 const startForm = $("#start-form");
@@ -309,11 +308,7 @@ const showKind = () => {
   $("#new-kind").textContent = type === "books" ? "Bookshop"
     : type === "general" ? (groups.length === 1 ? groups[0].label : groups.length > 1 ? `${groups[0].label} and ${groups.length - 1} more` : "Product shop")
     : type === "services" ? (does && does.id !== "services" ? does.label : "Services") : "Your store";
-  const line = $("#new-line");
-  line.textContent = type === "books" ? "With authors, ISBNs and royalties" : type === "general" ? "With products, sizes and colours" : type === "services" ? "With bookings, clients and payments" : "";
-  line.hidden = !type;
-  // A services shop brings clients, not products, and its second side is its money.
-  $("#today-hint").textContent = type === "services" ? "We'll start you on bringing your clients over." : "We'll start you on bringing your products over.";
+  // A services shop's second side is its money, not a stockroom.
   $("#new-includes").textContent = type === "services" ? "Bookings, website and bookkeeping" : "Shop and stockroom";
 };
 /** The note under the country, and the fee in the money that country's shops pay in. */
@@ -333,6 +328,7 @@ function showCountry() {
   if (!fee?.feeText) return;
   const tax = plans.plusTax ? " + tax" : "";
   $("#new-after").textContent = `${fee.feeText} a month + running cost${tax}`;
+  $("#strip-after").textContent = `Then ${fee.feeText} a month + running cost`;
   const founding = fee.foundingFeeText && plans.foundingOffer;
   $("#new-founding-row").hidden = !founding;
   if (founding) {
@@ -341,9 +337,75 @@ function showCountry() {
     $("#new-founding").textContent = `${fee.foundingFeeText} a month`;
   }
 }
-startForm.pressName.addEventListener("input", showName);
+// "Your new store" shows a real starter: the picture of its home page (join/starters/, taken from the live demo shop),
+// and on a wide screen, once a brand name is typed, the live demo shop itself with that name on it (DEMO_URL, the
+// demo's ?name=&embed=1). Which starter: the one picked on a sample shop (Use this starter), else the one that suits the
+// kind of shop. A shop with no picked starter chooses its look inside, so the tile says "one of the starters".
+const STARTER_SHOTS = Object.freeze({
+  "aurel-editorial": { shot: "aurel", name: "Aurel", style: "cobalt" },
+  "juniper-slow-season": { shot: "slow-season", name: "Slow Season", style: "terracotta" },
+  "juniper-catalogue": { shot: "catalogue", name: "Catalogue", style: "acid" },
+});
+// Product groups the home-goods sample set suits better than the clothing one (apps/shop demoShop DEMO_SELLS).
+const HOME_GROUPS = ["home", "beauty", "food", "plants", "craft", "kids", "pets"];
+/** The starter, style and sample set the tile shows for the answers so far. */
+function previewChoice() {
+  const type = pickedValue("shopType");
+  const first = pickedGroups()[0];
+  const sells = type === "books" ? "books" : type === "services" ? "studio" : HOME_GROUPS.includes(first) ? "home" : "clothing";
+  const picked = STARTER_PICK && STARTER_SHOTS[STARTER_PICK.look] ? STARTER_PICK.look : "";
+  const starter = picked || (sells === "books" ? "juniper-catalogue" : sells === "home" || sells === "studio" ? "juniper-slow-season" : "aurel-editorial");
+  return { starter, style: (picked && STARTER_PICK.lookStyle) || STARTER_SHOTS[starter].style, sells };
+}
+const wideScreen = window.matchMedia("(min-width: 901px)");
+const shotBox = $("#new-shot");
+let liveTimer = 0;
+let liveSrc = "";
+function showPreview() {
+  const pick = previewChoice();
+  const shown = STARTER_SHOTS[pick.starter];
+  for (const img of shotBox.querySelectorAll("img")) img.hidden = img.dataset.shot !== shown.shot;
+  $("#new-look-name").textContent = shown.name;
+  const link = $("#new-look-link");
+  link.hidden = !DEMO_URL;
+  if (DEMO_URL) link.href = `${DEMO_URL}?${new URLSearchParams({ starter: pick.starter, style: pick.style, sells: pick.sells })}`;
+  // A picked starter or a saved design has its own line on the tile.
+  $("#new-look").hidden = !!STARTER_PICK || !!press?.design;
+  clearTimeout(liveTimer);
+  const name = startForm.pressName.value.trim();
+  const src = DEMO_URL && wideScreen.matches && name ? `${DEMO_URL}?${new URLSearchParams({ ...pick, name, embed: "1" })}` : "";
+  if (src !== liveSrc) delete shotBox.dataset.live;
+  if (src) liveTimer = setTimeout(() => goLive(src), 700);
+}
+/** Loads the live demo into the tile; it fades in over the picture once it has drawn. */
+function goLive(src) {
+  if (src === liveSrc) { shotBox.dataset.live = ""; return; }
+  liveSrc = src;
+  let frame = shotBox.querySelector("iframe");
+  if (!frame) {
+    frame = document.createElement("iframe");
+    frame.title = "Your shop in this starter";
+    frame.tabIndex = -1;
+    frame.setAttribute("aria-hidden", "true");
+    frame.setAttribute("inert", "");
+    // The shop runs inside, but can never move this page or open windows.
+    frame.setAttribute("sandbox", "allow-scripts allow-same-origin");
+    frame.addEventListener("load", () => {
+      const loaded = frame.dataset.src;
+      // The shop draws just after its page loads.
+      setTimeout(() => { if (loaded === liveSrc) shotBox.dataset.live = ""; }, 500);
+    });
+    shotBox.append(frame);
+  }
+  frame.dataset.src = src;
+  frame.src = src;
+}
+new ResizeObserver(() => shotBox.style.setProperty("--fd-scale", String(shotBox.clientWidth / 1280))).observe(shotBox);
+wideScreen.addEventListener("change", () => showPreview());
+showPreview();
+startForm.pressName.addEventListener("input", () => { showName(); showPreview(); });
 startForm.addEventListener("change", (event) => {
-  if (["sells", "productGroups", "does", "shopType"].includes(event.target.name)) showKind();
+  if (["sells", "productGroups", "does", "shopType"].includes(event.target.name)) { showKind(); showPreview(); }
   if (event.target.name === "country") showCountry();
 });
 // An answer given clears its own error line.
@@ -366,8 +428,8 @@ function fillAnswers() {
   for (const input of startForm.querySelectorAll(`input[name=${PRODUCT_GROUPS.id}]`)) input.checked = type === "general" && savedGroups.includes(input.value);
   for (const input of startForm.querySelectorAll("input[name=does]")) input.checked = type === "services" && input.value === press.sells;
   showKind();
-  for (const input of startForm.querySelectorAll("input[name=sellingToday]")) input.checked = input.value === press.sellingToday;
-  for (const input of startForm.querySelectorAll(`input[name=${ALSO_SELLS.id}]`)) input.checked = (press.alsoSells ?? []).includes(input.value);
+  // A saved pick from the longer list opens it, so the answer is never hidden.
+  if (startForm.querySelector(".fd-extra input:checked")) showAllGroups();
   // Not answered yet: start from the country the computer's clock is set to, when we can tell and serve it.
   startForm.country.value = press.country in COUNTRIES ? press.country : countryFromTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
   showName();
@@ -382,6 +444,7 @@ function fillAnswers() {
   // A design made in the designer wins over a starter picked on a sample shop, so only one of the two shows.
   $("#new-starter").hidden = !STARTER_PICK || !!press.design;
   designed.querySelector("a").href = designerUrl();
+  showPreview();
 }
 
 /** The designer that runs before the store exists (built from apps/shop, served at /design/). */
@@ -414,7 +477,7 @@ const readAnswers = () => {
   const shopType = pickedValue("shopType");
   const productGroups = shopType === "general" ? pickedGroups() : [];
   const sells = shopType === "books" ? bookAnswer : shopType === "general" ? sellsForGroups(productGroups) : shopType === "services" ? pickedValue("does") : "";
-  return { pressName: startForm.pressName.value.trim(), shopType, sells, productGroups, country: startForm.country.value, sellingToday: pickedValue("sellingToday"), alsoSells: [...startForm.querySelectorAll(`input[name=${ALSO_SELLS.id}]:checked`)].map((input) => input.value), termsAccepted: startForm.termsAccepted.checked };
+  return { pressName: startForm.pressName.value.trim(), shopType, sells, productGroups, country: startForm.country.value, termsAccepted: startForm.termsAccepted.checked };
 };
 
 // Design my shop first: the answers are saved (no store is made, no terms needed yet), then the real designer opens
@@ -424,7 +487,6 @@ $("#design-first").addEventListener("click", () => {
   if (!checkAnswers(answers, { terms: false })) return;
   busy(startForm, $("#start-error"), async () => {
     const { termsAccepted: _terms, shopType: _type, ...change } = answers;
-    if (!change.sellingToday) delete change.sellingToday;
     press = (await api("POST", "/press/setup", { pressId: press.pressId, plan: TRIAL_PLAN, ...starterChange(), ...change })).press;
     location.assign(designerUrl());
   });
@@ -436,7 +498,6 @@ startForm.addEventListener("submit", (event) => {
   if (!checkAnswers(answers)) return;
   busy(startForm, $("#start-error"), async () => {
     const { termsAccepted, shopType: _type, ...change } = answers;
-    if (!change.sellingToday) delete change.sellingToday;
     const { press: saved } = await api("POST", "/press/setup", { pressId: press.pressId, plan: TRIAL_PLAN, ...starterChange(), ...change });
     press = saved;
     try {

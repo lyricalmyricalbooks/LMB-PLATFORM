@@ -23,6 +23,16 @@ is loaded from Google, at one fixed version (`config.js`), for sign-in only.
 
 `form.js` holds the questions and checks; the page and the server use the same file.
 
+**The front door's design pass (25 November 2026, `join/`).** The live page is `join/` (email, code, then About your
+brand). It asks three things before the trial: brand name, kind of shop and country (a product shop also picks what it
+sells: six common chips, "Show N more" for the rest). "Selling somewhere already?" and "Anything else you'll sell?" are no
+longer asked there: Get started's step 2 asks where a shop sells now, and Settings › General › Ways to sell turns on the
+beta ways. Saved answers from before are kept (the page no longer sends those fields). On a wide screen "Your new store"
+shows from the email step on, with a real starter's home page (pictures in `join/starters/`, taken from the live demo
+shop; retake them when a starter's look changes) and, once a name is typed, the live demo with that name
+(`DEMO_URL` in `config.js`, empty in the walkthrough). Under 900px the tile is left out and a strip above the form gives
+the trial's facts. One main button; "Or design your shop first" sits under it, and Sign out is in the header.
+
 ## The server (`signup.js`, `api.js`)
 
 `createApi({ signup, verifyIdToken, settings, routes })` is the platform's one web door, hosted later as one function
