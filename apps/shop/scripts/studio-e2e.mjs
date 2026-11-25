@@ -2509,6 +2509,36 @@ await check("the Client reviews section shows sample reviews of visits with star
   if (process.env.STUDIO_SHOTS) await frame.locator(".fm-svc-reviews").first().screenshot({ path: `${process.env.STUDIO_SHOTS}/services-reviews.png` });
 });
 
+// Make it yours (round three phase 3): a new shop that just picked Aurel opens on the four steps; a style, a font pair and
+// a homepage shape each change the draft at once (one Undo each), and the end lists the four things left.
+await check("Make it yours: four steps after the pick change the real preview, each undoable, and end on four things left", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const panel = page.locator("[data-studio-make-it-yours]");
+  await panel.waitFor({ timeout: 8000 });
+  await panel.getByRole("button", { name: "Next", exact: true }).click();
+  await panel.locator("[data-make-colour=night]").click();
+  const f = page.frames().find(fr => fr !== page.mainFrame() && fr.url().includes("preview=true"));
+  await page.waitForTimeout(1500);
+  const bg = await f.evaluate(() => getComputedStyle(document.querySelector("[data-fm-store]") || document.body).backgroundColor);
+  if (bg !== "rgb(18, 23, 34)") throw new Error(`the preview isn't in the Night colours (${bg})`);
+  if ((await panel.locator("[data-make-colour=night]").getAttribute("aria-checked")) !== "true") throw new Error("Night isn't marked as chosen");
+  await panel.getByRole("button", { name: "Next", exact: true }).click();
+  await panel.locator("[data-make-fonts=clean]").click();
+  await page.waitForTimeout(1200);
+  const font = await f.evaluate(() => getComputedStyle(document.querySelector("h1, h2") || document.body).fontFamily);
+  if (!/Space Grotesk/.test(font)) throw new Error(`the heading font didn't change (${font})`);
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+z" : "Control+z");
+  await page.waitForTimeout(600);
+  if ((await panel.locator("[data-make-fonts=starter]").getAttribute("aria-checked")) !== "true") throw new Error("Undo didn't bring the starter's own fonts back");
+  await panel.getByRole("button", { name: "Next", exact: true }).click();
+  await panel.locator("[data-make-home=short]").click();
+  if ((await panel.locator("[data-make-home=short]").getAttribute("aria-checked")) !== "true") throw new Error("the short homepage isn't marked as chosen");
+  await panel.getByRole("button", { name: "Finish" }).click();
+  await panel.locator("[data-make-next-item=photos]").waitFor({ timeout: 3000 });
+  if (await panel.locator("[data-make-next-item]").count() !== 4) throw new Error("the end doesn't list four things");
+  if (process.env.STUDIO_SHOTS) await page.screenshot({ path: `${process.env.STUDIO_SHOTS}/make-it-yours.png` });
+}, "?starter=aurel-editorial&sells=clothing#designer?tab=essentials&yours=1");
+
 await browser.close();
 await server?.close();
 for (const r of results) console.log(`${r.ok ? "✓" : "✗"} ${r.name} (${Math.round(r.ms / 1000)}s)${r.ok ? "" : ` — ${r.error}`}`);

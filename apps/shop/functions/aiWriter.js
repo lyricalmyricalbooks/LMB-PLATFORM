@@ -319,6 +319,20 @@ ${r.text}`;
       return true;
     },
   },
+  // Studio › Make it yours › Write my words: the homepage opening's headline and line from the owner's one sentence.
+  starterWords: {
+    needs: f => Boolean(clip(f?.brief, 300)),
+    prompt: (f, ctx) => `Write the opening words of the homepage for ${ctx.siteName || "a new online shop"}, from the owner's own sentence about it.
+- headline: at most 48 characters, a short, specific headline. No shop name unless it fits naturally.
+- intro: one or two sentences, at most 200 characters, saying what the shop offers and why it is worth a look.
+- ${STUDIO_HONESTY} Use only what the sentence says; where it lacks a fact, write around it instead of guessing.
+
+The owner's sentence:
+${clip(f.brief, 300)}`,
+    schema: { type: "OBJECT", properties: { headline: { type: "STRING" }, intro: { type: "STRING" } }, required: ["headline", "intro"] },
+    clean: out => ({ headline: fitWords(String(out.headline || "").replace(/\*\*|__|`/g, "").replace(/^["“]|["”]$/g, ""), 60), intro: fitWords(String(out.intro || "").replace(/\*\*|__|`/g, ""), 220) }),
+    ok: out => Boolean(out.headline && out.intro),
+  },
   // Studio › Add section › Draft with AI: the words for one new section, from the owner's short brief.
   sectionDraft: {
     needs: f => Boolean(draftSpec(f?.type) && clip(f?.brief, 500)),
@@ -361,7 +375,7 @@ function systemText(voice, task, siteName = "") {
   const press = clip(siteName, 80);
   return [
     `You write shop copy for ${press ? `${press}, an independent publisher` : "an independent publisher"}. You return only the JSON asked for.`,
-    task === "rewrite" || task === "sectionDraft" ? STUDIO_HONESTY : HONESTY,
+    task === "rewrite" || task === "sectionDraft" || task === "starterWords" ? STUDIO_HONESTY : HONESTY,
     v ? `The shop owner's house style (follow it unless it conflicts with the rules above):\n${v}` : "",
   ].filter(Boolean).join("\n\n");
 }
@@ -818,9 +832,9 @@ async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, sit
     const file = receiptFile(input);
     image = file && !(provider.name === "openrouter" && file.mimeType === "application/pdf") ? file : null;
   }
-  const raw = task === "receiptEmail" || task === "receiptRead" || task === "pageSeo" || task === "rewrite" || task === "sectionDraft";
+  const raw = task === "receiptEmail" || task === "receiptRead" || task === "pageSeo" || task === "rewrite" || task === "sectionDraft" || task === "starterWords";
   if (!TASKS[task].needs(raw ? input : bookFacts(input))) {
-    const why = { pageSeo: "Write the page title or some text first.", rewrite: "There's no text to rewrite yet.", sectionDraft: "Say what the section should be about first." };
+    const why = { pageSeo: "Write the page title or some text first.", rewrite: "There's no text to rewrite yet.", sectionDraft: "Say what the section should be about first.", starterWords: "Write a sentence about your shop first." };
     return { status: 400, body: { error: why[task] || "Give the book a title first." } };
   }
   try {

@@ -51,6 +51,8 @@ import { usePlatformStarters } from "../platformStarters";
 import { applyLook, bringBack, ownEdits, resetToLook, starterUpdate, switchSummary, themeSwitchReport, updateLookKeepingEdits, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
 import { importedThemeProblems } from "./themeCheck";
 import { ESSENTIALS, essentialCopyField, essentialStyleField } from "./essentials";
+import { StudioMakeItYours } from "./StudioMakeItYours";
+import { nextFour, starterOf } from "./makeItYours";
 import { StudioOutline, blockLabel } from "./StudioOutline";
 import { StudioStructure } from "./StudioStructure";
 import { StudioElementInspector } from "./StudioElementInspector";
@@ -486,7 +488,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   useEffect(() => { if (adding === null) { setCandidate(null); setDraftCandidate(null); } }, [adding]);
   const [blockId, setBlockId] = useState<string | null>(null);
   const [mode, setMode] = useState<"edit" | "browse">("edit");
-  const [mobilePanel, setMobilePanel] = useState("preview");
+  const [mobilePanel, setMobilePanel] = useState(initialLocation?.yours ? "outline" : "preview");
   // First link click swallowed in Edit mode: tell the owner once per browser how to follow links (Browse mode).
   const [linkHint, setLinkHint] = useState(false);
   const linkHintShown = useRef(false);
@@ -543,6 +545,14 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [brandKit, setBrandKit] = useState(false);
   const [brandChoice, setBrandChoice] = useState<BrandKitChoice | null>(null);
   useEffect(() => { if (!brandKit) setBrandChoice(null); }, [brandKit]);
+  // Make it yours (round three phase 3): the four steps Studio opens on after a new shop picks its starter (`#designer?yours=1`).
+  const [makeIt, setMakeIt] = useState(initialLocation?.yours === true);
+  useEffect(() => {
+    // Opened once from the link: a reload opens Studio as usual.
+    if (initialLocation?.yours && typeof window !== "undefined" && /[?&]yours=1/.test(window.location.hash)) {
+      try { window.history.replaceState(null, "", window.location.hash.replace(/([?&])yours=1&?/, "$1").replace(/[?&]$/, "")); } catch { /* the panel still opened */ }
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Switching workspace closes the brand kit (and its preview); its choices are not saved until Apply.
   const brandTabRef = useRef<string | null>(null);
   const [blockPicker, setBlockPicker] = useState<string | null>(null);
@@ -951,7 +961,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   };
   useEffect(() => { if (leftTab !== "themes") setThemePreview(null); }, [leftTab]);
   useEffect(() => {
-    if (brandTabRef.current !== null && brandTabRef.current !== leftTab) setBrandKit(false);
+    if (brandTabRef.current !== null && brandTabRef.current !== leftTab) { setBrandKit(false); setMakeIt(false); }
     brandTabRef.current = leftTab;
   }, [leftTab]);
   // A theme/version preview shows a different design in the canvas. Any edit to the draft (inspector,
@@ -2336,6 +2346,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     goToResult({ target: { type: "section", templateId: place.templateId, sectionId: place.sectionId } } as SearchEntry);
   };
 
+  const makeItNext = useMemo(() => nextFour({
+    design, sells: shopSells, hasOwnProducts: books.some((b: any) => b && !b.sample) || settings?.bookingsLive === true,
+    phoneChecked: phoneSeen, published: Boolean(settings?.design || publishedNow),
+  }), [design, shopSells, books, settings, phoneSeen, publishedNow]);
   const sidebarPanel = (
         <div className="studio-sidebar" aria-label="Editor panel" role="region">
           <div className="studio-panel-context">
@@ -2346,10 +2360,20 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           </div>
           <div className="flex-1 overflow-auto" ref={sidebarScrollRef} onScroll={e => { tabScroll.current[leftTab] = e.currentTarget.scrollTop; }}>
             {brandKit && <StudioBrandKit design={design} onPreview={setBrandChoice} onApply={applyBrandKit} onClose={() => setBrandKit(false)} />}
-            <div hidden={brandKit}>
+            {makeIt && !brandKit && <StudioMakeItYours design={design} sells={shopSells} words={shopWords} meta={getSectionMeta} samples={starterPhotos(shopSells)}
+              change={change} say={(tone, text) => say(tone, text, tone === "ok" ? undoAction() : undefined)} pages={pages} setPages={setPages} siteName={aiSiteName}
+              nameField={(() => { const hit = essentialCopyField("siteName"); return hit ? <StudioCopyField field={hit.field} design={design} settings={settings} aiWhere={hit.group} onChange={value => setCopy("siteName", value)} /> : null; })()}
+              logoField={(() => { const hit = essentialStyleField("logoUrl"); return hit ? renderStyleField(hit.group, hit.field) : null; })()}
+              nextFour={makeItNext} onGo={item => goSetup(item)} onClose={() => setMakeIt(false)} />}
+            <div hidden={brandKit || makeIt}>
             <StudioTips forceOpen={tipsNonce} />
             {leftTab === "sections" && <PreviewClickHint />}
             {leftTab === "essentials" && <div className="studio-essentials" data-studio-panel="essentials">
+              {starterOf(design) && <section className="studio-essential studio-make-open" data-essential="make-it-yours">
+                <h3>Make it yours</h3>
+                <p className="studio-hint">Four quick steps: name and logo, colours, fonts, pages and homepage.</p>
+                <button type="button" className={btn} data-open-make-it-yours onClick={() => { setMobilePanel("outline"); setMakeIt(true); }}>Open the four steps</button>
+              </section>}
               {cw(ESSENTIALS).map(step => (
                 <section key={step.id} className="studio-essential" data-essential={step.id} aria-labelledby={`essential-${step.id}`}>
                   <h3 id={`essential-${step.id}`}>{step.title}</h3>
@@ -2794,6 +2818,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     else if (go.kind === "device") { setDevice(go.device); setMobilePanel("preview"); }
     else if (go.kind === "health") openHealth();
     else if (go.kind === "brand") openBrandKit();
+    else if (go.kind === "admin") { if (typeof window !== "undefined") window.location.hash = go.hash; }
     else if (go.kind === "publish") {
       if (!unpublished && !dirtyDraft) say("ok", "Make a change first: there's nothing new to publish.");
       else setConfirmAction("publish");

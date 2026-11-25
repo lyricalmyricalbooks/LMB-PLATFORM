@@ -8,7 +8,9 @@ export type SetupGo =
   | { kind: "device"; device: "mobile" }
   | { kind: "health" }
   | { kind: "brand" }
-  | { kind: "publish" };
+  | { kind: "publish" }
+  /** Another admin page (Make it yours: add your products). */
+  | { kind: "admin"; hash: string };
 
 export type SetupItem = { id: string; title: string; detail: string; done: boolean; /** Where "Show me" goes; none when the job is done outside Studio. */ go?: SetupGo };
 

@@ -755,6 +755,41 @@ ul.studio-update-notes { padding-left: 18px; }
 .studio-essential > button { justify-self: start; }
 .studio-essentials-more { margin: 4px 0 0; font-size: 12px; line-height: 1.5; color: var(--rp-text-subtle); }
 
+/* Make it yours (round three phase 3): four numbered steps beside the preview, cards that apply on one click, and the
+   four things left at the end. */
+.studio-make .studio-library-body { display: grid; gap: 16px; }
+.studio-make .studio-library-group { display: grid; gap: 12px; }
+.studio-make .studio-library-group > h3 { margin: 4px 0 0; font-size: 13px; font-weight: 800; color: var(--rp-text); }
+.studio-make-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 4px 0 0; padding: 0; list-style: none; counter-reset: none; }
+.studio-make-steps button { display: grid; justify-items: start; gap: 4px; width: 100%; min-height: 56px; padding: 8px; font-size: 11px; font-weight: 700; line-height: 1.25; text-align: left; border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text-muted); cursor: pointer; }
+.studio-make-steps button > span { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 999px; background: var(--rp-surface-sunken); color: var(--rp-text); font-size: 11px; }
+.studio-make-steps [aria-current="step"] button { border-color: var(--rp-text); color: var(--rp-text); }
+.studio-make-steps [aria-current="step"] button > span, .studio-make-steps [data-done] button > span { background: var(--rp-primary); color: var(--rp-on-primary); }
+.studio-make .studio-library-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.studio-make-card { min-height: 64px; padding: 10px; align-content: start; }
+.studio-make-card .studio-library-name { font-size: 13px; font-weight: 700; }
+.studio-make-swatch { display: flex; align-items: center; gap: 6px; height: 48px; padding: 0 10px; border: 1px solid var(--rp-border); }
+.studio-make-swatch b { font-size: 22px; font-weight: 500; line-height: 1; margin-right: auto; }
+.studio-make-swatch i { display: block; width: 22px; height: 10px; border-radius: 999px; }
+.studio-make-font { font-size: 22px; line-height: 1.15; color: var(--rp-text); overflow-wrap: anywhere; }
+.studio-make-shape { display: grid; gap: 3px; padding: 6px; background: var(--rp-surface-sunken); }
+.studio-make-shape i { display: block; height: 7px; background: var(--rp-border-strong); opacity: 0.55; }
+.studio-make-shape i:first-child { height: 18px; opacity: 0.9; }
+.studio-make-pages { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.studio-make-pages label { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 10px; border: 1px solid var(--rp-border); background: var(--rp-surface); cursor: pointer; }
+.studio-make-pages label > span { display: grid; gap: 2px; flex: 1; min-width: 0; font-size: 13px; color: var(--rp-text); }
+.studio-make-pages small { font-size: 11px; line-height: 1.35; color: var(--rp-text-muted); }
+.studio-make-pages input { width: 18px; height: 18px; flex: none; accent-color: var(--rp-primary); }
+.studio-make-words { display: grid; gap: 8px; padding: 12px; background: var(--rp-surface-sunken); }
+.studio-make-words h3 { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; font-weight: 800; color: var(--rp-text); }
+.studio-make-words h3 .studio-hint { margin-left: auto; font-weight: 500; }
+.studio-make-words > button { justify-self: start; }
+.studio-make [data-make-next] .studio-health-item { align-items: center; gap: 10px; }
+.studio-make [data-make-next] .studio-health-item > div { display: grid; gap: 2px; }
+.studio-make [data-make-next] small { font-size: 11px; line-height: 1.4; color: var(--rp-text-muted); }
+.studio-make-open { background: var(--rp-surface-sunken); }
+@media (pointer: coarse) { .studio-make-steps button, .studio-make-card { min-height: 56px; } }
+
 /* Colophon bento look for Studio (13 November 2026): soft corners, pill buttons in the top bar, a mint tips tile and
    no hard ink outlines, so Studio matches the rest of the admin. The !important corners beat adminCompat.css, which
    squares every Tailwind-rounded control. Colours stay tokens (adminThemes.css). */
@@ -785,6 +820,9 @@ ul.studio-update-notes { padding-left: 18px; }
 :root[data-admin-look="colophon"] .studio-editor .studio-library-card { border-radius: 14px !important; overflow: hidden; }
 :root[data-admin-look="colophon"] .studio-editor .studio-library-kind { border-radius: 999px !important; }
 :root[data-admin-look="colophon"] .studio-editor .studio-brand-steps [aria-current="step"] button { box-shadow: none; }
+:root[data-admin-look="colophon"] .studio-editor :is(.studio-make-steps button, .studio-make-pages label, .studio-make-words, .studio-make-shape, .studio-make-swatch) { border-radius: 12px !important; }
+:root[data-admin-look="colophon"] .studio-editor .studio-make-open { border: 0; background: var(--rp-tile-mint); color: var(--rp-on-tile); }
+:root[data-admin-look="colophon"] .studio-editor .studio-make-open :is(h3, .studio-hint) { color: inherit; }
 :root[data-admin-look="colophon"] .studio-editor .studio-workbench-bar button { border-radius: 0 !important; }
 :root[data-admin-look="colophon"] .studio-editor .studio-preview-frame { border-radius: 14px; }
 :root[data-admin-look="colophon"] .studio-editor :is(div, section, article, label, li)[class*="rounded-lg"],

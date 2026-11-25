@@ -960,3 +960,35 @@ starter needs a `STARTER_INFO` entry, its test fails otherwise). The demo page r
 carry `frame=1` so the sample bar stays out. The list follows the control room through the public
 `GET /api/starters/offered` (control-room/starterSites.js `starterSitesPublicRoutes`); if it can't be read in 2.5 s the
 ready starters show. The front page's "See one live" row links to All starters.
+
+## Make it yours (25 November 2026, round three phase 3)
+
+Right after a new shop picks its starter (Choose your look › Use this look or Use and customize, not Skip and not setup
+mode), the admin opens `#designer?yours=1` (`studioLocation.ts` `yours`). Studio opens on the **Make it yours** panel
+(`StudioMakeItYours.tsx`, rules in `makeItYours.ts`) in the left column, beside the real preview; on a phone it opens on
+the steps (`mobilePanel` "outline"). The link is used once: Studio strips `yours=1` from the address, so a reload opens
+Studio as usual. Basics (Essentials) shows a mint "Make it yours" card to reopen it whenever the design's `themeBase` is a
+starter (`starterOf`).
+
+- Every click is one `change(…, { label })` on the draft, so the preview shows it at once, Undo takes it back and nothing
+  is live before Publish. No new design keys: name and logo are the same Text & labels / Style fields as everywhere.
+- **Colours** (`colourChoices`): the starter's styles (`starterStyles.ts`), then, when the logo's colour can be read
+  (`logoColours(design.logoUrl)`), the same styles through guidedStart `withLogoColours` (accent only, 3:1 on the page).
+  `applyColours` = `applyLook` (records `themeBase` with the style) plus the style's band settings on the draft's
+  sections: only keys some style of that starter patches are touched, set to the chosen style's value, else the
+  starter's own, else the section default, so switching back gives the starter's bands exactly (`makeItYours.test.ts`).
+  `keepFonts` keeps a font pair picked in this session.
+- **Fonts** (`fontChoices`): the starter's own pair ("As designed") then `FONT_PAIRINGS` ranked by the starter's
+  `lookFeel`, six in all. Every heading weight is one Google serves (test).
+- **Pages**: ticks for `pageChoices(sells)` (no Shipping for services shops). A tick creates the page starter as a draft;
+  untick deletes it only while it is still an untouched draft (`untouchedStarterPage`), else it stays with a note.
+- **Homepage** (`homeShapes`): as designed, products (or services) first, and short and simple, all made of the starter's
+  own sections in the shop's version (`starterForShop`) and style; a shape equal to another is dropped. Applied with
+  `applyPresetSections` on Home only, sample-marked.
+- **Write my words**: one sentence goes on the opening (`withOpeningWords`: the first Opening/Hero/Banner section's body,
+  plus the headline when the AI wrote one). Where the AI writer is available (not on Colophon shops yet,
+  `aiWriterAvailable`) it calls the new server task `starterWords` (functions/aiWriter.js, `aiStudio.test.js`).
+- **The end**: `nextFour` (photos via `sampleSectionsLeft`, own products or a live booking page, phone checked,
+  published), each with Studio's Show me (`goSetup`; new `SetupGo` kind `admin` opens another admin page).
+- Fixture: `/studio-fixture.html?starter=<id>[/<style>]&sells=…#designer?tab=essentials&yours=1` puts a whole starter
+  in the draft; `studio-e2e.mjs` check "Make it yours: four steps…".

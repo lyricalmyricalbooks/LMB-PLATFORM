@@ -108,3 +108,15 @@ describe("Studio AI: draft a section", () => {
     expect(res.body.result).toMatchObject({ title: "Join us", buttonLabel: "Sign up" });
   });
 });
+
+describe("Studio AI: Make it yours › Write my words", () => {
+  it("drafts a headline and an opening line from the owner's sentence, and needs one", async () => {
+    const text = buildRequest("starterWords", { brief: "Small-batch ceramics from our river studio" }, { siteName: "Clay & Co" }).contents[0].parts[0].text;
+    expect(text).toContain("Small-batch ceramics from our river studio");
+    expect(text).toContain("Clay & Co");
+    expect(buildRequest("starterWords", { brief: "x" }).systemInstruction.parts[0].text).toMatch(/Never invent prices/);
+    const out = parseResponse("starterWords", gemini({ headline: "\"Made by the river\"", intro: "Everyday **ceramics**, fired in small batches." }), { input: { brief: "x" } });
+    expect(out).toEqual({ headline: "Made by the river", intro: "Everyday ceramics, fired in small batches." });
+    expect((await handleAiWrite({ task: "starterWords", input: { brief: "  " } }, deps())).status).toBe(400);
+  });
+});

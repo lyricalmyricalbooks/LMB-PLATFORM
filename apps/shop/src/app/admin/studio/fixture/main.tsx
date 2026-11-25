@@ -61,6 +61,22 @@ fixture.versions = [{ id: "v-published", kind: "published", label: "Published 8 
     }
   }
 }
+// `?starter=aurel-editorial` (or `aurel-editorial/sand`) shows Studio as a new shop sees it right after picking that
+// starter: the whole starter in the draft (Make it yours, opened with `#designer?yours=1`), nothing published yet.
+{
+  const picked = new URLSearchParams(location.search).get("starter");
+  if (picked) {
+    const [id, style] = picked.split("/");
+    const { applyStarter, starterForShop } = await import("../starterDesign");
+    const { starterPhotos } = await import("../starterPhotos");
+    const { withStyle } = await import("../starterStyles");
+    const { libraryLook } = await import("../../lookGallery");
+    const { getSectionMeta } = await import("../../ThemeEditorExtensions");
+    const sold = new URLSearchParams(location.search).get("sells");
+    const theme = libraryLook(id);
+    if (theme) fixture.settings.draftDesign = applyStarter({}, starterForShop(withStyle(theme, style), sold), getSectionMeta as any, undefined, starterPhotos(sold));
+  }
+}
 // `?sells=` is also the shop's own answer, so the preview reads it as the storefront does (admin/sells.ts withShopStartFor:
 // a shop that sells no books shows no books menu).
 const sellsAnswer = new URLSearchParams(location.search).get("sells");
