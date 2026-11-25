@@ -447,3 +447,28 @@ describe("What the press set up before its shop existed (code plan 18.9)", () =>
     expect(document.querySelector("ul[aria-label='Looks']")).not.toBeNull();
   });
 });
+
+describe("The first order (sign-up to open shop plan, move 5)", () => {
+  const OLD_SHOP = { plan: "both", welcome: { theme: "press-zine", at: "now" } };
+  const order = { id: "o1", paymentStatus: "paid", createdAt: "2026-11-25T10:00:00Z", total: 18, customer: { name: "Ada Lovelace" }, items: [{ id: "b", title: "Moth Notes" }] };
+
+  it("celebrates the first real order once the run is over, and Done puts it away for good", async () => {
+    api.getFirstWeek.mockResolvedValue(OLD_SHOP);
+    await mount({ orders: [order] });
+    expect(document.querySelector("[data-first-order]")?.textContent).toContain("Ada just bought from you.");
+    await act(async () => { button("Done")!.click(); });
+    await flush();
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ done: { firstOrder: expect.any(String) } });
+    expect(document.querySelector("[data-first-order]")).toBeNull();
+  });
+
+  it("stays away for a practice order and once put away", async () => {
+    api.getFirstWeek.mockResolvedValue({ ...OLD_SHOP, done: { firstOrder: "then" } });
+    await mount({ orders: [order] });
+    expect(document.querySelector("[data-first-order]")).toBeNull();
+    act(() => root?.unmount()); root = null;
+    api.getFirstWeek.mockResolvedValue(OLD_SHOP);
+    await mount({ orders: [{ ...order, isTest: true }] });
+    expect(document.querySelector("[data-first-order]")).toBeNull();
+  });
+});

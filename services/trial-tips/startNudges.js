@@ -1,68 +1,95 @@
-// Get started nudges (code plan 17.14): a reminder on days 2 and 4 for a press whose Get started run isn't finished, each
-// pointing at the next stage. Pure: which stage is next (the order and "done" rules of apps/shop/src/app/admin/startRun.ts),
-// and whether a nudge is due today. Day 0 is the welcome email (setup step 14), so it is not repeated here.
-// The daily sweep (index.js) sends these only when the platform setting START_NUDGES is `beside` (sent with the setup tips)
-// or `instead` (sent in place of that day's setup tip). The default, `hold`, sends none, until Julian chooses.
+// Get started nudges (code plan 17.14; one a day since the sign-up to open shop plan, move 5, 25 November 2026): while a
+// press's shop isn't open, at most one email a day naming the one next step on Home's list ("One step from open: add
+// your first book"). Pure: which stage is next (the order and "done" rules of apps/shop/src/app/admin/startRun.ts), and
+// whether a nudge is due today. Day 0 is the welcome email (setup step 14), so nudges start on day 1 and stop on day
+// 10, before the trial's last days, which belong to the billing emails.
+// The daily sweep (index.js) sends these when the platform setting START_NUDGES is `instead` (the default since move 5:
+// in place of that day's setup tip, so a press never gets two emails in a day) or `beside`; `hold` sends none.
 //
 // A nudge is sent at most once per stage (`record.startNudges[stage]`), so a press that finishes a stage is never nudged
-// about it again, and a press that is stuck on one stage hears about it twice at most. A missed run may send the day after, and a nudge day sends one nudge at most.
+// about it again, and a press that is stuck on one stage hears about it once.
 
-export const START_NUDGE_DAYS = Object.freeze([2, 4]);
+import { sellsServices } from "../../shared/sells/sells.js";
+
+/** The days a nudge may go out on: from the day after sign-up to day 10 (from day 11 the billing emails speak). */
+export const START_NUDGE_FIRST_DAY = 1;
+export const START_NUDGE_LAST_DAY = 10;
+
+/** A services shop that sells no products has no shipping stage (servicesSetup.ts servicesOnly). */
+const servicesOnly = (d) => sellsServices(d?.sells || d?.publishes || null) && d?.sellsProducts !== true;
 
 /**
  * The run's stages in order, with the marker on firstWeek/start that says each one is done or skipped. `platform` stages
  * only exist for a press whose cards go through the platform (plan 17.10). Keep in step with startRun.ts.
  */
 export const START_STAGES = Object.freeze([
-  { id: "details", done: (d) => !!d.details },
-  { id: "bring", done: (d) => !!d.bring },
   { id: "look", done: (d) => !!d.welcome },
+  { id: "bring", done: (d) => !!d.bring, products: true },
+  { id: "services", done: (d) => !!d.bring, services: true },
   { id: "payments", done: (d) => !!d.payments, platform: true },
-  { id: "shipping", done: (d) => !!d.shipping },
+  { id: "details", done: (d) => !!d.details },
+  { id: "shipping", done: (d) => !!d.shipping, products: true },
   { id: "final", done: (d) => !!d.finalCheck },
 ]);
 
-/** The words of each stage's nudge, in the same shape as the setup tips (index.js TIPS): a subject, paragraphs, a button. */
+/**
+ * The words of each stage's nudge, in the same shape as the setup tips (index.js TIPS): the step (the subject reads
+ * "One step from open: <step>"), paragraphs, a button. Every button opens Home, where the list holds the step.
+ */
 export const START_NUDGE_WORDS = Object.freeze({
-  details: { subject: "Start with your press's details", paragraphs: ["Your press's name, contact email and address go on your receipts, labels and contact page.", "Open the Overview and fill in step 1, Your press. It takes a few minutes."], action: "Open the Overview", hash: "overview" },
-  bring: { subject: "Bring your books over, or add them by hand", paragraphs: ["If you sell somewhere else now, export your products as a file and choose it in Books › Import spreadsheet.", "Or skip this step and add your first book by hand. You can come back to it at any time."], action: "Open Books", hash: "catalog" },
-  look: { subject: "Pick the look for your shop", paragraphs: ["Choose a look and see it on a phone before you publish, so shoppers see something you're happy with.", "Your changes stay a draft until you publish them."], action: "Open Design", hash: "designer" },
-  payments: { subject: "Get paid before your first sale", paragraphs: ["Tell the card company where to send your money. Their own secure page asks for your bank details, and you come straight back.", "Sales go straight to your bank, and Colophon never holds your money."], action: "Open Payments", hash: "settings/payments" },
-  shipping: { subject: "Set your shipping prices", paragraphs: ["Shoppers see the price of delivery before they pay. Add the places you send to and a price for each.", "You can add free shipping over an amount at any time."], action: "Open Shipping", hash: "settings/shipping" },
-  final: { subject: "Finish the final check and open your shop", paragraphs: ["Your shop stays private until you open it. The final check names anything still missing, in plain words.", "When everything is set, press Open your shop."], action: "Open the Overview", hash: "overview" },
+  look: { subject: "Keep your starting look, or pick another", paragraphs: ["Your shop already wears the look you saw when you signed up. Keep it with one press, or try another.", "You can make it yours in Design at any time, before or after you open."], action: "Open Home", hash: "overview" },
+  bring: { subject: "Add your first book", paragraphs: ["A photo, a title and a price are enough to start. If you sell somewhere else now, bring your books over from a file instead.", "The sample books in your shop step aside when yours arrive."], action: "Open Home", hash: "overview" },
+  services: { subject: "Add your first service", paragraphs: ["Name it, say how long it takes and what it costs. Clients book it straight from your website.", "You can add more services and change your hours at any time."], action: "Open Home", hash: "overview" },
+  payments: { subject: "Set up getting paid", paragraphs: ["Tell the card company where to send your money. Their own secure page asks for your bank details, and you come straight back.", "Sales go straight to your bank, and Colophon never holds your money."], action: "Open Home", hash: "overview" },
+  details: { subject: "Check your contact details and policies", paragraphs: ["Your email and address go on your receipts, labels and contact page.", "Your shop's policy pages come filled in with them, so you only read them over."], action: "Open Home", hash: "overview" },
+  shipping: { subject: "Check your shipping prices", paragraphs: ["Shoppers see the price of delivery before they pay. We started you with prices for your country.", "Change anything you like, then press Continue."], action: "Open Home", hash: "overview" },
+  final: { subject: "Open your shop", paragraphs: ["Your shop stays private until you open it. The last check names anything still missing, in plain words.", "When everything is set, press Open my shop."], action: "Open Home", hash: "overview" },
 });
 
-/** The first stage of the run that is not done yet, or null when the run is finished, not in use, or a stockroom-only plan. */
-export function nextStartStage(doc, { platformCards = false, open = false } = {}) {
-  if (!doc || doc.plan === "stockroom" || open) return null;
-  // Older shops (no details) never had a run, so they hear nothing about it.
-  if (!doc.details) return null;
-  for (const stage of START_STAGES) {
-    if (stage.platform && !platformCards) continue;
-    if (!stage.done(doc)) return stage.id;
-  }
-  return null;
+/** The stages still to do for this press, in order: empty when the run is finished, not in use, or a stockroom-only plan. */
+export function stagesLeft(doc, { platformCards = false, open = false } = {}) {
+  if (!doc || doc.plan === "stockroom" || open) return [];
+  // Older shops chose a look before the run existed (no `firstRun`, nothing else done): they never had a run.
+  if (doc.welcome && !doc.welcome.firstRun && !doc.details && !doc.bring) return [];
+  const services = servicesOnly(doc);
+  return START_STAGES.filter((stage) => {
+    if (stage.platform && !platformCards) return false;
+    if (stage.products && services) return false;
+    if (stage.services && !services) return false;
+    return !stage.done(doc);
+  }).map((stage) => stage.id);
 }
 
-/** The nudge day that today falls in: day 2 or 4, and the day after either if the run was missed. Null otherwise. */
+/** The first stage of the run that is not done yet, or null. */
+export function nextStartStage(doc, opts = {}) {
+  return stagesLeft(doc, opts)[0] ?? null;
+}
+
+/** The email's subject: how close the press is, and the one next step. */
+export function nudgeSubject(step, left) {
+  const next = step[0].toLowerCase() + step.slice(1);
+  return left <= 1 ? `One step from open: ${next}` : `${left} steps from open. Next: ${next}`;
+}
+
+/** Today, when it is a day a nudge may go out on; null otherwise. */
 export function nudgeDayOf(day) {
   if (day === null || day === undefined) return null;
-  const hit = START_NUDGE_DAYS.filter((d) => day >= d && day <= d + 1);
-  return hit.length ? hit[hit.length - 1] : null;
+  return day >= START_NUDGE_FIRST_DAY && day <= START_NUDGE_LAST_DAY ? day : null;
 }
 
 /**
  * Whether a nudge is due today, and for which stage. `record` is the sweep's own row for the shop (`startNudges`, `off`).
- * Returns { nudge: { day, stage } } or { nudge: null, why }.
+ * Returns { nudge: { day, stage, left } } (`left`: stages still to do, this one included) or { nudge: null, why }.
  */
 export function startNudgeDue({ day, doc, platformCards = false, open = false, record }) {
   if (record?.off) return { nudge: null, why: "tips-off" };
   const nudgeDay = nudgeDayOf(day);
   if (nudgeDay === null) return { nudge: null, why: "not-a-nudge-day" };
-  const stage = nextStartStage(doc, { platformCards, open });
-  if (!stage) return { nudge: null, why: "nothing-to-nudge" };
+  const left = stagesLeft(doc, { platformCards, open });
+  if (!left.length) return { nudge: null, why: "nothing-to-nudge" };
+  const stage = left[0];
   if (record?.startNudges?.[stage]) return { nudge: null, why: "already-sent" };
-  // One nudge per nudge day: the day after is only for a run that missed the day itself, never a second nudge.
+  // One a day at most: a press that finishes a stage after today's nudge hears about the next one tomorrow.
   if (Object.values(record?.startNudges ?? {}).some((sent) => sent?.day === nudgeDay)) return { nudge: null, why: "already-sent" };
-  return { nudge: { day: nudgeDay, stage }, why: "due" };
+  return { nudge: { day: nudgeDay, stage, left: left.length }, why: "due" };
 }

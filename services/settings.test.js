@@ -20,7 +20,7 @@ test("defaults: Colophon, a $5 CAD platform fee a month on every plan, 14-day tr
     servicesShops: false,
     shopAddressDomain: "",
     signupOpen: false,
-    startNudges: "hold",
+    startNudges: "instead",
     signupDailyCap: 10,
     openCountries: ["CA", "US"],
     foundingOffer: { percentOff: 25, presses: 25, giveBackUnpaid: true },

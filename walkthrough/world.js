@@ -88,6 +88,7 @@ import { bookingsBetaRoutes, createBookingsBeta } from "../control-room/bookings
 import { createProductApproval, productApprovalRoutes } from "../control-room/productApproval.js";
 import { createWaysBeta, waysBetaRoutes } from "../control-room/waysBeta.js";
 import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
+import { createSignupFunnel, signupFunnelRoutes } from "../control-room/signupFunnel.js";
 import { createStarterSites, starterSitesPublicRoutes, starterSitesRoutes } from "../control-room/starterSites.js";
 import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
 import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
@@ -371,6 +372,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...productApprovalRoutes(productApproval),
     ...waysBetaRoutes(createWaysBeta({ admins, registry, auditLog, shopData, activity, now: clock.date })),
     ...shopLooksRoutes(shopLooks),
+    ...signupFunnelRoutes(createSignupFunnel({ admins, registry, shopData, now: clock.date })),
     ...starterSitesRoutes(starterSites),
     ...shopEmailsRoutes(shopEmails),
     ...appUseRoutes(appUse),

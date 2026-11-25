@@ -27,13 +27,19 @@ Each tip is recorded in the sweep's store, as a registry event and in the shop's
 guide step; a test fails when the shop's guide gains a step without one); the email is the `trial-tip` template in
 `services/email/templates.js`, sent from the platform's own address.
 
-## Get started nudges (plan 17.14)
+## Get started nudges (plan 17.14; one a day since the sign-up plan's move 5, 25 November 2026)
 
-On days 2 and 4, a press whose Get started run isn't finished can get a nudge to its next stage (`startNudges.js`,
-`START_NUDGE_WORDS`). The platform setting `START_NUDGES` decides whether they go out: `hold` (the default: none sent),
-`beside` (sent with that day's setup tip) or `instead` (sent in place of that day's setup tip, which then goes out on the
-next tip day). Each stage is nudged once, recorded in the store as `startNudges`, and a tips-off link stops them too.
-A press with no owner email or no shop admin is skipped with its reason. Julian has not chosen a mode yet, so nothing is sent.
+While a press's shop isn't open, from day 1 to day 10, it can get one email a day naming the one next step on Home's
+list (`startNudges.js`): "One step from open: add your first book", or "3 steps from open. Next: …". The order is the
+admin's run (`startRun.ts`): the look, products (services for a services shop), Get paid (platform cards only), contact
+and policies, shipping (not for a services shop), the final check. Every button opens Home, where the list holds the step.
+Each stage is nudged once, recorded in the store as `startNudges`, and at most one goes out a day. An older shop that
+chose its look before the run existed (no `welcome.firstRun`, nothing else done) gets none.
+
+The platform setting `START_NUDGES` decides whether they go out: `instead` (the default since move 5: sent in place of
+that day's setup tip, which then waits for the next tip day, so a press never gets two emails in a day), `beside` (sent
+with that day's setup tip) or `hold` (none). A tips-off link stops them too. A press with no owner email or no shop admin
+is skipped with its reason.
 
 ## Turning tips off
 

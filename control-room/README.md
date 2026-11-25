@@ -40,6 +40,9 @@ It wears the Colophon bento look (`look/colophon.css`, `room.css`), laid out by 
 - **Shops** (tabs Shops, Sign-ups, Setting up): a search pill, quick filters (All, Needs a look, Free trial, Paying,
   Payment failing, At risk) and every older filter under **More filters**. A shop's record opens beside the list at
   `#shop/<shop id>`, with what's wrong first, the facts, "Do for this shop" and the careful actions last.
+  Setting up has **From sign-up to first order** (`signupFunnel.js`, `GET /api/control/signup-funnel`): of the shops
+  made in the last 90 days, how many reached Home, added a first product or service, set up getting paid, opened and got
+  a first order, read from each shop's `firstWeek/start` and `settings/website` (test shops and stockroom-only plans left out).
 - **Inbox** (tabs Support, Repairs, Account recovery, App store): the list beside the one you're reading (stacked on a
   phone); Support adds **Send and close** and **Open shop**.
 - **Money** (tabs Income, Failed payments, Why brands leave, Costs, Prices and sign-up).
