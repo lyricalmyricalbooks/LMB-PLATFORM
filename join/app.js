@@ -225,7 +225,12 @@ if (STARTER_PICK) {
   $("#starter-pick-link").href = $("#new-starter-link").href;
   $("#starter-pick").hidden = false;
 }
-const starterChange = () => (STARTER_PICK ? { look: STARTER_PICK.look, lookStyle: STARTER_PICK.lookStyle } : {});
+// The starter the tile shows is the one the new shop opens on (sign-up plan, move 2): picked on a sample shop, else the
+// one that suits the kind of shop, so Choose your look inside starts where "Your new store" left off.
+const starterChange = () => {
+  const { starter, style } = previewChoice();
+  return { look: starter, lookStyle: style };
+};
 
 // Bookshop or general shop (14 November 2026, Julian): the first question, so it's clear which one gets the book
 // features. A general shop then says what it sells. Both are saved as one sign-up answer (signup/form.js SHOP_TYPES).
@@ -342,7 +347,7 @@ function showCountry() {
 // "Your new store" shows a real starter: the picture of its home page (join/starters/, taken from the live demo shop),
 // and on a wide screen, once a brand name is typed, the live demo shop itself with that name on it (DEMO_URL, the
 // demo's ?name=&embed=1). Which starter: the one picked on a sample shop (Use this starter), else the one that suits the
-// kind of shop. A shop with no picked starter chooses its look inside, so the tile says "one of the starters".
+// kind of shop. That starter is saved with the answers, so the new shop opens on it (sign-up plan, move 2).
 const STARTER_SHOTS = Object.freeze({
   "aurel-editorial": { shot: "aurel", name: "Aurel", style: "cobalt" },
   "juniper-slow-season": { shot: "slow-season", name: "Slow Season", style: "terracotta" },

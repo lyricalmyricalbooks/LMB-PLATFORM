@@ -633,6 +633,12 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
 
 ## Get started: your press first (29 October 2026, code plan 17.1 to 17.4, 17.8, 17.10, 17.11 and 17.13; redesigned 11 November 2026)
 
+**Never asked twice (25 November 2026, sign-up plan move 2).** `PressDetailsStage` takes `known` (`SignupFacts`: the shop
+profile's `name`, `firstWeek/start.country`, the sign-in email). When `nameAndCountryKnown` the step is "Where customers
+reach you": the name and country show as one line and only the contact email and address are asked; Settings still wins
+over sign-up answers (`pressDetailsFrom`). `join/` now always saves the starter "Your new store" showed as `look`/`lookStyle`,
+so Choose your look opens on it. Fixture: `?start=details&fresh=1`.
+
 The first-visit run at the top of a new shop's Overview (`overview/SetupStart.tsx`) is **Get started**. **The order lives
 in one place**, `startRun.ts`: `nextRunStep` picks the step, `runSteps(platform)` lists the steps this press walks (five,
 or six with Get paid) and `RUN_LABELS` names them. `overview/RunProgress.tsx` draws the mint progress strip above the

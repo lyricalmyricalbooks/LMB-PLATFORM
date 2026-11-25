@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pressDetailsFrom, pressDetailsPatch, pressDetailsProblems, type PressDetails } from "./pressDetails";
+import { nameAndCountryKnown, pressDetailsFrom, pressDetailsPatch, pressDetailsProblems, type PressDetails } from "./pressDetails";
 
 const full: PressDetails = {
   name: "Moth Press", email: "hello@mothpress.example", street: "12 Queen Street", city: "Toronto",
@@ -35,5 +35,23 @@ describe("Get started, step 1: the press's details (plan 17.2)", () => {
     const patch = pressDetailsPatch(settings, { ...full, name: "  Moth Press  ", street: " 12 Queen Street " });
     expect(patch.info).toEqual({ name: "Moth Press", email: "hello@mothpress.example", hours: "9-5" });
     expect(patch.location).toEqual({ street: "12 Queen Street", city: "Toronto", state: "Ontario", zip: "M5H 2N2", country: "Canada", phone: "416 555 0100" });
+  });
+});
+
+describe("sign-up answers are not asked again (sign-up plan, move 2)", () => {
+  it("starts from the brand name, country and sign-in email given at sign-up", () => {
+    const d = pressDetailsFrom({}, { name: "Lantern Zines", country: "GB", email: "owner@example.com" });
+    expect([d.name, d.country, d.email]).toEqual(["Lantern Zines", "United Kingdom", "owner@example.com"]);
+  });
+  it("keeps what Settings already holds over the sign-up answers", () => {
+    const d = pressDetailsFrom({ info: { name: "Moth", email: "hi@moth.example" }, location: { country: "Canada" } }, { name: "Old", country: "US", email: "owner@example.com" });
+    expect([d.name, d.country, d.email]).toEqual(["Moth", "Canada", "hi@moth.example"]);
+  });
+  it("skips the name and country only when both are known", () => {
+    expect(nameAndCountryKnown({}, { name: "Lantern Zines", country: "CA" })).toBe(true);
+    expect(nameAndCountryKnown({}, { name: "Lantern Zines" })).toBe(false);
+    expect(nameAndCountryKnown({}, { name: "", country: "CA" })).toBe(false);
+    expect(nameAndCountryKnown({}, { name: "Lantern Zines", country: "ZZ" })).toBe(false);
+    expect(nameAndCountryKnown({ info: { name: "Moth" }, location: { country: "Canada" } })).toBe(true);
   });
 });

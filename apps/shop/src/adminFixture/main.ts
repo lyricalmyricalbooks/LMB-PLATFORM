@@ -30,6 +30,7 @@ import { DEFAULT_BOOKING_SETTINGS, addDays, cleanBlocks, dayOf, zonedTime, type 
 import { shopTimeZone } from "../shared/shopTimeZone";
 import { waysData } from "../app/admin/waysApi";
 import { startersData } from "../app/admin/platformStarters";
+import { shopProfile } from "../lib/shopProfile";
 import { typeApprovalData } from "../app/admin/typeApprovalApi";
 import { clientVisitsData } from "../app/admin/clientVisitsApi";
 import { clientFilesData } from "../app/admin/clientFilesApi";
@@ -1662,8 +1663,16 @@ if (startAt) {
   api.getFirstWeek = async () => JSON.parse(JSON.stringify(week));
   api.updateFirstWeek = async (change: any) => { Object.assign(week, change); };
   api.getShippingProfiles = async () => [];
-  api.getSettings = async () => ({ info: { name: "Moth Press", email: "hello@mothpress.example" }, design: { showUnderConstruction: true },
-    location: { street: "12 Queen Street", city: "Toronto", state: "ON", zip: "M5H 2N2", country: "Canada" } });
+  // `&fresh=1`: straight from sign-up. The brand name and country come from sign-up (the shop profile and the setup
+  // document), Settings are still empty, so Get started asks only for the contact email and address.
+  if (new URLSearchParams(location.search).get("fresh")) {
+    week.country = "CA";
+    (shopProfile as any).name = "Lantern Zines";
+    api.getSettings = async () => ({ design: { showUnderConstruction: true } });
+  } else {
+    api.getSettings = async () => ({ info: { name: "Moth Press", email: "hello@mothpress.example" }, design: { showUnderConstruction: true },
+      location: { street: "12 Queen Street", city: "Toronto", state: "ON", zip: "M5H 2N2", country: "Canada" } });
+  }
 }
 
 // ?shipping=1 (Settings › Shipping screenshots): two profiles with zones and rates, saved only in this page.

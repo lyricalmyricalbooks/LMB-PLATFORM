@@ -42,6 +42,10 @@ the waitlist" (`#view-invite`): `join/waitlist.js` adds the email to the front p
 starter as the source, and the saved answers carry on when the invite comes. "Start another shop" on the account page
 goes to `join/?another=1`, which makes a second empty press record once (`accountStart.js` `another`).
 
+**Never asked twice (25 November 2026, move 2).** Opening a shop saves the starter "Your new store" showed (picked on a
+sample shop, else the one that suits the kind of shop) as `look`/`lookStyle`, and the admin's first Get started step no
+longer asks the brand name or country (`apps/shop/docs/agent-notes/admin.md`).
+
 ## The server (`signup.js`, `api.js`)
 
 `createApi({ signup, verifyIdToken, settings, routes })` is the platform's one web door, hosted later as one function

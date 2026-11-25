@@ -140,6 +140,8 @@ async function checkFrontDoor(browser, walk, log) {
       }
       const [saved] = await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`);
       if (saved?.status !== "open" || saved?.plan !== "both" || saved?.pressName !== "Front Door Press" || saved?.sells !== "clothing" || saved?.sellingToday || saved?.country !== "CA") throw new Error(`saved ${JSON.stringify(saved)}`);
+      // The starter "Your new store" showed (clothing: Aurel) is the one the shop opens on (sign-up plan, move 2).
+      if (saved?.look !== "aurel-editorial" || saved?.lookStyle !== "cobalt") throw new Error(`the shown starter wasn't saved: ${saved?.look} ${saved?.lookStyle}`);
       const row = await walk.world.stores.signups.get(saved.shopId);
       if (!row?.trialStartedAt || row?.plan !== "both") throw new Error(`the trial didn't start with both apps: ${JSON.stringify(row)}`);
     });
