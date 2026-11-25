@@ -12,10 +12,12 @@ import { shopMatches } from "./shopSearch.js";
 import { findResults, GROUPS } from "./palette.js";
 import { googleSteps, launchSteps, launchSummary, readTicks, saveTicks, walkSteps } from "./launch.js";
 import * as BRAND_LOGOS from "./look/brand-logos.js";
+import { cleanCode, codeProblem, googleProblem, roomRefusal } from "./signInSteps.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
 const {
-  getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, getMultiFactorResolver, multiFactor, TotpMultiFactorGenerator,
+  getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut,
+  getMultiFactorResolver, multiFactor, TotpMultiFactorGenerator,
 } = await import(`${FIREBASE_SDK}/firebase-auth.js`);
 
 const auth = getAuth(initializeApp(PLATFORM_FIREBASE));
@@ -187,7 +189,7 @@ function openDrawer(title, description, body, caption = null) {
 }
 
 async function load() {
-  status.textContent = "Loading…";
+  if (shellRole) status.textContent = "Loading…";
   // The backup person (plan 8.7) sees only the run book; a platform admin sees it in the menu with everything else.
   let role = null;
   try {
@@ -202,6 +204,11 @@ async function load() {
   }
   try {
     await loadToday();
+    // The room opens as soon as the first answer says yes: the rest fills in while you look. Before, the sign-in card
+    // (with its Google button) stayed up for several seconds while every panel loaded, so a new tab looked signed out
+    // and invited a needless second sign-in (25 November 2026).
+    showShell("admin");
+    status.textContent = "Loading…";
     await loadTaxWatch();
     await loadTestShop();
     await loadShops();
@@ -210,7 +217,6 @@ async function load() {
     status.textContent = "";
     checkedAt = Date.now();
     showChecked();
-    showShell("admin");
     await loadRepairs();
     await loadTickets();
     await loadApps();
@@ -231,9 +237,21 @@ async function load() {
     await loadBookingsBeta();
     await loadWaysBeta();
   } catch (failure) {
-    status.textContent = failure.message;
-    // A listed admin without two-step sign-in yet (plan 9.1): offer to set up the authenticator app.
-    if (/two-step/.test(failure.message) && auth.currentUser && !multiFactor(auth.currentUser).enrolledFactors.length) await startTwoStepSetup();
+    // Refused before the room opened (plan 9.1): the sign-in card says why, and stays until the next step. A listed
+    // admin without an authenticator app yet gets the set-up screen.
+    const refusal = shellRole ? null : roomRefusal(failure.message, Boolean(auth.currentUser && multiFactor(auth.currentUser).enrolledFactors.length));
+    if (refusal?.show === "setup") {
+      status.textContent = "";
+      await startTwoStepSetup();
+    } else if (refusal) {
+      // Signed out too, so the Google button starts clean (and can pick another account).
+      status.textContent = "";
+      showOnly("#view-signin", refusal.words);
+      await signOut(auth).catch(() => {});
+    } else {
+      status.textContent = failure.message;
+      if (!shellRole) showOnly("#view-signin", failure.message);
+    }
   }
 }
 
@@ -2492,11 +2510,22 @@ function showShell(role) {
   route();
 }
 
-function showGate(id) {
+/** The sign-in card with one step showing, and its own message under the title (empty: none). */
+function showGate(id, note = "") {
   shellRole = null;
   $("#shell").hidden = true;
   $("#gate").hidden = false;
-  for (const view of ["#view-signin", "#view-code", "#view-setup"]) $(view).hidden = view !== id;
+  for (const view of ["#view-wait", "#view-signin", "#view-code", "#view-setup"]) $(view).hidden = view !== id;
+  gateNote(note);
+}
+// Good news (two-step just turned on) reads calm with a tick; everything else is a warning to act on.
+const GOOD_NEWS = /^Two-step sign-in is on/;
+function gateNote(words = "") {
+  const good = GOOD_NEWS.test(words);
+  $("#gate-note-words").textContent = words;
+  $("#gate-note").dataset.tone = good ? "neutral" : "warning";
+  $("#gate-note .cr-gate-note-glyph").textContent = good ? "✓" : "!";
+  $("#gate-note").hidden = !words;
 }
 
 // The menu is a drawer below desktop widths.
@@ -2622,41 +2651,102 @@ new MutationObserver(() => {
 }).observe(status, { childList: true, characterData: true, subtree: true });
 
 // ── Signing in (plan 9.1): Google, then a code from the authenticator app. The server refuses a sign-in without it. ──
+// Every failure says what happened in the card itself (signInSteps.js), and buttons say when they're working, so a
+// slow answer never looks like a dead button (25 November 2026).
 const showOnly = showGate;
 let resolver = null;
 
-$("#google").addEventListener("click", async () => {
-  status.textContent = "";
+/** A button that is working: disabled, with its words swapped until done. */
+async function busy(buttonEl, words, work) {
+  const before = buttonEl.textContent;
+  buttonEl.disabled = true;
+  buttonEl.setAttribute("aria-busy", "true");
+  if (words) buttonEl.textContent = words;
   try {
-    await signInWithPopup(auth, new GoogleAuthProvider());
+    return await work();
+  } finally {
+    buttonEl.disabled = false;
+    buttonEl.removeAttribute("aria-busy");
+    buttonEl.textContent = before;
+  }
+}
+
+/** Google said yes; an authenticator app is needed: show the code step. */
+function askForCode(error) {
+  resolver = getMultiFactorResolver(auth, error);
+  if (!resolver.hints.some((h) => h.factorId === TotpMultiFactorGenerator.FACTOR_ID)) {
+    resolver = null;
+    showOnly("#view-signin", "This account's second step isn't an authenticator app, so the control room can't use it. Ask for help.");
+    return;
+  }
+  showOnly("#view-code");
+  $("#code-form").reset();
+  $("#code-form").code.focus();
+}
+
+function googleFailed(error) {
+  if (error?.code === "auth/multi-factor-auth-required") return askForCode(error);
+  const words = googleProblem(error?.code);
+  if (words) gateNote(words);
+}
+
+const googleButton = $("#google");
+// Always ask which Google account, so a wrong or old one is never picked silently.
+const google = () => { const provider = new GoogleAuthProvider(); provider.setCustomParameters({ prompt: "select_account" }); return provider; };
+googleButton.addEventListener("click", async () => {
+  gateNote("");
+  googleButton.disabled = true;
+  googleButton.setAttribute("aria-busy", "true");
+  try {
+    await signInWithPopup(auth, google());
   } catch (error) {
-    if (error?.code !== "auth/multi-factor-auth-required") {
-      status.textContent = "Sign-in didn't finish.";
-      return;
-    }
-    resolver = getMultiFactorResolver(auth, error);
-    showOnly("#view-code");
-    $("#code-form").code.focus();
+    googleFailed(error);
+  } finally {
+    googleButton.disabled = false;
+    googleButton.removeAttribute("aria-busy");
   }
 });
 
-$("#code-form").addEventListener("submit", async (event) => {
+const codeForm = $("#code-form");
+// Six digits typed or pasted is the whole code: sign in without a second press.
+codeForm.code.addEventListener("input", () => {
+  if (cleanCode(codeForm.code.value) && !codeForm.querySelector("button[type=submit]").disabled) codeForm.requestSubmit();
+});
+codeForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const form = event.currentTarget;
-  const hint = resolver?.hints.find((h) => h.factorId === TotpMultiFactorGenerator.FACTOR_ID);
-  if (!hint) {
-    status.textContent = "Your account has no authenticator app set up. Ask for help.";
+  const code = cleanCode(codeForm.code.value);
+  if (!code) {
+    gateNote("Type the 6 numbers your authenticator app shows for Colophon control room.");
+    codeForm.code.focus();
     return;
   }
-  form.querySelector("button").disabled = true;
-  try {
-    await resolver.resolveSignIn(TotpMultiFactorGenerator.assertionForSignIn(hint.uid, form.code.value.replace(/\s+/g, "")));
-    form.reset();
-    resolver = null;
-  } catch {
-    status.textContent = "That code didn't work. Codes change every 30 seconds: try the one on screen now.";
+  const hint = resolver?.hints.find((h) => h.factorId === TotpMultiFactorGenerator.FACTOR_ID);
+  if (!hint) {
+    showOnly("#view-signin", "Sign in with Google first, then type the code.");
+    return;
   }
-  form.querySelector("button").disabled = false;
+  gateNote("");
+  await busy(codeForm.querySelector("button[type=submit]"), "Checking the code…", async () => {
+    try {
+      await resolver.resolveSignIn(TotpMultiFactorGenerator.assertionForSignIn(hint.uid, code));
+      resolver = null;
+      codeForm.reset();
+      showOnly("#view-wait");
+    } catch (error) {
+      const problem = codeProblem(error?.code);
+      if (problem.restart) {
+        resolver = null;
+        showOnly("#view-signin", problem.words);
+        return;
+      }
+      gateNote(problem.words);
+      codeForm.code.select();
+    }
+  });
+});
+$("#code-restart").addEventListener("click", () => {
+  resolver = null;
+  showOnly("#view-signin");
 });
 
 let setupSecret = null;
@@ -2664,9 +2754,13 @@ async function startTwoStepSetup() {
   try {
     setupSecret = await TotpMultiFactorGenerator.generateSecret(await multiFactor(auth.currentUser).getSession());
   } catch (error) {
-    status.textContent = error?.code === "auth/requires-recent-login"
-      ? "Sign in again, then set up two-step sign-in straight away."
-      : "Two-step sign-in can't be set up yet. It has to be turned on for the platform first (see control-room/README.md).";
+    // Too long since Google (Firebase wants a fresh sign-in to add an app): sign out, so the button starts clean.
+    if (error?.code === "auth/requires-recent-login") {
+      await signOut(auth).catch(() => {});
+      showOnly("#view-signin", "Sign in with Google once more, then set up your authenticator app straight away.");
+    } else {
+      showOnly("#view-signin", "Two-step sign-in can't be set up yet: it has to be turned on for the platform first.");
+    }
     return;
   }
   const link = setupSecret.generateQrCodeUrl(auth.currentUser.email, "Colophon control room");
@@ -2681,29 +2775,53 @@ async function startTwoStepSetup() {
   } catch {
     $("#setup-qr").textContent = "";
   }
-  status.textContent = "";
   showOnly("#view-setup");
+  $("#setup-form").reset();
 }
 
 $("#setup-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
-  form.querySelector("button").disabled = true;
-  try {
-    await multiFactor(auth.currentUser).enroll(TotpMultiFactorGenerator.assertionForEnrollment(setupSecret, form.code.value.replace(/\s+/g, "")), "Authenticator app");
-    form.reset();
-    await signOut(auth);
-    status.textContent = "Two-step sign-in is on. Sign in again with Google, then type the code from the app.";
-  } catch {
-    status.textContent = "That code didn't work. Codes change every 30 seconds: try the one on screen now.";
+  const code = cleanCode(form.code.value);
+  if (!code) {
+    gateNote("Type the 6 numbers the app shows after you add the account.");
+    form.code.focus();
+    return;
   }
-  form.querySelector("button").disabled = false;
+  gateNote("");
+  await busy(form.querySelector("button[type=submit]"), "Turning it on…", async () => {
+    try {
+      await multiFactor(auth.currentUser).enroll(TotpMultiFactorGenerator.assertionForEnrollment(setupSecret, code), "Authenticator app");
+      form.reset();
+      setupSecret = null;
+      await signOut(auth);
+      showOnly("#view-signin", "Two-step sign-in is on. Sign in with Google again, then type the code from the app.");
+    } catch (error) {
+      if (error?.code === "auth/requires-recent-login") {
+        await signOut(auth).catch(() => {});
+        showOnly("#view-signin", "That took a while, so Google wants you to sign in again. Then set up the app straight away.");
+        return;
+      }
+      gateNote(codeProblem(error?.code).words);
+      form.code.select();
+    }
+  });
+});
+$("#setup-restart").addEventListener("click", async () => {
+  setupSecret = null;
+  await signOut(auth).catch(() => {});
 });
 
 $("#refresh").addEventListener("click", load);
 onAuthStateChanged(auth, (user) => {
-  if (user) load();
-  else showOnly("#view-signin");
+  if (user) {
+    // Signed in (or kept from last time): "Checking your sign-in…" until the room answers, never the Google button.
+    if (!shellRole) showOnly("#view-wait");
+    load();
+  } else if ($("#view-code").hidden || !resolver) {
+    // Signed out. The code step stays put: Google's half is waiting on it, with nobody signed in yet.
+    showOnly("#view-signin", $("#view-wait").hidden ? $("#gate-note-words").textContent : "");
+  }
 });
 
 // ── Support asks before making changes (plan 19.6): "Ask the press", their answer, then "Open their admin" once. ──

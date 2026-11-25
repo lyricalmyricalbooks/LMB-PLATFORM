@@ -34,9 +34,13 @@ const set = (email) => {
   for (const listener of listeners) listener(auth.currentUser);
 };
 
+// `?code=ask` on the control room tries its two-step sign-in: it opens signed out, Google asks for the authenticator
+// code, 123456 is right, 000000 plays a code step that timed out and anything else is a wrong code.
+const askCode = () => location.pathname.startsWith("/control") && new URLSearchParams(location.search).get("code") === "ask";
+
 // Someone who signed in before, or who is named in the address, is signed in when the page opens.
 // The control room always opens as the platform owner unless the address names someone else.
-const first = asked() || (location.pathname.startsWith("/control") ? usual() : recalled());
+const first = askCode() ? "" : asked() || (location.pathname.startsWith("/control") ? usual() : recalled());
 if (first) {
   auth.currentUser = userOf(first);
   remember(first);
@@ -59,13 +63,15 @@ function says() {
 }
 
 export const getAuth = () => auth;
-export class GoogleAuthProvider {}
+export class GoogleAuthProvider { setCustomParameters() { return this; } }
 export const onAuthStateChanged = (_auth, listener) => {
   listeners.add(listener);
   queueMicrotask(() => { listener(auth.currentUser); says(); });
   return () => listeners.delete(listener);
 };
+const fail = (code) => Object.assign(new Error(code), { code });
 export const signInWithPopup = async () => {
+  if (askCode()) throw fail("auth/multi-factor-auth-required");
   set(asked() || usual());
   says();
   return { user: auth.currentUser };
@@ -75,8 +81,21 @@ export const isSignInWithEmailLink = () => false;
 // The two-step parts the control room reads: the platform owner has an authenticator app already, so it never asks for
 // a code or offers to set one up.
 export const multiFactor = (user) => ({ enrolledFactors: PEOPLE[user?.email]?.twoStep ? [{ factorId: "totp", displayName: "Authenticator app" }] : [] });
-export const getMultiFactorResolver = () => { throw new Error("The walkthrough has no authenticator codes: the platform owner is signed in with two steps already."); };
-export const TotpMultiFactorGenerator = { FACTOR_ID: "totp" };
+export const getMultiFactorResolver = () => {
+  if (!askCode()) throw new Error("The walkthrough has no authenticator codes: the platform owner is signed in with two steps already.");
+  return {
+    hints: [{ factorId: "totp", uid: "factor-admin" }],
+    resolveSignIn: async ({ code }) => {
+      await new Promise((done) => setTimeout(done, 400));
+      if (code === "000000") throw fail("auth/invalid-multi-factor-session");
+      if (code !== "123456") throw fail("auth/invalid-verification-code");
+      set("admin@example.com");
+      says();
+      return { user: auth.currentUser };
+    },
+  };
+};
+export const TotpMultiFactorGenerator = { FACTOR_ID: "totp", assertionForSignIn: (_uid, code) => ({ code }) };
 // The front door (join/) signs in with the link its code check gives back: here that signs in as the address at once.
 export const signInWithEmailLink = async (_auth, email, link) => {
   if (!EMAIL.test(email ?? "") || !String(link ?? "").includes("oobCode=")) throw new Error("That sign-in link isn't one the walkthrough made.");

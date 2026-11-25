@@ -101,6 +101,17 @@
   .rp-login-card code { font-family: var(--rp-font-mono); overflow-wrap: anywhere; }
   .cr-status { position: fixed; left: 50%; bottom: 24px; z-index: 500; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); }
   .cr-status:empty { display: none; }
+  /* The sign-in card's own message (plan 9.1): it stays until the next step, unlike the toast. */
+  .cr-gate-note { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 20px; padding: 12px 14px; border-radius: 12px; background: var(--rp-warning-tint); color: var(--rp-text); font-size: var(--rp-text-sm); line-height: 1.5; text-align: left; }
+  .cr-gate-note[data-tone="neutral"] { background: var(--rp-surface-2, var(--rp-surface-inset)); }
+  .cr-gate-note[hidden] { display: none; }
+  .cr-gate-note-glyph { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--rp-warning); color: var(--rp-surface); font-weight: 800; font-size: 13px; line-height: 1; }
+  .cr-gate-note[data-tone="neutral"] .cr-gate-note-glyph { background: var(--rp-text); }
+  #gate .cr-form { display: grid; gap: 12px; }
+  #gate .cr-form .rp-btn { width: 100%; justify-content: center; }
+  #gate .rp-login-brand .rp-wordmark-sub { color: var(--rp-text-muted); background: none; }
+  .cr-code-input { font-family: var(--rp-font-mono); font-size: 1.5rem; letter-spacing: 0.3em; text-align: center; }
+  #gate [aria-busy="true"] .rp-login-lede { color: var(--rp-text-muted); }
   .cr-status { padding: 12px 16px; background: var(--rp-inverse); color: var(--rp-on-inverse); font-size: 14px; font-weight: 600; box-shadow: var(--rp-shadow-float); }
   /* Income over time (plan 19.7): one line, drawn in the theme's own colours. */
   .cr-chart { display: block; width: 100%; height: auto; overflow: visible; }
@@ -136,17 +147,26 @@
         <h1 class="rp-page-title rp-login-title">Colophon <span>control room</span></h1>
         <p class="rp-wordmark-sub">The platform owner's room</p>
       </div>
-      <section id="view-signin">
+      <section id="view-wait" aria-busy="true">
+        <p class="rp-card-desc rp-login-lede">Checking your sign-in…</p>
+      </section>
+      <div id="gate-note" class="cr-gate-note" role="alert" hidden>
+        <span class="cr-gate-note-glyph" aria-hidden="true">!</span>
+        <span id="gate-note-words"></span>
+      </div>
+      <section id="view-signin" hidden>
         <p class="rp-card-desc rp-login-lede">For platform admins only. After Google you'll need the code from your authenticator app too.</p>
         <button type="button" id="google" class="gsi-button" style="width: 100%"><span class="gsi-button-g"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg></span><span class="gsi-button-text">Sign in with Google</span></button>
       </section>
       <section id="view-code" hidden>
-        <form id="code-form" class="cr-form">
+        <p class="rp-card-desc rp-login-lede">Google said yes. Now open your authenticator app and type the 6-digit code for Colophon control room.</p>
+        <form id="code-form" class="cr-form" novalidate>
           <div class="rp-field">
-            <label class="rp-label" for="code-input">The 6-digit code from your authenticator app</label>
-            <input id="code-input" class="rp-input" name="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7">
+            <label class="rp-label" for="code-input">The 6-digit code</label>
+            <input id="code-input" class="rp-input cr-code-input" name="code" required inputmode="numeric" autocomplete="one-time-code" maxlength="9" spellcheck="false">
           </div>
           <button type="submit" class="rp-btn rp-btn-primary rp-btn-lg">Sign in</button>
+          <button type="button" id="code-restart" class="rp-btn rp-btn-ghost">Start again with Google</button>
         </form>
       </section>
       <section id="view-setup" hidden>
@@ -160,9 +180,10 @@
         <form id="setup-form" class="cr-form">
           <div class="rp-field">
             <label class="rp-label" for="setup-input">The 6-digit code</label>
-            <input id="setup-input" class="rp-input" name="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7">
+            <input id="setup-input" class="rp-input cr-code-input" name="code" required inputmode="numeric" autocomplete="one-time-code" maxlength="9" spellcheck="false">
           </div>
           <button type="submit" class="rp-btn rp-btn-primary rp-btn-lg">Turn on two-step sign-in</button>
+          <button type="button" id="setup-restart" class="rp-btn rp-btn-ghost">Use another Google account</button>
         </form>
       </section>
       <div class="rp-login-foot"><span class="rp-hint">Private area: only the platform owner's account, with two-step sign-in.</span></div>

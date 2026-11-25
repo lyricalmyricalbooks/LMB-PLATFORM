@@ -22,7 +22,7 @@ modules, no packages of its own, no emulators, no network. The plain-words guide
 | Address | Page | Notes |
 | --- | --- | --- |
 | `/` (and `/start`) | the start page (`startPage.js`) | Five sections: as a shopper (the demo's shop, checkout, practice inbox), the press's website admin, its stockroom, a press joining the platform, and the platform owner. |
-| `/control/` | `control-room/index.html` | Signs in as `admin@example.com` with two-step claims (`firebase.sign_in_second_factor: "totp"`, a fresh `auth_time`), so every panel opens. This sign-in is never remembered, so the other pages keep their own person. |
+| `/control/` | `control-room/index.html` | Signs in as `admin@example.com` with two-step claims (`firebase.sign_in_second_factor: "totp"`, a fresh `auth_time`), so every panel opens. This sign-in is never remembered, so the other pages keep their own person. `?code=ask` opens signed out and asks for the authenticator code (123456 signs in, 000000 plays a timed-out code step). |
 | `/waitlist/` | `waitlist/index.html` | Plans from `/api/plans` and **Start your free trial** (the walkthrough turns sign-up on). The form keeps sign-ups in memory. |
 | `/signup/` | `signup/index.html` | "Continue with Google" signs in as `newcomer@example.com`, who has no shop yet. |
 | `/account/` (and `/accounts/`) | `accounts/index.html` | Signs in as `owner@example.com`, who has three presses: Moth Press (trial), Paper Wasp Press (paused) and Fieldnote Editions (paying). |
