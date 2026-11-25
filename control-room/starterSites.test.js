@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { AWAITING_YES, STARTERS, STARTERS_DOC, STARTERS_RECORD, cleanRecord, createStarterSites, recordFrom, shopDocOf, starterRows, starterSitesRoutes } from "./starterSites.js";
+import { AWAITING_YES, STARTERS, STARTERS_DOC, STARTERS_RECORD, cleanRecord, createStarterSites, recordFrom, shopDocOf, starterRows, starterSitesPublicRoutes, starterSitesRoutes } from "./starterSites.js";
 import { controlRoomAdmins } from "./controlRoom.js";
 import { fakeShopData } from "../accounts/fakes.js";
 import { fakeAuditLog, fakeRegistry } from "../setup/fakes.js";
@@ -155,4 +155,15 @@ test("a style can be hidden from shops, never a starter's own; shops get the lis
   assert.equal(back.body.changed, true);
   assert.deepEqual((await w.shopData.get("moth-press", STARTERS_DOC)).hiddenStyles, []);
   assert.ok(starterRows(null).every((s) => s.styles.every((x) => x.shown)));
+});
+
+test("the public starter library reads which starters are offered, with no sign-in and nothing about who saved it", async () => {
+  const w = await world();
+  const route = starterSitesPublicRoutes(w.desk)["GET /api/starters/offered"];
+  assert.deepEqual(await route({}), { choice: null });
+  await w.ask(ADMIN, "/api/control/starters/save", { starters: choice({ "juniper-catalogue": { shown: false } }) });
+  const { choice: offered } = await route({});
+  assert.deepEqual(offered.hidden, ["juniper-catalogue"]);
+  assert.deepEqual(offered.known, ALL);
+  assert.deepEqual(Object.keys(offered).sort(), ["hidden", "hiddenStyles", "known", "order"]);
 });

@@ -1,5 +1,6 @@
 /* GENERATED from shared/admin-look/platform-pages.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
 /* GENERATED from shared/admin-look/platform-pages.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
+/* GENERATED from shared/admin-look/platform-pages.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
 /*
  * Platform pages — the Colophon pages around the shop (waitlist, sign-up, start your shop, your shops, plan & billing,
  * help, status, terms, trust, the walkthrough start page), in the Colophon bento look (colophon.css, 9 November 2026):
@@ -561,6 +562,8 @@ body.cp:has(> footer) > main { flex: 1 0 auto; }
 .cp-fp-live span { flex-basis: 100%; font-size: 13px; font-weight: 600; color: var(--cl-on-tile); }
 .cp-fp-live a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid currentColor; color: var(--cl-on-tile); font-size: 14px; white-space: nowrap; font-weight: 600; text-decoration: none; }
 .cp-fp-live a:hover, .cp-fp-live a:focus-visible { background: var(--cl-on-tile); color: var(--cl-sky); }
+.cp-fp-live a.cp-fp-live-all { background: var(--cl-on-tile); color: var(--cl-sky); }
+.cp-fp-live a.cp-fp-live-all span { flex-basis: auto; margin-left: 6px; font-size: inherit; color: inherit; }
 .cp-fp-tilecopy { flex: 0 0 34%; display: flex; flex-direction: column; justify-content: center; padding-bottom: clamp(24px, 3.4vw, 40px); }
 .cp-fp-arrow { margin-top: 14px; align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; gap: 6px; font: 600 14px/1 var(--rp-font-body); color: var(--cl-on-tile); text-decoration: none; }
 .cp-fp-arrow:hover { text-decoration: underline; text-underline-offset: 6px; }

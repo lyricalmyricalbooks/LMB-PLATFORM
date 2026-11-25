@@ -950,3 +950,13 @@ Plan https://claude.ai/artifact/RAGCAzCvap1KAaXtWr1Jnj. `starter-gallery`, `star
   `overlayOpacity: 0` (Aurel, Slow Season and Catalogue had the tint too; `neutralStarters.test.ts` now checks). Shops
   already on those three keep their grids until they edit them; new shops and Try this starter get the fix.
 - Warehouse and Workshop set their own opening headline size (their wide fonts overflowed the shared size).
+
+## Starter library on the platform site (25 November 2026, round three phase 2b)
+
+`/demo/starters/` (all offered starters, filters Things to sell / Appointments and classes / Books and prints) and
+`/demo/starters/<id>` (live desktop and phone frames, the style picker, Use this starter, See it live), drawn by
+`src/demoShop/libraryPage.ts` (plain DOM, Colophon look) from `src/demoShop/starterLibrary.ts` (data and rules; a new
+starter needs a `STARTER_INFO` entry, its test fails otherwise). The demo page routes by address (`libraryRoute`); frames
+carry `frame=1` so the sample bar stays out. The list follows the control room through the public
+`GET /api/starters/offered` (control-room/starterSites.js `starterSitesPublicRoutes`); if it can't be read in 2.5 s the
+ready starters show. The front page's "See one live" row links to All starters.

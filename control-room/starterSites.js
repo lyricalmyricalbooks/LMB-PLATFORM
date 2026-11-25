@@ -174,6 +174,12 @@ export function createStarterSites({ admins, settingsStore, registry, auditLog, 
       return { starters: starterRows(saved), saved: true, changed, updatedAt: saved.updatedAt, by: saved.by, shops, failed };
     },
 
+    /** What the public starter library may list (no sign-in): the order, what's hidden and the hidden styles. */
+    async offered() {
+      const doc = shopDocOf(await settingsStore.get(STARTERS_RECORD));
+      return { choice: doc ? { order: doc.order, hidden: doc.hidden, known: doc.known, hiddenStyles: doc.hiddenStyles } : null };
+    },
+
     /** Nightly: shops made since the last save get the document too. Nothing to do while the record was never saved. */
     async sweep() {
       const doc = shopDocOf(await settingsStore.get(STARTERS_RECORD));
@@ -183,6 +189,7 @@ export function createStarterSites({ admins, settingsStore, registry, auditLog, 
   };
 }
 
+//   GET  /api/starters/offered       public: which starters the platform site's starter library lists
 //   GET  /api/control/starters       the starters as shops see them
 //   POST /api/control/starters/save  { starters: [{ id, shown, fresh, hiddenStyles }] } in the order shops should see them
 export function starterSitesRoutes(desk) {
@@ -191,4 +198,9 @@ export function starterSitesRoutes(desk) {
     "GET /api/control/starters": (claims) => desk.list(claims),
     "POST /api/control/starters/save": (claims, request) => desk.save(claims, body(request)),
   };
+}
+
+/** The public route: the starter library on the platform site (apps/shop src/demoShop/starterLibrary.ts) reads it. */
+export function starterSitesPublicRoutes(desk) {
+  return { "GET /api/starters/offered": () => desk.offered() };
 }
