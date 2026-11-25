@@ -23,6 +23,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statS
 import { dirname, extname, join, normalize, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { canonicalPath, isListed, robotsTxt, SHARE_IMAGE, sitemapXml, withSeo } from "./seo.js";
+import { renderTrust } from "../trust/page.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -54,6 +55,22 @@ export const SITE_MOUNTS = Object.freeze({
 export const EXTRA_PAGES = Object.freeze({ "/account/billing": "/account/billing.html", "/pricing": "/waitlist/pricing.html", "/pricing/": "/waitlist/pricing.html", "/services": "/waitlist/services.html", "/services/": "/waitlist/services.html" });
 
 const STATIC = /\.(html|js|mjs|css|svg|png|ico|webp|jpg|jpeg|gif|woff2?|json|txt|webmanifest)$/i;
+
+/**
+ * Pages whose words are drawn by a script from fixed text: the build draws them into the page too, so search engines
+ * and answer engines that don't run scripts (most AI search crawlers) read the words. The script still runs and draws
+ * the same markup. Published page -> the empty box's id and what goes in it.
+ */
+export const DRAWN_AHEAD = Object.freeze({ "/trust/index.html": { id: "trust", render: renderTrust } });
+
+/** The page with its script-drawn box filled in ahead (DRAWN_AHEAD), or unchanged. Throws when the box is missing. */
+export function drawAhead(published, html) {
+  const page = DRAWN_AHEAD[published];
+  if (!page) return html;
+  const box = new RegExp(`(<div id="${page.id}"[^>]*>)\\s*(</div>)`);
+  if (!box.test(html)) throw new Error(`${published} has no empty <div id="${page.id}"> to draw into`);
+  return html.replace(box, (_, open, close) => `${open}${page.render()}${close}`);
+}
 
 /** The safety headers every platform page gets (the same ones the waitlist has had since it went live). */
 export const HEADERS = Object.freeze([
@@ -215,7 +232,7 @@ export function buildSite({ root = ROOT, out = join(ROOT, "site", "out"), api = 
       const kind = extname(file);
       if (kind === ".js") writeFileSync(target, liveConfig(file, readFileSync(join(root, file), "utf8"), { api, app }));
       else if (kind === ".html") {
-        const html = readFileSync(join(root, file), "utf8");
+        const html = drawAhead(published, readFileSync(join(root, file), "utf8"));
         if (isListed(published, html)) listed.push(canonicalPath(published));
         writeFileSync(target, withSeo(published, html));
       } else cpSync(join(root, file), target);

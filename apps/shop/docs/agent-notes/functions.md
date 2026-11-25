@@ -35,6 +35,10 @@ are made with `onDocument*` from `shopEntry.trigger` (the path you write, e.g. `
   storefront page with a trailing slash 301s to the one without. Hosting passes this function's answers on unsqueezed,
   so `send` compresses text bodies of 1 KB or more itself (`squeeze`: brotli, else gzip, by `Accept-Encoding`; `Vary`
   set); the usage meter counts the bytes sent.
+- **robots.txt reaches the front door (25 November 2026):** Google's functions runtime (the Functions Framework, added at
+  deploy) answers `/robots.txt` and `/favicon.ico` with an empty 404 before any HTTP function runs, so every shop's
+  robots.txt was "not found" (sitemap and feeds were fine). `functions/.env` (committed, non-secret; Firebase loads it
+  before the deploy's `.env.<project>`) sets `IGNORED_ROUTES="/favicon.ico"`. Keep it; `frontDoor.test.js` checks it.
 - The older handler tests run one shop with the folders off (`SHOP_FOLDERS: "off"`, `vite.config.ts`). New tests of
   shop-crossing behaviour turn them on (`shopScope.test.js`, `shopEntry.test.js`).
 
