@@ -117,3 +117,32 @@ shop and Emails.
 - Settings › Emails: the loading box has a dashed edge, so it reads like a drop zone.
 - Customers: the table card's title still repeats "Customers"; Backups' card title repeats "Backups" too, but the
   mockup draws it that way.
+
+## 25 November 2026 (desktop only)
+
+**Screens reviewed** (walkthrough control room, desktop 1440, phone glanced at): Today, Shops, Inbox › Support, Money ›
+Income, Failed payments, Why brands leave, Costs, Prices and sign-up, Platform, Run book, Ways to sell.
+
+**Fixed** (one PR)
+- Today: the snooze menus were narrower than "Snooze 30 days", so Note and Open shop jumped sideways on one row; every
+  row's last button is one width now and the buttons line up down the list.
+- Money: Income and Why brands leave had no line under the title, so the tab row jumped up when you opened them; each
+  has one short line like the other Money tabs.
+- Money › Fair till by month: months read "November 2026" instead of "2026-11", and the money is in the same type as the
+  other numbers.
+- Money › Income chart: the last month's figure sat on top of the line when income fell; it goes under the point then.
+- Why brands leave: the counts sat tight under the card title and floated mid-card; they have room and line up on the
+  right.
+- Run book: the shop and release boxes had no fill on the white card, so they read as plain words; the close date says
+  "Nov 27, 2026, 8:00 PM" instead of "11/27/2026, 8:00:00 PM"; its buttons match Today's height.
+- Inbox: Send reply, Send and close and Open shop were smaller than every other button in the control room.
+- Ways to sell: six tiles sat as five and one left alone; they are two rows of three. Page Refresh buttons (Ways to sell,
+  Bookings, Setting up, Jobs) have the same outline as the top bar's Refresh instead of reading as plain words.
+
+**Noticed, left for later**
+- Prices and sign-up: tick boxes and number boxes share one four-column grid, so the form zigzags; labels stack two
+  bracketed units ("(CAD; running cost comes on top) ($)").
+- Costs: the empty card names a file ("services/costs/README.md") instead of saying what to do.
+- Shops table: Plan and Health still wrap into tall rows on a laptop (also noted 17 November).
+- Failed payments: the Reminder column is empty with no dash or button.
+- Today: lines with no snooze (repair queue, support) end their buttons further right than the shop lines.

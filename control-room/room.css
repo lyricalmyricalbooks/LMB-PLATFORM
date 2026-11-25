@@ -176,7 +176,7 @@
 .rp.cl .cr-kbd { padding: 4px 8px; border-radius: 8px; background: var(--rp-surface-2); color: var(--rp-text-subtle); font: 400 11px/1 var(--rp-font-mono); }
 .rp.cl .rp-topbar-actions { margin-left: auto; gap: 12px; }
 .rp.cl .cr-checked { display: inline-flex; align-items: center; gap: 8px; font: 400 12px/1 var(--rp-font-mono); color: var(--rp-text-muted); white-space: nowrap; }
-.rp.cl .cr-outline, .rp.cl .rp-btn.cr-outline.cr-outline:not(.rp-btn-primary):not(.rp-btn-danger), .rp.cl .cr-need-actions .rp-btn.rp-btn:not(.rp-btn-primary):not(.rp-btn-danger) { background: transparent; box-shadow: inset 0 0 0 1px var(--rp-border-strong); color: var(--rp-text); }
+.rp.cl .cr-outline, .rp.cl .rp-btn.cr-outline.cr-outline:not(.rp-btn-primary):not(.rp-btn-danger), .rp.cl .cr-need-actions .rp-btn.rp-btn:not(.rp-btn-primary):not(.rp-btn-danger), .rp.cl .rp-page-actions .rp-btn.rp-btn-secondary { background: transparent; box-shadow: inset 0 0 0 1px var(--rp-border-strong); color: var(--rp-text); }
 .rp.cl .rp-btn.cr-outline.cr-outline:not(.rp-btn-primary):not(.rp-btn-danger):hover:not(:disabled) { background: var(--rp-surface); }
 @media (min-width: 1024px) { .rp.cl .rp-topbar .cr-brand { display: none; } }
 
@@ -528,3 +528,17 @@
 /* Links and folds on Launch are at least 44px tall. */
 .rp.cl .cr-how-link { display: inline-flex; align-items: center; min-height: 44px; }
 .rp.cl .cr-tech > summary { display: flex; align-items: center; min-height: 44px; }
+
+/* Daily polish, 25 November 2026. */
+/* Today: the last action (the snooze menu or button) is one width, so Note and Open shop line up down the list. */
+@media (min-width: 768px) { .rp.cl .cr-need-actions > :last-child:not(.rp-btn-primary) { width: 136px; justify-content: center; text-align-last: center; } }
+/* Boxes inside a white card (Run book's roll back) keep their cream fill instead of vanishing into the card. */
+.rp.cl .rp-card .cr-toolbar :is(.rp-input, .rp-select) { background: var(--rp-input-bg); }
+/* Buttons under a card (Inbox replies, Run book) are the same height as Today's. */
+@media (min-width: 768px) { .rp.cl .rp-card .cr-toolbar .rp-btn { min-height: 40px; padding: 0 16px; } }
+@media (min-width: 768px) { .rp.cl .rp-card-body > .cr-actions .rp-btn { min-height: 36px; padding: 0 16px; } }
+/* Why brands leave: the counts sit clear of the card title, right-aligned in a column. */
+.rp.cl .cr-counts { grid-template-columns: 1fr auto; margin-top: 12px; }
+.rp.cl .cr-counts dd { text-align: right; font-variant-numeric: tabular-nums; }
+/* Ways to sell: six tiles in two rows of three, not five and one left alone. */
+@media (min-width: 1024px) { .rp.cl .cr-six.rp-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
