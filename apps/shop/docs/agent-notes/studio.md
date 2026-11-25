@@ -929,3 +929,24 @@ with a layout), then `productPage`. A deleted layout at any step is passed over.
 the book editor's empty choice ("Same as its category") follow the same rule. Book-only blocks inside a layout stay
 bookshop-only because a layout is just the product page's own sections. Checks: `templateAlternates.test.ts`, e2e "a
 category gives every product in it a product page layout".
+
+## Six new starters (25 November 2026, round three phase 2)
+
+Plan https://claude.ai/artifact/RAGCAzCvap1KAaXtWr1Jnj. `starter-gallery`, `starter-warehouse`, `starter-larder`,
+`starter-salon`, `starter-workshop`, `starter-commission` in `themeLibrary.ts`, each with its own template
+(`templateStyles.ts` GALLERY_CSS … COMMISSION_CSS via `lookCss`), palette, home layout (`homeLayouts.ts`), three styles
+(`starterStyles.ts`), version 1 (`starterVersions.ts`) and a control-room mirror (`control-room/starterSites.js`).
+- New sample sets `food`, `beauty` (hair and wellness shops now get it) and `made` in `starterSamples.ts`, photos in
+  `public/samples/<set>/`, listed in `LICENSE.md`. A starter's own sample-shop photos stay for every kind of shop; only
+  empty pictures take the shop's set (`starterPhotos.test.ts`).
+- **They wait for the owner's yes:** `AWAITING_YES` (lookGallery.ts, mirrored and checked in control-room/starterSites.js)
+  keeps them out of `offeredStarters(null)`; the control room shows them as "new, waiting for you" until a saved choice
+  shows them. A saved record that never knew them hides them anyway (`known`).
+- Salon and Workshop are made for bookings. `starterForShop` now also gives a product or books shop its version
+  (`goodsVersion`): the first price list / Book a time row becomes the product grid with its eyebrow and title, the
+  other booking rows are dropped. A services shop keeps them as they are.
+- Night styles of starters with an inverse or accent newsletter band set it back to `scheme-default` (readability).
+- The product grid's registry defaults tint photos purple (`overlayColor` #A855F7 at 0.22). Every starter's grid sets
+  `overlayOpacity: 0` (Aurel, Slow Season and Catalogue had the tint too; `neutralStarters.test.ts` now checks). Shops
+  already on those three keep their grids until they edit them; new shops and Try this starter get the fix.
+- Warehouse and Workshop set their own opening headline size (their wide fonts overflowed the shared size).

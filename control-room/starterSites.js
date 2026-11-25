@@ -34,7 +34,18 @@ export const STARTERS = Object.freeze([
   { id: "juniper-slow-season", name: "Slow Season", version: 1, styles: [{ id: "terracotta", name: "Terracotta" }, { id: "sage", name: "Sage" }, { id: "night", name: "Night" }] },
   { id: "juniper-catalogue", name: "Catalogue", version: 1, styles: [{ id: "acid", name: "Acid" }, { id: "blueprint", name: "Blueprint" }, { id: "night", name: "Night" }] },
   { id: "aurel-editorial", name: "Aurel", version: 1, styles: [{ id: "cobalt", name: "Cobalt" }, { id: "sand", name: "Sand" }, { id: "night", name: "Night" }] },
+  { id: "starter-gallery", name: "Gallery", version: 1, styles: [{ id: "linen", name: "Linen" }, { id: "stone", name: "Stone" }, { id: "night", name: "Night" }] },
+  { id: "starter-warehouse", name: "Warehouse", version: 1, styles: [{ id: "signal", name: "Signal" }, { id: "cobalt", name: "Cobalt" }, { id: "night", name: "Night" }] },
+  { id: "starter-larder", name: "Larder", version: 1, styles: [{ id: "harvest", name: "Harvest" }, { id: "olive", name: "Olive" }, { id: "night", name: "Night" }] },
+  { id: "starter-salon", name: "Salon", version: 1, styles: [{ id: "blush", name: "Blush" }, { id: "sage", name: "Sage" }, { id: "night", name: "Night" }] },
+  { id: "starter-workshop", name: "Workshop", version: 1, styles: [{ id: "sunny", name: "Sunny" }, { id: "mint", name: "Mint" }, { id: "night", name: "Night" }] },
+  { id: "starter-commission", name: "Commission", version: 1, styles: [{ id: "walnut", name: "Walnut" }, { id: "chalk", name: "Chalk" }, { id: "night", name: "Night" }] },
 ]);
+/**
+ * Starters added in round three (25 November 2026) wait for the owner's yes: with no saved record they show as
+ * "waiting" here and shops don't offer them (the shop's lookGallery.ts AWAITING_YES mirrors this list).
+ */
+export const AWAITING_YES = Object.freeze(["starter-gallery", "starter-warehouse", "starter-larder", "starter-salon", "starter-workshop", "starter-commission"]);
 /** Every style that can be hidden (all but each starter's own), as `starter/style`. */
 const HIDEABLE_STYLES = STARTERS.flatMap((s) => s.styles.slice(1).map((x) => `${s.id}/${x.id}`));
 const styleList = (value) => [...new Set((Array.isArray(value) ? value : []).filter((id) => HIDEABLE_STYLES.includes(id)))];
@@ -68,7 +79,7 @@ export function cleanRecord(record) {
 export function starterRows(record) {
   const saved = cleanRecord(record);
   const stylesOf = (starter) => starter.styles.map((x, i) => ({ ...x, own: i === 0, shown: i === 0 || !saved?.hiddenStyles.includes(`${starter.id}/${x.id}`) }));
-  if (!saved) return STARTERS.map((s) => ({ ...s, styles: stylesOf(s), state: "shown", fresh: false }));
+  if (!saved) return STARTERS.map((s) => ({ ...s, styles: stylesOf(s), state: AWAITING_YES.includes(s.id) ? "waiting" : "shown", fresh: false }));
   const ordered = [...saved.order, ...IDS.filter((id) => !saved.order.includes(id))];
   return ordered.map((id) => {
     const starter = STARTERS.find((s) => s.id === id);

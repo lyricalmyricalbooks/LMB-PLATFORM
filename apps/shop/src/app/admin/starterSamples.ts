@@ -10,7 +10,7 @@
 
 import { shopKind, type ShopKind } from "../../shared/shopSells";
 
-export type SampleSetId = "home" | "clothing" | "books" | "studio";
+export type SampleSetId = "home" | "clothing" | "books" | "studio" | "food" | "beauty" | "made";
 
 /** The photos a starter's page bands use: the opening banner, a story band, the about page and a wide banner. */
 export type SamplePhotoRole = "opening" | "story" | "about" | "banner";
@@ -131,6 +131,68 @@ export const SAMPLE_SETS: Record<SampleSetId, SampleSet> = {
       { photo: "glazing", name: "Example short visit", minutes: 30, price: 25, places: 1, alt: "Painting glaze onto a bowl" },
     ],
   },
+  // Round three (25 November 2026): sets for the food and drink, appointments and enquiries starters.
+  food: {
+    id: "food",
+    label: "Food and drink",
+    suits: ["products"],
+    photos: {
+      opening: { photo: "opening", alt: "Fresh loaves of bread on a bakery counter" },
+      story: { photo: "story", alt: "Hands kneading dough on a wooden table" },
+      about: { photo: "about", alt: "A small café with shelves of jars and coffee" },
+      banner: { photo: "banner", alt: "Plates of food on a wooden table, seen from above" },
+    },
+    products: [
+      { photo: "sourdough", title: "Example sourdough loaf", price: 9, alt: "A sliced sourdough loaf on a wooden board" },
+      { photo: "coffee", title: "Example coffee beans", price: 19, alt: "Roasted coffee beans beside a cup of coffee" },
+      { photo: "olive-oil", title: "Example olive oil", price: 24, alt: "A glass bottle of olive oil with olives" },
+      { photo: "jam", title: "Example strawberry jam", price: 11, alt: "A jar of strawberry jam in a basket of strawberries" },
+      { photo: "loose-tea", title: "Example loose tea", price: 14, alt: "Spoons of loose-leaf tea on marble" },
+      { photo: "chocolate", title: "Example dark chocolate", price: 8, alt: "Pieces of dark chocolate" },
+      { photo: "country-loaf", title: "Example country loaf", price: 10, alt: "A halved country loaf on a dark board" },
+      { photo: "baking-chocolate", title: "Example baking chocolate", price: 12, alt: "Chopped dark chocolate in a glass bowl" },
+    ],
+    services: [],
+  },
+  beauty: {
+    id: "beauty",
+    label: "Salon and beauty",
+    suits: ["services"],
+    photos: {
+      opening: { photo: "opening", alt: "An empty salon with chairs and tall mirrors" },
+      story: { photo: "story", alt: "Hands holding brushes, scissors and a tint brush" },
+      about: { photo: "about", alt: "A styling chair in front of a lit mirror" },
+      banner: { photo: "banner", alt: "A hand with soft pink nails" },
+    },
+    products: [],
+    services: [
+      { photo: "cut-and-style", name: "Example cut and style", minutes: 60, price: 65, places: 1, alt: "A stylist pinning up a client's hair" },
+      { photo: "colour", name: "Example colour", minutes: 120, price: 140, places: 1, alt: "A stylist with a client in a cape" },
+      { photo: "facial", name: "Example facial", minutes: 45, price: 80, places: 1, alt: "A clay mask brushed on during a facial" },
+      { photo: "manicure", name: "Example manicure", minutes: 40, price: 45, places: 1, alt: "A hand with neat pink nails" },
+    ],
+  },
+  made: {
+    id: "made",
+    label: "Made to order",
+    suits: ["products", "services"],
+    photos: {
+      opening: { photo: "opening", alt: "A long wooden dining table with woven chairs" },
+      story: { photo: "story", alt: "Hands carving wood with a chisel" },
+      about: { photo: "about", alt: "A sunlit workbench with offcuts and tools" },
+      banner: { photo: "banner", alt: "Wooden hand planes hung on a dark wall" },
+    },
+    products: [
+      { photo: "round-table", title: "Example round table", price: 1400, alt: "A round wooden table with cane chairs by a window" },
+      { photo: "chair", title: "Example oak chair", price: 420, alt: "A pale wooden chair on a plain background" },
+      { photo: "bench", title: "Example bench", price: 380, alt: "A small wooden bench on a wooden floor" },
+      { photo: "wall-shelf", title: "Example wall shelf", price: 160, alt: "Two wooden shelves with plants and pictures" },
+      { photo: "spindle-chair", title: "Example spindle chair", price: 360, alt: "A spindle-back wooden chair" },
+      { photo: "stool", title: "Example stool", price: 220, alt: "A round wooden stool beside a tall mirror" },
+      { photo: "pedestal-table", title: "Example pedestal table", price: 980, alt: "A round pedestal table in a bright room" },
+    ],
+    services: [],
+  },
 };
 
 export const SAMPLE_SET_IDS = Object.keys(SAMPLE_SETS) as SampleSetId[];
@@ -150,11 +212,13 @@ function baseUrl(): string {
 
 /**
  * The set a shop sees first, from what it sells (the sign-up answer): clothes, shoes and jewellery get Clothing, books
- * and prints get Books and prints, services get Studio and classes, anything else Home goods.
+ * and prints get Books and prints, hair and wellness get Salon and beauty, other services Studio and classes, anything
+ * else Home goods.
  */
 export function sampleSetFor(sells?: string | null): SampleSetId {
   const answer = String(sells || "");
   const kind = shopKind(answer);
+  if (answer === "hair" || answer === "wellness") return "beauty";
   if (kind === "services") return "studio";
   if (kind === "books" || answer === "prints" || answer === "art") return "books";
   if (answer === "clothing" || answer === "shoes" || answer === "jewelry") return "clothing";

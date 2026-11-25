@@ -30,6 +30,30 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
     releases: [{ version: 1, date: "2026-11-24", note: "The first version, in Cobalt, Sand and Night." }],
     looks: { cobalt: "1e53ebw", sand: "1jgi7m0", night: "1itwz40" },
   },
+  "starter-gallery": {
+    releases: [{ version: 1, date: "2026-11-25", note: "The first version, in Linen, Stone and Night." }],
+    looks: { linen: "179ocjt", stone: "kcizzn", night: "77hnf0" },
+  },
+  "starter-warehouse": {
+    releases: [{ version: 1, date: "2026-11-25", note: "The first version, in Signal, Cobalt and Night." }],
+    looks: { signal: "19di76p", cobalt: "twfkp4", night: "17vz93f" },
+  },
+  "starter-larder": {
+    releases: [{ version: 1, date: "2026-11-25", note: "The first version, in Harvest, Olive and Night." }],
+    looks: { harvest: "fouwec", olive: "184v4kg", night: "1pey3xd" },
+  },
+  "starter-salon": {
+    releases: [{ version: 1, date: "2026-11-25", note: "The first version, in Blush, Sage and Night." }],
+    looks: { blush: "2vsywz", sage: "1qe0ixp", night: "81pqk" },
+  },
+  "starter-workshop": {
+    releases: [{ version: 1, date: "2026-11-25", note: "The first version, in Sunny, Mint and Night." }],
+    looks: { sunny: "1n51gd8", mint: "xuzb8y", night: "2rdqgg" },
+  },
+  "starter-commission": {
+    releases: [{ version: 1, date: "2026-11-25", note: "The first version, in Walnut, Chalk and Night." }],
+    looks: { walnut: "1vv80ze", chalk: "w4fysz", night: "13451kh" },
+  },
 };
 
 /** The newest version of a starter, or null for a look that isn't a versioned starter. */

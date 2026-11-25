@@ -49,18 +49,24 @@ const PICKER_LOOKS = ["press-atlas", "press-folio", "press-rows", "press-arch", 
  * Starter websites (plan "Editable starter websites", step 4): whole sites made only of Studio sections, on the Standard
  * style, which gets the templates' shared readable floor (templateStyles.ts `themeStyleCss`). Listed after the ten built looks until the gallery (step 5) groups them.
  */
-export const STARTER_SITES = ["juniper-slow-season", "juniper-catalogue", "aurel-editorial"];
+export const STARTER_SITES = ["juniper-slow-season", "juniper-catalogue", "aurel-editorial", "starter-gallery", "starter-warehouse", "starter-larder", "starter-salon", "starter-workshop", "starter-commission"];
+/**
+ * New starters (round three, 25 November 2026) wait for the platform owner's yes: until the control room's Starter
+ * websites page is saved with one turned on, shops are not offered it (control-room/starterSites.js `AWAITING_YES`).
+ */
+export const AWAITING_YES = ["starter-gallery", "starter-warehouse", "starter-larder", "starter-salon", "starter-workshop", "starter-commission"];
 export const isBuiltLook = (t: any) => STARTER_SITES.includes(t.id) || PICKER_LOOKS.includes(t.id) && (TEMPLATE_STYLE_IDS as readonly string[]).includes(String(t.global?.themeStyle || ""));
 /**
  * The control room's choice of starters (`platform/starters`, control-room/starterSites.js): their order, which are
  * hidden, which carry a New tag, and every starter the platform owner has seen (one added since stays hidden until
- * they turn it on). Null (never saved, or not readable) shows every starter in STARTER_SITES order.
+ * they turn it on). Null (never saved, or not readable) shows every starter in STARTER_SITES order but the new ones
+ * still waiting for the owner's yes (AWAITING_YES).
  */
 export type StarterChoice = { order?: unknown; hidden?: unknown; fresh?: unknown; known?: unknown; hiddenStyles?: unknown } | null | undefined;
 const idsOf = (v: unknown) => (Array.isArray(v) ? v.filter((id): id is string => typeof id === "string") : []);
 /** The starters a shop is offered, in the order the control room chose. */
 export function offeredStarters(choice?: StarterChoice): string[] {
-  if (!choice) return [...STARTER_SITES];
+  if (!choice) return STARTER_SITES.filter(id => !AWAITING_YES.includes(id));
   const known = idsOf(choice.known), hidden = idsOf(choice.hidden), order = idsOf(choice.order);
   const shown = (id: string) => known.includes(id) && !hidden.includes(id);
   return [...order.filter(id => STARTER_SITES.includes(id)), ...STARTER_SITES.filter(id => !order.includes(id))].filter((id, i, all) => shown(id) && all.indexOf(id) === i);
@@ -207,8 +213,8 @@ export const LOOK_FEELS: { id: LookFeel; label: string }[] = [
   { id: "warm", label: "Warm & friendly" },
   { id: "dark", label: "Dark & moody" },
 ];
-const BOLD = new Set(["press-marquee", "press-mosaic", "press-market", "press-gutter", "press-cutout"]);
-const WARM = new Set(["press-shelf", "press-kiln", "press-picnic", "press-arch"]);
+const BOLD = new Set(["press-marquee", "press-mosaic", "press-market", "press-gutter", "press-cutout", "starter-warehouse", "starter-workshop"]);
+const WARM = new Set(["press-shelf", "press-kiln", "press-picnic", "press-arch", "starter-larder", "starter-salon", "starter-commission"]);
 /** Dark looks are told by their page colour; the rest are bold, warm or (by default) quiet. */
 export const lookFeel = (theme: LibraryTheme): LookFeel => (isDarkLook(theme) ? "dark" : BOLD.has(theme.id) ? "bold" : WARM.has(theme.id) ? "warm" : "quiet");
 export const feelLabel = (theme: LibraryTheme) => LOOK_FEELS.find(f => f.id === lookFeel(theme))!.label;
