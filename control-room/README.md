@@ -16,6 +16,15 @@ Before it works, in the platform project (Julian's step): Authentication › Set
 turn on **Authenticator app (TOTP)** (this upgrades sign-in to Identity Platform, free at this size), then set
 `PLATFORM_ADMIN_EMAILS` to his address on the web door. Without that, the set-up screen says it isn't turned on yet.
 
+The sign-in card (25 November 2026, Julian: "authenticator app sign in thing is buggy"): a kept sign-in shows
+"Checking your sign-in…", never the Google button, and the room opens as soon as Today answers (it used to wait for
+every panel, so a new tab sat on the Google button for seconds and looked signed out). Each failure has its own words in
+the card itself, not a vanishing toast (`signInSteps.js`: a wrong code stays on the code step, a code step that timed
+out goes back to Google, a closed Google window says nothing). Six digits typed or pasted sign in at once; "Start again
+with Google" leaves the code step; Google always asks which account. A refused sign-in (12 hours old, no code, not an
+admin) is signed out so the button starts clean. Try every state with `npm run walkthrough`, then `/control/?code=ask`
+(123456 signs in, 000000 plays a timed-out step, anything else is wrong).
+
 ## Today (`today.js`, plan 9.2)
 
 The page opens on the numbers: monthly income, shops live, on a free trial, paying, signed up this week, failed
