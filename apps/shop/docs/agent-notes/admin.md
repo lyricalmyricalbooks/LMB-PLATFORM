@@ -633,6 +633,16 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
 
 ## Get started: your press first (29 October 2026, code plan 17.1 to 17.4, 17.8, 17.10, 17.11 and 17.13; redesigned 11 November 2026)
 
+**One list on Home (25 November 2026, sign-up plan move 4).** The run's order is now the look, the products (or
+services), Get paid, contact details, shipping and the final check (`startRun.ts`; `paymentsStepShows` accepts `bring`
+in place of `details`). Home shows it as one card, `OpenListCard.tsx`, with the rows from `openList.ts`: account and
+name always ticked, then one row per step, contact and shipping as one "Delivery and contact" row (services: "Contact
+details"). The step to do now opens inside its row (the stage's own card goes flat and its heading hides; the row's
+title stands in); the final check sits at the card's foot. `RunProgress` (the old strip) is gone. The look step saves
+`welcome.firstRun: true`: an older shop with `welcome` but no `firstRun`, `details` or `bring` still gets no run. The top
+bar's Open button reads the list's count (`setRunLeft`/`useRunLeft` in `overview/firstStep.ts`, "Open · N to go") while
+the run is on, and Ready to sell's blockers otherwise. "Make it yours" on the look row goes to `#designer?yours=1`.
+
 **One sign-in (25 November 2026, sign-up plan move 3).** The sign-in page shows "Email me a sign-in code" when the shop
 profile carries `platformUrl` (`emailCodeLink`, loginWords.ts): it goes to Colophon's `join/?open=<shopId>`, which signs
 the person in with a six-digit code and calls the account switcher (`POST /api/accounts/switch`). The switcher hands back

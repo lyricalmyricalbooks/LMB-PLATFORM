@@ -77,7 +77,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     expect(draft.themeLibraryPreset).toBe("press-marquee");
     expect(draft.themeBase.id).toBe("press-marquee");
     expect(draft.copy).toEqual({ heroTitle: "Kept" });
-    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: { theme: "press-marquee", at: expect.any(String) } });
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: { theme: "press-marquee", at: expect.any(String), firstRun: true } });
     expect(text()).toContain("Set up your shop");
     expect(text()).not.toContain("Choose your look.");
   });
@@ -225,18 +225,25 @@ const waitFor = async (check: () => boolean) => {
   for (let i = 0; i < 200 && !check(); i++) await act(async () => { await new Promise(r => setTimeout(r, 25)); });
 };
 
-describe("Get started, step 1: the press's details (plan 17.2)", () => {
-  it("a new shop starts with its details, with the press name already in and Canada as the country", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both" });
+// The look and the products come first since move 4: these shops have done both.
+const LOOKED = { welcome: { theme: "zine", at: "then", firstRun: true } };
+const READY_FOR_DETAILS = { plan: "both", ...LOOKED, bring: { at: "then", skipped: true } };
+
+describe("Get started, contact details after the look and the products (plan 17.2, move 4)", () => {
+  it("the list opens on contact details, with the look and the products ticked, the press name in and Canada as the country", async () => {
+    api.getFirstWeek.mockResolvedValue(READY_FOR_DETAILS);
     await mount({ waitForWelcome: false });
-    expect(text()).toContain("Step 1 of 5 · Your brand");
+    expect(document.querySelector("[data-row=delivery][aria-current=step]")).not.toBeNull();
+    expect(document.querySelector("[data-row=look]")?.getAttribute("data-state")).toBe("done");
+    expect(document.querySelector("[data-row=bring]")?.getAttribute("data-state")).toBe("done");
+    expect(text()).toContain("1 step to open Moth Press");
     expect(text()).not.toContain("Choose your look");
     expect((field("Brand name") as HTMLInputElement).value).toBe("Moth Press");
     expect((field("Country") as HTMLSelectElement).value).toBe("Canada");
   });
 
   it("a blank required field is named in plain words, and nothing is saved", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both" });
+    api.getFirstWeek.mockResolvedValue(READY_FOR_DETAILS);
     await mount({ waitForWelcome: false });
     await act(async () => { button("Save and continue")!.click(); });
     await flush();
@@ -246,8 +253,8 @@ describe("Get started, step 1: the press's details (plan 17.2)", () => {
     expect(api.updateFirstWeek).not.toHaveBeenCalled();
   });
 
-  it("saving writes the details to the shop, marks the step done, and then shows the look", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both" });
+  it("saving writes the details to the shop, marks the step done, and then shows shipping", async () => {
+    api.getFirstWeek.mockResolvedValue(READY_FOR_DETAILS);
     await mount({ waitForWelcome: false });
     fill("Contact email", "hello@mothpress.example");
     fill("Street address", "12 Queen Street");
@@ -260,15 +267,14 @@ describe("Get started, step 1: the press's details (plan 17.2)", () => {
       location: { street: "12 Queen Street", city: "Toronto", state: "", zip: "M5H 2N2", country: "Canada" },
     });
     expect(api.updateFirstWeek).toHaveBeenCalledWith({ details: { at: expect.any(String) } });
-    // The next step is bringing the shop over (17.3); the look comes after it.
-    await waitFor(() => /Bring your products/.test(text()));
-    expect(text()).toContain("Step 2 of 5");
-    expect(text()).not.toContain("Step 1 of 5");
+    // Shipping is in the same row: the row stays the one to do now, on its second part.
+    await waitFor(() => !document.querySelector("input[name]") || /Ships from|shipping/i.test(text()));
+    expect(document.querySelector("[data-row=delivery][aria-current=step]")).not.toBeNull();
     expect(text()).not.toContain("Choose your look");
   });
 
   it("a failed save keeps the step open with a plain message, and records nothing", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both" });
+    api.getFirstWeek.mockResolvedValue(READY_FOR_DETAILS);
     api.updateSettings.mockRejectedValueOnce(new Error("offline"));
     await mount({ waitForWelcome: false });
     fill("Contact email", "hello@mothpress.example");
@@ -278,7 +284,7 @@ describe("Get started, step 1: the press's details (plan 17.2)", () => {
     await act(async () => { button("Save and continue")!.click(); });
     await flush();
     expect(document.querySelector("[role=alert]")).not.toBeNull();
-    expect(text()).toContain("Step 1 of 5");
+    expect(document.querySelector("[data-row=delivery][aria-current=step]")).not.toBeNull();
     expect(api.updateFirstWeek).not.toHaveBeenCalled();
   });
 });
@@ -286,15 +292,15 @@ describe("Get started, step 1: the press's details (plan 17.2)", () => {
 const radio = (value: string) => document.querySelector(`input[type=radio][value="${value}"]`) as HTMLInputElement;
 
 describe("Get started, step 2: bring your shop with you (plan 17.3)", () => {
-  const withDetails = { plan: "both", details: { at: "then" } };
+  const withDetails = { plan: "both", ...LOOKED };
 
-  it("after the press's details, a new shop is asked where it sells now, before the look", async () => {
+  it("after the look, a new shop is asked where it sells now", async () => {
     api.getFirstWeek.mockResolvedValue(withDetails);
     await mount({ waitForWelcome: false });
     expect(text()).toContain("Bring your products");
     expect(text()).toContain("Where do you sell now?");
     expect(text()).not.toContain("Choose your look");
-    expect(text()).not.toContain("Step 1 of 5");
+    expect(document.querySelector("[data-row=bring][aria-current=step]")).not.toBeNull();
   });
 
   it("choosing an answer shows its plain steps, and nothing is saved until the press asks for the import", async () => {
@@ -307,15 +313,15 @@ describe("Get started, step 2: bring your shop with you (plan 17.3)", () => {
     expect(api.updateFirstWeek).not.toHaveBeenCalled();
   });
 
-  it("starting fresh records the step as skipped, with the answer, and then shows the look", async () => {
+  it("starting fresh records the step as skipped, with the answer, and then shows contact details", async () => {
     api.getFirstWeek.mockResolvedValue(withDetails);
     await mount({ waitForWelcome: false });
     await act(async () => { radio("fairs").click(); });
     await act(async () => { button("Start fresh")!.click(); });
     await flush();
     expect(api.updateFirstWeek).toHaveBeenCalledWith({ bring: { at: expect.any(String), from: "fairs", skipped: true } });
-    await waitFor(() => /Choose your look/.test(text()));
-    expect(text()).toContain("Choose your look");
+    await waitFor(() => !!document.querySelector("[data-row=delivery][aria-current=step]"));
+    expect(document.querySelector("[data-row=bring]")?.getAttribute("data-state")).toBe("done");
     expect(text()).not.toContain("bring your shop with you");
   });
 
@@ -326,10 +332,10 @@ describe("Get started, step 2: bring your shop with you (plan 17.3)", () => {
     await act(async () => { button("Start fresh")!.click(); });
     await flush();
     expect(document.querySelector("[role=alert]")).not.toBeNull();
-    expect(text()).toContain("Step 2 of 5");
+    expect(document.querySelector("[data-row=bring][aria-current=step]")).not.toBeNull();
   });
 
-  it("a shop that already finished step 2 goes straight to the look", async () => {
+  it("a shop part-way through the older order (details and products done) is shown the look next", async () => {
     api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then" } });
     await mount({});
     await waitFor(() => /Choose your look/.test(text()));
@@ -337,11 +343,13 @@ describe("Get started, step 2: bring your shop with you (plan 17.3)", () => {
   });
 });
 
-describe("Choose your look as step 3 of 5, with the press's first book (plan 17.8)", () => {
-  it("the look says it is step 3 of 5, and its previews show the first book's photo", async () => {
+describe("Choose your look as the list's first open step, with the press's first book (plan 17.8, move 4)", () => {
+  it("the look is the step to do now, after the account and the name, and its previews show the first book's photo", async () => {
     api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "books", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({ books: [{ id: "b1", title: "Salt", photos: [{ url: "https://cdn.example/salt.jpg" }] }] });
-    expect(text()).toContain("Step 3 of 5");
+    expect(document.querySelector("[data-row=look][aria-current=step]")).not.toBeNull();
+    expect(document.querySelector("[data-row=account]")?.getAttribute("data-state")).toBe("done");
+    expect(document.querySelector("[data-row=name]")?.getAttribute("data-state")).toBe("done");
     expect(text()).toContain("Welcome to Moth Press. Choose your look");
     expect(document.querySelector("img[src='https://cdn.example/salt.jpg']")).not.toBeNull();
   });
@@ -351,11 +359,12 @@ describe("Get started, the last step inside the run (plan 17.13)", () => {
   it("after shipping, the final check shows; Finish later hands back to the setup guide", async () => {
     api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, welcome: { theme: "zine", at: "then" }, shipping: { at: "then", skipped: true } });
     await mount({ waitForWelcome: false });
-    expect(text()).toContain("Step 5 of 5 · Open your shop");
+    expect(text()).toContain("Last step: open Moth Press");
+    expect(document.querySelectorAll("[data-open-list] [data-state=done]").length).toBe(document.querySelectorAll("[data-open-list] [data-row]").length);
     await act(async () => { button("Finish later")!.click(); });
     await flush();
     expect(text()).toContain("Set up your shop");
-    expect(text()).not.toContain("Step 5 of 5");
+    expect(document.querySelector("[data-open-list]")).toBeNull();
   });
 });
 
@@ -364,7 +373,7 @@ describe("What the press set up before its shop existed (code plan 18.9)", () =>
   const kept = { pressId: "press-moth", look: "press-riso", adminLook: "paper", at: "then", file: { name: "my zines.csv", rows: 1, at: "2026-11-03T09:00:00.000Z", parts: 2 } };
 
   it("the bring step offers the file kept in setup, and opens it in the importer's preview", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" } });
+    api.getFirstWeek.mockResolvedValue({ plan: "both", ...LOOKED });
     api.getSetupHandover.mockResolvedValue(kept);
     api.getSetupHandoverFile.mockResolvedValue("Title,Price,Stock\nMoth Zine,8,20\n");
     await mount({ waitForWelcome: false });
@@ -380,7 +389,7 @@ describe("What the press set up before its shop existed (code plan 18.9)", () =>
   });
 
   it("a kept file that can't be read back says so, and the other ways stay open", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" } });
+    api.getFirstWeek.mockResolvedValue({ plan: "both", ...LOOKED });
     api.getSetupHandover.mockResolvedValue(kept);
     api.getSetupHandoverFile.mockRejectedValueOnce(new Error("offline"));
     await mount({ waitForWelcome: false });
@@ -392,7 +401,7 @@ describe("What the press set up before its shop existed (code plan 18.9)", () =>
   });
 
   it("starting fresh past the file from setup is a choice: it is not offered again", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" } });
+    api.getFirstWeek.mockResolvedValue({ plan: "both", ...LOOKED });
     api.getSetupHandover.mockResolvedValue(kept);
     await mount({ waitForWelcome: false });
     await act(async () => { button("Start fresh")!.click(); });
@@ -406,7 +415,7 @@ describe("What the press set up before its shop existed (code plan 18.9)", () =>
     api.getSetupHandover.mockResolvedValue(kept);
     await mount({ waitForWelcome: false });
     expect(text()).toContain("Your file from setup is here");
-    expect(text()).toContain("Step 5 of 5");
+    expect(text()).toContain("Last step: open Moth Press");
     await act(async () => { button("I don't need it")!.click(); });
     await flush();
     expect(api.updateFirstWeek).toHaveBeenCalledWith({ done: { setupFile: expect.any(String) } });
@@ -414,7 +423,7 @@ describe("What the press set up before its shop existed (code plan 18.9)", () =>
   });
 
   it("a shop whose hand-over can't be read still runs its steps as usual", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" } });
+    api.getFirstWeek.mockResolvedValue({ plan: "both", ...LOOKED });
     api.getSetupHandover.mockRejectedValueOnce(new Error("offline"));
     await mount({ waitForWelcome: false });
     expect(text()).toContain("Where do you sell now?");

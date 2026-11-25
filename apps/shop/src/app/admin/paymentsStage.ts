@@ -12,15 +12,15 @@ export interface PaymentsMarker {
 }
 
 /**
- * Whether the step is still to show: a press that has gone through its details and the look, takes cards through
- * the platform (`platform` is Stripe or Square; a shop on its own keys has none), is not a stockroom-only plan, and hasn't
- * finished this step. Older shops and shops on their own keys never see it.
+ * Whether the step is still to show: a press that has picked its look and added its products (or, on an older run, given
+ * its details), takes cards through the platform (`platform` is Stripe or Square; a shop on its own keys has none), is
+ * not a stockroom-only plan, and hasn't finished this step. Older shops and shops on their own keys never see it.
  */
 export function paymentsStepShows(
-  doc: { details?: unknown; plan?: string; welcome?: unknown; payments?: unknown } | null,
+  doc: { details?: unknown; bring?: unknown; plan?: string; welcome?: unknown; payments?: unknown } | null,
   platform: "stripe" | "square" | null,
 ): boolean {
-  return !!doc && !!platform && !!doc.details && doc.plan !== "stockroom" && !!doc.welcome && !doc.payments;
+  return !!doc && !!platform && !!(doc.details || doc.bring) && doc.plan !== "stockroom" && !!doc.welcome && !doc.payments;
 }
 
 /** The marker for this step's result: "ready" when cards and payouts work, "skipped" when the press sets it up later. */
