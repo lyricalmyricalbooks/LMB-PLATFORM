@@ -5,7 +5,8 @@ import { adminApi } from "../api";
 import type { FirstWeekDoc, WelcomeDone } from "../firstWeek";
 import type { ReadinessItem } from "../launchReadiness";
 import { LoadingState, SecondaryButton, SectionCard } from "../riso/components";
-import { platformCardsProvider } from "../../../lib/shopProfile";
+import { platformCardsProvider, shopProfile } from "../../../lib/shopProfile";
+import { auth } from "../../../lib/firebase";
 import { SetupGuideCard } from "./SetupGuideCard";
 import { PressDetailsStage } from "./PressDetailsStage";
 import { BringShopStage } from "./BringShopStage";
@@ -113,7 +114,9 @@ export function SetupStart({ books, orders, readiness, settings, bookings, onOpe
         await adminApi.updateFirstWeek({ details: { at } });
         setDoc({ ...doc, details: { at } });
       };
-      return <PressDetailsStage settings={settings} onDone={detailsDone} onRetrySettings={onRetrySettings} />;
+      // The brand name and country sign-up asked are not asked again (sign-up plan, move 2).
+      const known = { name: shopProfile.name, country: doc.country, email: auth?.currentUser?.email };
+      return <PressDetailsStage settings={settings} known={known} onDone={detailsDone} onRetrySettings={onRetrySettings} />;
     }
     if (step === "bring") {
       // Step 2 (plan 17.3): where the press sells now, and its products brought over (or started fresh).

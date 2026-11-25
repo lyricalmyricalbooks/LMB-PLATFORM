@@ -113,7 +113,7 @@ export function projectDisplayName(shop) {
  * The public shop profile for this shop, from its web app's settings. `savedPayments`
  * (the saved profile's `payments`, written by step 13 once the press's account exists) is kept as it is.
  */
-export function shopProfile(shop, webAppConfig, region = REGION, savedPayments = undefined, siteUrl = "") {
+export function shopProfile(shop, webAppConfig, region = REGION, savedPayments = undefined, siteUrl = "", platformUrl = "") {
   const { apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId } = webAppConfig;
   return {
     version: 1,
@@ -130,6 +130,8 @@ export function shopProfile(shop, webAppConfig, region = REGION, savedPayments =
     functionsRegion: region,
     // The shop's main address (plan 5.9, services/domains `siteUrlOf`), else the one Firebase gave it.
     siteUrl: siteUrl || `https://${projectId}.web.app`,
+    // Colophon's address, for the admin's "Email me a code" sign-in (sign-up plan move 3). Left out when unknown.
+    ...(/^https:\/\/[^/\s]+$/.test(platformUrl) ? { platformUrl } : {}),
     apps: { ...PLANS[shop.plan] },
     // Where the stockroom keeps its data in this project (read by apps/stockroom/src/lib/shop-profile.js).
     ...(PLANS[shop.plan].stockroom ? { stockroom: { firestoreDatabase: STOCKROOM_DATABASE, storageBucket: stockroomBucketName(shop.shopId) } } : {}),

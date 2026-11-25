@@ -140,8 +140,21 @@ async function checkFrontDoor(browser, walk, log) {
       }
       const [saved] = await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`);
       if (saved?.status !== "open" || saved?.plan !== "both" || saved?.pressName !== "Front Door Press" || saved?.sells !== "clothing" || saved?.sellingToday || saved?.country !== "CA") throw new Error(`saved ${JSON.stringify(saved)}`);
+      // The starter "Your new store" showed (clothing: Aurel) is the one the shop opens on (sign-up plan, move 2).
+      if (saved?.look !== "aurel-editorial" || saved?.lookStyle !== "cobalt") throw new Error(`the shown starter wasn't saved: ${saved?.look} ${saved?.lookStyle}`);
       const row = await walk.world.stores.signups.get(saved.shopId);
       if (!row?.trialStartedAt || row?.plan !== "both") throw new Error(`the trial didn't start with both apps: ${JSON.stringify(row)}`);
+    });
+
+    await step("Email me a sign-in code from a shop's admin comes back here and goes straight into that admin (move 3)", async () => {
+      const [saved] = await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`);
+      const want = (await walk.world.stores.signups.get(saved.shopId))?.openUrl;
+      if (!want) throw new Error("the shop has no way in yet");
+      // The made-up shop's admin isn't served here: answer for it, so the check sees where the page went.
+      await page.route(`${want}**`, (route) => route.fulfill({ contentType: "text/html", body: "<p>the admin</p>" }));
+      await page.goto(`${walk.url}/join/?open=${saved.shopId}`);
+      await page.waitForURL((url) => url.href.startsWith(want), { timeout: 10_000 });
+      await page.unroute(`${want}**`);
     });
     await step("setup mode, for a press that set up before stores were made at sign-up (code plan 18.6)", async () => {
       const built = existsSync(join(ROOT, SETUP_ADMIN_FOLDER, "setup.html"));

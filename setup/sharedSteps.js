@@ -140,7 +140,7 @@ export function sharedShopSteps({ google, shared, registry, shopData, stockroom,
   const profileFiles = recordProfileFiles(shared.records);
   const profileFor = async (shop) => {
     const saved = await registry.getProfile(shop.shopId);
-    const base = shopProfile(shop, webApp, region, saved?.payments, await siteUrlFor(shop));
+    const base = shopProfile(shop, webApp, region, saved?.payments, await siteUrlFor(shop), config.platformUrl ?? "");
     return { ...base, stockroom: { firestoreDatabase: STOCKROOM_DATABASE, storageBucket: stockroomBucket } };
   };
   const recordFor = async (shop) => {

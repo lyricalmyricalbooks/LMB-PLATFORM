@@ -10,9 +10,20 @@ export function invitedEmail(search: string): string {
   } catch { return ""; }
 }
 
-export function loginWords(sells?: string | null): { sub: string; lede: string } {
+export function loginWords(sells?: string | null, emailCode = false): { sub: string; lede: string } {
   return {
     sub: sellsBooks(sells) ? "Publishing House · Admin" : "Shop · Admin",
-    lede: wordsFor(sells)("Sign in with the shop's Google account to manage books, orders and settings."),
+    // With an emailed code on offer, Google is one of two ways in, so the line doesn't name it.
+    lede: wordsFor(sells)(emailCode ? "Sign in to manage books, orders and settings." : "Sign in with the shop's Google account to manage books, orders and settings."),
   };
+}
+
+/**
+ * "Email me a sign-in code" (sign-up plan move 3, 25 November 2026): Colophon's sign-in page (join/), which signs a person
+ * in with an emailed six-digit code and then opens this shop's admin already signed in (accounts/shopSignIn.js). Empty when the
+ * shop doesn't know Colophon's address (older profiles): the page then offers Google only, as before.
+ */
+export function emailCodeLink(profile: { platformUrl?: string; shopId: string }): string {
+  if (!profile.platformUrl || !/^https:\/\/[^/\s]+$/.test(profile.platformUrl)) return "";
+  return `${profile.platformUrl}/join/?${new URLSearchParams({ open: profile.shopId })}`;
 }

@@ -17,7 +17,7 @@ const ADA = { uid: "uid-ada", email: "owner@example.com", email_verified: true }
 const BEN = { uid: "uid-ben", email: "ben@example.com", email_verified: true };
 const SETTINGS = { platformUrl: "https://platform.example", platformName: "Colophon", trialDays: 14, currency: "CAD" };
 
-function world({ billing = null, readOldShop, domainLookup } = {}) {
+function world({ billing = null, readOldShop, domainLookup, startMaking } = {}) {
   const stores = fakeFrontDoorStores();
   // Open my shop (18.8) goes through sign-up's own start, with a pretend plan maker.
   const trials = [];
@@ -47,6 +47,7 @@ function world({ billing = null, readOldShop, domainLookup } = {}) {
     random: () => 0.123456,
     ...(readOldShop ? { readOldShop } : {}),
     ...(domainLookup ? { domainLookup } : {}),
+    ...(startMaking ? { startMaking } : {}),
   });
   const api = createApi({
     signup: {}, verifyIdToken: fakeVerifyIdToken, settings: SETTINGS,
@@ -531,6 +532,19 @@ test("Open my shop starts the plan once, queues the shop and locks setup", async
   assert.equal(again.body.press.shopId, "moth-press-abcde");
   assert.equal(w.trials.length, 1);
   assert.equal((await w.ask("POST", "/api/press/setup", { pressId, pressName: "Other" }, ADA)).status, 409);
+});
+
+test("Open my shop starts making the shop at once, once, and a failed start still opens it (sign-up plan, move 3)", async () => {
+  const started = [];
+  const w = world({ startMaking: async (shopId) => { started.push(shopId); throw new Error("the jobs server is down"); } });
+  const pressId = await readyPress(w);
+  const opened = await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  assert.equal(opened.status, 200, JSON.stringify(opened.body));
+  assert.equal(opened.body.press.status, "opening");
+  assert.deepEqual(started, ["moth-press-abcde"]);
+  // A second press of the button starts nothing more.
+  await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  assert.deepEqual(started, ["moth-press-abcde"]);
 });
 
 test("while the shop is made, the press sees how far it has got; once it is ready, the press is open with its way in", async () => {

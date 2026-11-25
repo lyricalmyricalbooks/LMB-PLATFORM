@@ -60,6 +60,7 @@
     },
     "functionsRegion": { "type": "string", "pattern": "^[a-z]+-[a-z]+[0-9]$" },
     "siteUrl": { "type": "string", "pattern": "^https://[^/\\s]+$", "description": "The shop's address, no trailing slash." },
+    "platformUrl": { "type": "string", "pattern": "^https://[^/\\s]+$", "description": "Colophon's own address, no trailing slash: the admin's sign-in page links to it for an emailed code." },
     "appCheckSiteKey": { "type": "string", "description": "Bot-protection site key. Empty or missing: the app's build setting is used." },
     "apps": {
       "type": "object",
