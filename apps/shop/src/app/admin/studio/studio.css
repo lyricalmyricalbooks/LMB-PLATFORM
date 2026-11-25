@@ -796,7 +796,7 @@ ul.studio-update-notes { padding-left: 18px; }
 :root[data-admin-look="colophon"] .studio-editor .studio-find-chip { border-radius: 999px !important; }
 :root[data-admin-look="colophon"] .studio-editor :is(input:not([type=checkbox], [type=radio], [type=range], [type=color]), select, textarea) { border-radius: 10px !important; }
 :root[data-admin-look="colophon"] .studio-editor .studio-picker-trigger { border: 1px solid var(--rp-border); border-radius: 14px !important; }
-:root[data-admin-look="colophon"] .studio-editor :is(.studio-picker-panel, .studio-field-picker-panel, .studio-row-menu > div) { border: 1px solid var(--rp-border); border-radius: 14px; box-shadow: var(--rp-shadow-float); }
+:root[data-admin-look="colophon"] .studio-editor :is(.studio-picker-panel, .studio-field-picker-panel, .studio-row-menu > div) { border: 1px solid var(--rp-border); border-radius: 14px; box-shadow: var(--rp-shadow-lg); }
 :root[data-admin-look="colophon"] .studio-editor .studio-rail { gap: 6px; padding: 10px 8px; }
 :root[data-admin-look="colophon"] .studio-editor .studio-rail button { border: 0; border-radius: 14px !important; }
 :root[data-admin-look="colophon"] .studio-editor .studio-rail button[aria-pressed=true] { background: var(--rp-primary); color: var(--rp-on-primary); box-shadow: none; }
