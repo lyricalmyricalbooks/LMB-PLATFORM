@@ -8,6 +8,8 @@ export interface SetupHandover {
   pressId?: string;
   /** The shop look (THEME_LIBRARY id) chosen in setup; "" when none. */
   look?: string;
+  /** One of that starter's named styles (studio/starterStyles.ts), from a sample shop's "Use this starter"; "" for its own. */
+  lookStyle?: string;
   /** The product file kept in setup, its text in `parts` pieces under firstWeek/handover/parts; null when none. */
   file?: KeptFile | null;
   /** The whole website design made in the designer before the store existed (signup/pressRecord.js `design`); null when none. */
@@ -23,10 +25,11 @@ export interface KeptFile {
 }
 
 /** The look chosen in setup, for the look step; null when none was chosen. */
-export function chosenLook(handover: SetupHandover | null | undefined): { theme: string } | null {
+export function chosenLook(handover: SetupHandover | null | undefined): { theme: string; style?: string } | null {
   const theme = typeof handover?.look === "string" ? handover.look.trim() : "";
   if (!theme) return null;
-  return { theme };
+  const style = typeof handover?.lookStyle === "string" ? handover.lookStyle.trim() : "";
+  return style ? { theme, style } : { theme };
 }
 
 /** The design made before the store existed, when there is one worth putting on (a plain object with something in it). */

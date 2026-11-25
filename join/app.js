@@ -200,6 +200,29 @@ api("GET", "/plans").then((answer) => {
   showCountry();
 }, () => {});
 
+// Use this starter (round three, 25 November 2026): a sample shop at /demo/ links here with ?starter=&style=&name=. The pick
+// is kept for the tab (the email step can come back on a new page), shown on the new-store card, and saved with the
+// answers as `look` and `lookStyle`, so the new shop's Choose your look opens on it. Only id-shaped values are kept; the
+// name is shown as text only.
+const STARTER_PICK = (() => {
+  const q = new URLSearchParams(location.search);
+  const id = (v) => (/^[a-z0-9]+(-[a-z0-9]+)*$/.test(v ?? "") && v.length <= 40 ? v : "");
+  let kept = null;
+  try { kept = JSON.parse(sessionStorage.getItem("colophon-starter") || "null"); } catch { kept = null; }
+  const pick = id(q.get("starter")) ? { look: id(q.get("starter")), lookStyle: id(q.get("style")), name: (q.get("name") ?? "").slice(0, 60) } : kept && id(kept.look) ? { look: id(kept.look), lookStyle: id(kept.lookStyle), name: String(kept.name ?? "").slice(0, 60) } : null;
+  if (pick) try { sessionStorage.setItem("colophon-starter", JSON.stringify(pick)); } catch { /* still used on this page */ }
+  return pick;
+})();
+if (STARTER_PICK) {
+  $("#new-starter-name").textContent = STARTER_PICK.name || "your starter";
+  $("#new-starter-link").href = `/demo/?${new URLSearchParams({ starter: STARTER_PICK.look, style: STARTER_PICK.lookStyle })}`;
+  $("#new-starter").hidden = false;
+  $("#starter-pick-name").textContent = STARTER_PICK.name || "your starter";
+  $("#starter-pick-link").href = $("#new-starter-link").href;
+  $("#starter-pick").hidden = false;
+}
+const starterChange = () => (STARTER_PICK ? { look: STARTER_PICK.look, lookStyle: STARTER_PICK.lookStyle } : {});
+
 // Bookshop or general shop (14 November 2026, Julian): the first question, so it's clear which one gets the book
 // features. A general shop then says what it sells. Both are saved as one sign-up answer (signup/form.js SHOP_TYPES).
 // The Services kind (a salon, a studio, a tutor) shows only while the control room has it on (`plans.servicesOpen`),
@@ -356,6 +379,8 @@ function fillAnswers() {
   // A shop designed before the store was made: the tile says so and leads back to the designer.
   const designed = $("#new-design");
   designed.hidden = !press.design;
+  // A design made in the designer wins over a starter picked on a sample shop, so only one of the two shows.
+  $("#new-starter").hidden = !STARTER_PICK || !!press.design;
   designed.querySelector("a").href = designerUrl();
 }
 
@@ -400,7 +425,7 @@ $("#design-first").addEventListener("click", () => {
   busy(startForm, $("#start-error"), async () => {
     const { termsAccepted: _terms, shopType: _type, ...change } = answers;
     if (!change.sellingToday) delete change.sellingToday;
-    press = (await api("POST", "/press/setup", { pressId: press.pressId, plan: TRIAL_PLAN, ...change })).press;
+    press = (await api("POST", "/press/setup", { pressId: press.pressId, plan: TRIAL_PLAN, ...starterChange(), ...change })).press;
     location.assign(designerUrl());
   });
 });
@@ -412,7 +437,7 @@ startForm.addEventListener("submit", (event) => {
   busy(startForm, $("#start-error"), async () => {
     const { termsAccepted, shopType: _type, ...change } = answers;
     if (!change.sellingToday) delete change.sellingToday;
-    const { press: saved } = await api("POST", "/press/setup", { pressId: press.pressId, plan: TRIAL_PLAN, ...change });
+    const { press: saved } = await api("POST", "/press/setup", { pressId: press.pressId, plan: TRIAL_PLAN, ...starterChange(), ...change });
     press = saved;
     try {
       const opened = await api("POST", "/press/open", { pressId: press.pressId, plan: TRIAL_PLAN, termsAccepted, termsVersion });

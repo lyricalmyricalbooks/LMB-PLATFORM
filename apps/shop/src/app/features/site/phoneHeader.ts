@@ -11,7 +11,7 @@ export function phoneHeaderCss(design: any): string {
   if (!phoneCompactHeader(design)) return "";
   return `@media (max-width:${PHONE_MAX}px){`
     + `.fm-announce.fm-announce{padding:6px 12px;font-size:11px;letter-spacing:0.12em;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}`
-    + `.fm-hdr-row.fm-hdr-row{padding:6px 8px 6px 16px;gap:8px;}`
+    + `.fm-hdr-row.fm-hdr-row{padding:6px 16px;gap:8px;}`
     + `.fm-hdr-row .fm-logo{font-size:min(22px,5.2vw) !important;white-space:nowrap;}`
     + `.fm-hdr-cart.fm-hdr-cart{padding:8px 12px;gap:6px;}`
     + `}`;

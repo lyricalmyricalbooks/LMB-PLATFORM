@@ -213,6 +213,18 @@ test("the welcome's two looks are saved and shown back; a badly formed look is r
   assert.deepEqual([row.look, row.adminLook], ["", "bento"]);
 });
 
+test("a starter picked on a sample shop is saved with its style; a badly formed style is refused", async () => {
+  const w = world();
+  const { pressId } = (await w.ask("POST", "/api/press", {}, ADA)).body.press;
+  const saved = await w.ask("POST", "/api/press/setup", { pressId, look: "aurel-editorial", lookStyle: "sand" }, ADA);
+  assert.equal(saved.status, 200);
+  assert.deepEqual([saved.body.press.look, saved.body.press.lookStyle], ["aurel-editorial", "sand"]);
+  for (const bad of ["Sand", "<b>", "x".repeat(41)]) {
+    assert.equal((await w.ask("POST", "/api/press/setup", { pressId, lookStyle: bad }, ADA)).status, 409, String(bad));
+  }
+  assert.equal(w.stores.presses.rows.get(pressId).lookStyle, "sand");
+});
+
 test("every press is saved on the one plan, whatever an older page sends, and nothing else is taken", async () => {
   const w = world();
   const { pressId, plan } = (await w.ask("POST", "/api/press", {}, ADA)).body.press;

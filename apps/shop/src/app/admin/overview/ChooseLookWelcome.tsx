@@ -14,7 +14,7 @@ import { GuidedStart } from "./GuidedStart";
 import { shortlist, type StyleFeel } from "../guidedStart";
 import { brandAccent } from "../studio/brandKit";
 import { logoColours } from "../studio/logoColours";
-import { styledName } from "../studio/starterStyles";
+import { styledName, withStyle } from "../studio/starterStyles";
 
 /**
  * Choose your look (plan 6.3): the welcome before the setup guide, shown once, and setup mode's Design page. Laid out
@@ -40,7 +40,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   /** When a look is already chosen: the way back that keeps it (in place of Skip, which would replace it). */
   keep?: { label: string; onKeep: () => void };
   /** The look (and admin look) the press chose in setup (code plan 18.9): shown on its own first, with every look a tap away. */
-  chosen?: { theme: string } | null;
+  chosen?: { theme: string; style?: string } | null;
   /** The chosen look is already saved (setup mode's Design page): show it as "Your look", with no Use button on it. */
   settled?: boolean;
   /** The control room's starter choice (platformStarters.ts): which whole-website starters show, their order and New tags. */
@@ -65,7 +65,8 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   const [ownChoice, setOwn] = useState<boolean | null>(null);
   const own = ownChoice ?? books.length > 0;
   const [browsing, setBrowsing] = useState(false);
-  const picked = useMemo(() => (chosen && !browsing ? libraryLook(chosen.theme) ?? null : null), [chosen, browsing]);
+  // A style picked on a sample shop ("Use this starter") comes along: the card shows and applies the starter in it.
+  const picked = useMemo(() => { const look = chosen && !browsing ? libraryLook(chosen.theme) : undefined; return look ? withStyle(look, chosen?.style) : null; }, [chosen, browsing]);
   const press = pressNameOf(settings);
   const bookShop = sellsBooks(publishes);
   // "Show with": the sample sets that suit this kind of shop, its own first (any look can be tried with any of them).
@@ -191,7 +192,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   const toggle = (on: boolean) => ({ "aria-pressed": on, style: on ? { background: "var(--rp-text)", color: "var(--rp-surface)", borderColor: "var(--rp-text)" } : undefined });
 
   return (
-    <SectionCard title={picked ? (settled ? `Your look: ${picked.name}` : `Welcome to ${press}. Here's the look you chose`) : `Welcome to ${press}. Choose your look`} description={intro} collapsible={false}
+    <SectionCard title={picked ? (settled ? `Your look: ${styledName(picked)}` : `Welcome to ${press}. Here's the look you chose`) : `Welcome to ${press}. Choose your look`} description={intro} collapsible={false}
       actions={picked
         ? <GhostButton size="sm" disabled={!!busy} onClick={() => setBrowsing(true)}>{settled ? "Choose another look" : "See every look"}</GhostButton>
         : guided
@@ -206,7 +207,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
       {picked ? (
         <>
           <p className="rp-hint" style={{ marginTop: 0 }}>
-            {settled ? "This goes on your website when your shop is made. Try it on to click around, and change anything in the designer later." : `You chose “${picked.name}” in setup. Use it, try it on, or see every look. You can change it any time in Design.`}
+            {settled ? "This goes on your website when your shop is made. Try it on to click around, and change anything in the designer later." : `You chose “${styledName(picked)}” in setup. Use it, try it on, or see every look. You can change it any time in Design.`}
           </p>
           <ul aria-label="The look you chose" style={{ ...grid(320), maxWidth: settled ? 960 : 720, gridTemplateColumns: settled ? "1fr" : undefined }}>{card(picked, true)}</ul>
         </>

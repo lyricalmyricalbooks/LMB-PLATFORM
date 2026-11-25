@@ -32,13 +32,13 @@ if (params.get("preview") !== "true") {
   history.replaceState(null, "", url);
 }
 await import("../main");
-showSampleBar(name);
+showSampleBar(name, choice);
 
 /**
  * The one thing on the page that isn't the shop: a small black pill saying it's a sample, with the way to start one.
  * Drawn outside the shop's own page (it isn't part of any shop), in the Colophon look.
  */
-function showSampleBar(starterName: string) {
+function showSampleBar(starterName: string, picked: { starter: string; style: string; sells?: string }) {
   const bar = document.createElement("aside");
   bar.setAttribute("aria-label", "Sample shop");
   bar.dataset.demoBar = "";
@@ -51,8 +51,11 @@ function showSampleBar(starterName: string) {
   // On a phone the starter's name is left out, so the line never cuts off.
   words.textContent = window.matchMedia("(max-width: 480px)").matches ? "A sample shop" : `A sample shop in ${starterName}`;
   const start = document.createElement("a");
-  start.href = "/join/";
-  start.textContent = "Start yours";
+  // Use this starter (round three phase 1): sign-up opens with this starter, in this style, already picked.
+  const join = new URLSearchParams({ starter: picked.starter, style: picked.style, name: starterName });
+  start.href = `/join/?${join}`;
+  start.dataset.useStarter = picked.starter;
+  start.textContent = "Use this starter";
   start.style.cssText = "flex:none;padding:8px 16px;border-radius:999px;background:#a9e8c6;color:#111;text-decoration:none;font-weight:600";
   bar.append(words, start);
   document.body.append(bar);

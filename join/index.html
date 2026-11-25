@@ -76,6 +76,9 @@
   .fd-new-note a { color: inherit; }
   .fd-new-design { margin: 0; display: flex; justify-content: space-between; font: 500 13px/1.4 var(--rp-font-body, inherit); }
   .fd-new-design span::before { content: "✓ "; }
+  /* The starter picked on a sample shop (Use this starter): a mint tile under the lede, on every step. */
+  .fd-starter-pick { margin: 4px 0 20px; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 12px; padding: 0 8px 0 18px; border-radius: 999px; background: var(--cl-mint); color: var(--cl-on-tile, inherit); font: 500 14px/1.4 var(--rp-font-body, inherit); }
+  .fd-starter-pick a { color: inherit; font-weight: 600; min-height: 44px; padding: 0 10px; display: inline-flex; align-items: center; }
   /* Setting up your store: a card over the page. */
   .fd-scrim { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgba(31, 30, 27, .45); }
   .fd-scrim[hidden] { display: none; }
@@ -103,6 +106,7 @@
     </ol>
     <h1>Start your free trial</h1>
     <p class="cp-lede" id="story-lede">A few quick questions, then you're in your store. Everything is included for 14 days. No card needed.</p>
+    <p class="fd-starter-pick" id="starter-pick" hidden><span>Your shop starts as <b id="starter-pick-name"></b></span> <a href="" id="starter-pick-link">See it again</a></p>
   <div class="card fd-step">
 
   <!-- 1. Email, or Google. New and returning presses come in the same way. -->
@@ -187,6 +191,7 @@
     <div class="fd-browser" aria-hidden="true"><span class="fd-browser-bar"><i></i><i></i><i></i><span id="new-address">yourbrand.web.app</span></span>
       <small id="new-name">Your brand</small><b id="new-kind">Your store</b><span class="fd-browser-line" id="new-line" hidden></span></div>
     <p class="fd-new-design" id="new-design" hidden><span>Your design is saved</span> <a href="">Edit</a></p>
+    <p class="fd-new-design" id="new-starter" hidden><span>Starts as <b id="new-starter-name"></b></span> <a href="" id="new-starter-link">See it</a></p>
     <dl class="fd-new-dl">
       <div><dt>Free trial</dt><dd id="new-days">14 days</dd></div>
       <div><dt>Includes</dt><dd id="new-includes">Shop and stockroom</dd></div>

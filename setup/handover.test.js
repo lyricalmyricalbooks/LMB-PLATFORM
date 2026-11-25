@@ -27,7 +27,7 @@ test("the look and the kept file are handed to the shop, then the platform lets 
   assert.equal(await w.step.check({ shop: SHOP }), false);
   await w.step.act({ shop: SHOP });
   assert.deepEqual(w.docs.get(HANDOVER_DOC), {
-    pressId: "press-moth", look: "press-riso", adminLook: "paper", design: null, at: "2026-11-04T10:00:00.000Z",
+    pressId: "press-moth", look: "press-riso", lookStyle: "", adminLook: "paper", design: null, at: "2026-11-04T10:00:00.000Z",
     file: { name: "my zines.csv", rows: 1, at: "2026-11-03T09:00:00.000Z", parts: 1 },
   });
   assert.equal(w.docs.get(`${HANDOVER_DOC}/parts/0`).text, "Title,Price,Stock\nMoth Zine,8,20\n");
