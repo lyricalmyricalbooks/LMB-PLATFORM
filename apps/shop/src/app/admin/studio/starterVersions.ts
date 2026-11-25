@@ -36,7 +36,7 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
   },
   "starter-warehouse": {
     releases: [{ version: 1, date: "2026-11-25", note: "The first version, in Signal, Cobalt and Night." }],
-    looks: { signal: "19di76p", cobalt: "twfkp4", night: "17vz93f" },
+    looks: { signal: "1d5vrl", cobalt: "twfkp4", night: "17vz93f" },
   },
   "starter-larder": {
     releases: [{ version: 1, date: "2026-11-25", note: "The first version, in Harvest, Olive and Night." }],
@@ -48,7 +48,7 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
   },
   "starter-workshop": {
     releases: [{ version: 1, date: "2026-11-25", note: "The first version, in Sunny, Mint and Night." }],
-    looks: { sunny: "1n51gd8", mint: "xuzb8y", night: "2rdqgg" },
+    looks: { sunny: "sztiw6", mint: "xuzb8y", night: "2rdqgg" },
   },
   "starter-commission": {
     releases: [{ version: 1, date: "2026-11-25", note: "The first version, in Walnut, Chalk and Night." }],
