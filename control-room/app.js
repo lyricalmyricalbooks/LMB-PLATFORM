@@ -3612,12 +3612,12 @@ async function loadStarters() {
       fill(slot,
         el("p", { className: "rp-hint", textContent: saved
           ? `Shops see the starters showing below, in this order. Last saved ${dateOnly(updatedAt)}${by ? ` by ${by}` : ""}. A starter added to the shops later waits here, hidden, until you show it.`
-          : "Every starter shows to shops, in this order, until you save a choice here." }),
+          : rows.some((r) => r.state === "waiting") ? "Shops see the starters showing below, in this order. New starters wait for your yes: tick Show and save to offer them." : "Every starter shows to shops, in this order, until you save a choice here." }),
         table({
           caption: "Starter websites",
           rows: rows.map((r, i) => ({ ...r, i })),
           columns: [
-            { header: "Starter", lead: true, render: (r) => el("div", {}, el("p", { className: "cr-title", textContent: `${r.i + 1}. ${r.name}` }), meta(r.state === "waiting" ? "added since you last saved" : null)) },
+            { header: "Starter", lead: true, render: (r) => el("div", {}, el("p", { className: "cr-title", textContent: `${r.i + 1}. ${r.name}` }), meta(r.state === "waiting" ? (saved ? "added since you last saved" : "new: tick Show and save to offer it") : null)) },
             // What shops will see once saved; a row changed since the last save says so.
             { header: "Shops see", render: (r) => el("div", {}, pill(...STARTER_STATE[r.shown ? "shown" : r.state === "waiting" ? "waiting" : "hidden"]),
               (r.shown !== (r.state === "shown") || r.fresh !== starters.find((s) => s.id === r.id).fresh) ? meta("not saved yet") : null) },

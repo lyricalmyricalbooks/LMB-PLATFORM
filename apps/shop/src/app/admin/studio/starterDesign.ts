@@ -42,14 +42,50 @@ export const PRODUCT_SECTIONS = new Set([
   "EphemeraRowSection", "StickyAddToBagSection",
 ]);
 
+/** Sections that book appointments or classes: a product shop's version of a services starter replaces them. */
+export const SERVICE_SECTIONS = new Set(["ServiceMenuSection", "BookTimeSection", "BookingTeamSection", "BookingHoursSection"]);
+
+/**
+ * A product or books shop's version of a starter made for appointments or classes (Salon, Workshop; round three,
+ * 25 November 2026): the first price list or Book a time row becomes the product grid, keeping its eyebrow and title,
+ * and the other booking rows (team, hours, a second booking row) are dropped; a button to Book a time goes to the shop.
+ * A starter with none comes back unchanged.
+ */
+/** A button that sent shoppers to Book a time sends them to the shop instead (a product shop has no bookings). */
+const toShop = (section: any) => (section?.settings?.ctaUrl === "/book"
+  ? { ...section, settings: { ...section.settings, ctaText: "See the collection", ctaUrl: "/collections/all" } }
+  : section);
+function goodsVersion<T>(theme: T): T {
+  const all = presetSections(theme as any);
+  if (!Object.values(all).some((list) => list.some((s) => SERVICE_SECTIONS.has(s.type)))) return theme;
+  const sections: Record<string, unknown[]> = {};
+  for (const [id, list] of Object.entries(all)) {
+    let swapped = false;
+    const next: any[] = [];
+    for (const section of list) {
+      if (!SERVICE_SECTIONS.has(section.type)) { next.push(toShop(section)); continue; }
+      if (!swapped && (section.type === "ServiceMenuSection" || section.type === "BookTimeSection")) {
+        const { eyebrow, title } = (section.settings || {}) as Record<string, unknown>;
+        next.push({ type: "ProductShowcaseGridSection", settings: { ...(eyebrow ? { eyebrow } : {}), ...(title ? { title } : {}) } });
+        swapped = true;
+      }
+    }
+    sections[id] = next;
+  }
+  const t = theme as any;
+  return { ...t, content: { ...(t.content || {}), sections } } as T;
+}
+
 /**
  * The starter as a shop that sells `sells` gets it (24 November 2026, rethink "service shops"): one design serves every
  * kind of shop. A services shop's version swaps the first product row for the price list (ServiceMenuSection), the
  * second for the Book a time cards (BookTimeSection), drops any other product row and adds opening hours before the
- * sign-up band (or at the end). Every other part of the design is kept. Product and books shops get the starter as is.
+ * sign-up band (or at the end). Every other part of the design is kept. Product and books shops get the starter as is,
+ * unless it was made for appointments or classes (`goodsVersion`).
  */
 export function starterForShop<T>(theme: T, sells?: string | null): T {
-  if (!theme || shopKind(sells) !== "services") return theme;
+  if (!theme) return theme;
+  if (shopKind(sells) !== "services") return goodsVersion(theme);
   const sections: Record<string, unknown[]> = {};
   for (const [id, list] of Object.entries(presetSections(theme as any))) {
     let swapped = 0;

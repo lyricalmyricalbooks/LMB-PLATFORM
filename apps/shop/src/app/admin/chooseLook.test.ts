@@ -145,7 +145,8 @@ describe("browsing the looks (theme store)", () => {
     expect(sampleProducts(null)[0].title).toBe("Example clothbound book");
     expect(sampleProducts("clothing")[0].title).toBe("Example wool sweater");
     expect(sampleProducts("other")[0].title).toBe("Example stoneware mug");
-    expect(sampleProducts("hair")[0].title).toBe("Example one-to-one session");
+    expect(sampleProducts("hair")[0].title).toBe("Example cut and style");
+    expect(sampleProducts("lessons")[0].title).toBe("Example one-to-one session");
     for (const s of ["books", "prints", "clothing", "shoes", "jewelry", "music", "other"]) expect(sampleProducts(s).length, s).toBeGreaterThanOrEqual(8);
     for (const p of sampleProducts("clothing")) {
       expect(p.photo).toMatch(/\/samples\/clothing\/[a-z-]+\.webp$/);

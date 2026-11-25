@@ -88,7 +88,7 @@ import { bookingsBetaRoutes, createBookingsBeta } from "../control-room/bookings
 import { createProductApproval, productApprovalRoutes } from "../control-room/productApproval.js";
 import { createWaysBeta, waysBetaRoutes } from "../control-room/waysBeta.js";
 import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
-import { createStarterSites, starterSitesRoutes } from "../control-room/starterSites.js";
+import { createStarterSites, starterSitesPublicRoutes, starterSitesRoutes } from "../control-room/starterSites.js";
 import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
 import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
 import { createShopSocial, shopSocialRoutes } from "../control-room/shopSocial.js";
@@ -389,7 +389,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })), ...receiptShopDoorRoutes(receiptMail), ...bankFeedShopDoorRoutes(bankFeed), ...chitChatsPublicRoutes(chitchats), ...mailchimpPublicRoutes(mailchimp) },
+    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...starterSitesPublicRoutes(starterSites), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })), ...receiptShopDoorRoutes(receiptMail), ...bankFeedShopDoorRoutes(bankFeed), ...chitChatsPublicRoutes(chitchats), ...mailchimpPublicRoutes(mailchimp) },
     // Fair-use limits (19.5) on an in-memory counter, a hundred times the real ones so a person clicking never meets them.
     limits: createLimits({ throttle: fakeThrottle(), admins, limits: generousLimits(), now: clock.date, log: () => {} }),
     log: () => {},

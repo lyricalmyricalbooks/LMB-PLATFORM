@@ -1561,7 +1561,7 @@ for (const starter of STARTERS) for (const sells of ["books", "clothing", "hair"
     await page.getByRole("button", { name: "Phone preview" }).click();
     await page.waitForTimeout(1500);
     await look("phone");
-  }, `?sells=${sells}#designer?tab=themes`);
+  }, `?starters=${STARTERS.join(",")}&sells=${sells}#designer?tab=themes`);
 }
 
 await check("switching looks lists what carried over, Bring back restores a replaced change, and Done closes the list", desktop, async page => {

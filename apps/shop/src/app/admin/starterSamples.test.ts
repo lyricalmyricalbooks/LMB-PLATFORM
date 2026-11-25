@@ -57,13 +57,16 @@ describe("starter sample sets", () => {
     expect(sampleSetFor("jewelry")).toBe("clothing");
     expect(sampleSetFor("other")).toBe("home");
     expect(sampleSetFor("music")).toBe("home");
-    expect(sampleSetFor("hair")).toBe("studio");
+    expect(sampleSetFor("hair")).toBe("beauty");
+    expect(sampleSetFor("wellness")).toBe("beauty");
+    expect(sampleSetFor("lessons")).toBe("studio");
     expect(sampleSetFor("studio")).toBe("studio");
   });
 
   it("offers the shop's own set first, then the others that suit its kind", () => {
-    expect(sampleSetsFor("clothing").map((s) => s.id)).toEqual(["clothing", "home", "books"]);
-    expect(sampleSetsFor("hair").map((s) => s.id)).toEqual(["studio"]);
+    expect(sampleSetsFor("clothing").map((s) => s.id)).toEqual(["clothing", "home", "books", "food", "made"]);
+    expect(sampleSetsFor("hair").map((s) => s.id)).toEqual(["beauty", "studio", "made"]);
+    expect(sampleSetsFor("lessons").map((s) => s.id)).toEqual(["studio", "beauty", "made"]);
     expect(sampleSetsFor("books")[0].id).toBe("books");
   });
 
@@ -82,6 +85,7 @@ describe("photos for a starter's pictures", () => {
     expect(photos.slice(0, 4).map((p) => p.url)).toEqual(["opening", "story", "about", "banner"].map((n) => `/samples/clothing/${n}.webp`));
     expect(photos).toHaveLength(12);
     expect(photos.every((p) => p.alt.length > 0)).toBe(true);
-    expect(samplePhotosFor("hair", "/")[4].url).toBe("/samples/studio/wheel-lesson.webp");
+    expect(samplePhotosFor("hair", "/")[4].url).toBe("/samples/beauty/cut-and-style.webp");
+    expect(samplePhotosFor("lessons", "/")[4].url).toBe("/samples/studio/wheel-lesson.webp");
   });
 });

@@ -7,32 +7,42 @@
 // sample products) and handed to the shop's own pages through the preview snapshot, like Studio's preview and the
 // accessibility fixture. The address then becomes the shop's page with ?preview=true, so the shop never reads or writes a
 // database. The choice is kept for the tab, so a link inside the shop (or a reload) stays in the same starter.
+//
+// The starter library (/demo/starters/ and /demo/starters/<id>, round three phase 2b) is served by the same page: it
+// draws itself (libraryPage.ts) and opens sample shops in frames, which leave out the sample bar (`frame=1`).
 import { demoDesign, demoChoice, DEMO_KEY, DEMO_NAME } from "./demoShop";
+import { libraryRoute } from "./starterLibrary";
 
-const params = new URLSearchParams(location.search);
-let saved: Record<string, string> | null = null;
-try { saved = JSON.parse(sessionStorage.getItem(DEMO_KEY) || "null"); } catch { saved = null; }
-const choice = demoChoice({ starter: params.get("starter") || saved?.starter, style: params.get("style") || saved?.style, sells: params.get("sells") || saved?.sells });
-try { sessionStorage.setItem(DEMO_KEY, JSON.stringify(choice)); } catch { /* the starter is still shown */ }
+const route = libraryRoute(location.pathname, import.meta.env.BASE_URL);
+if (route) await (await import("./libraryPage")).showLibrary(route);
+else await showShop();
 
-const { design, books, name, sells } = demoDesign(choice, import.meta.env.BASE_URL);
-document.title = `${name}: a sample shop`;
-const win = window as any;
-win.__studioPreviewDesign = design;
-// `sells` makes the shop read as that kind of shop (its words, menu and banner), as a real shop's settings do. No draft
-// status is set, so the shop shows no "your live shop" banner: there is no Studio behind a demo.
-// The snapshot is the whole shop: nothing is read from a database (features/site/useSiteData.ts readSiteData).
-win.__studioPreviewOnly = true;
-win.__studioPreviewState = { settings: { design, sells, info: { name: DEMO_NAME } }, books, pages: [] };
+async function showShop() {
+  const params = new URLSearchParams(location.search);
+  let saved: Record<string, string> | null = null;
+  try { saved = JSON.parse(sessionStorage.getItem(DEMO_KEY) || "null"); } catch { saved = null; }
+  const choice = demoChoice({ starter: params.get("starter") || saved?.starter, style: params.get("style") || saved?.style, sells: params.get("sells") || saved?.sells });
+  try { sessionStorage.setItem(DEMO_KEY, JSON.stringify(choice)); } catch { /* the starter is still shown */ }
 
-if (params.get("preview") !== "true") {
-  const url = new URL(location.href);
-  for (const key of ["starter", "style", "sells"]) url.searchParams.delete(key);
-  url.searchParams.set("preview", "true");
-  history.replaceState(null, "", url);
+  const { design, books, name, sells } = demoDesign(choice, import.meta.env.BASE_URL);
+  document.title = `${name}: a sample shop`;
+  const win = window as any;
+  win.__studioPreviewDesign = design;
+  // `sells` makes the shop read as that kind of shop (its words, menu and banner), as a real shop's settings do. No draft
+  // status is set, so the shop shows no "your live shop" banner: there is no Studio behind a demo.
+  // The snapshot is the whole shop: nothing is read from a database (features/site/useSiteData.ts readSiteData).
+  win.__studioPreviewOnly = true;
+  win.__studioPreviewState = { settings: { design, sells, info: { name: DEMO_NAME } }, books, pages: [] };
+
+  if (params.get("preview") !== "true") {
+    const url = new URL(location.href);
+    for (const key of ["starter", "style", "sells", "frame"]) url.searchParams.delete(key);
+    url.searchParams.set("preview", "true");
+    history.replaceState(null, "", url);
 }
 await import("../main");
-showSampleBar(name, choice);
+if (params.get("frame") !== "1" && window.top === window) showSampleBar(name, choice);
+}
 
 /**
  * The one thing on the page that isn't the shop: a small black pill saying it's a sample, with the way to start one.

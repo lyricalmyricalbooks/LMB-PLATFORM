@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { shortlist, styleForFeel, withLogoColours } from "./guidedStart";
-import { libraryLook, STARTER_SITES } from "./lookGallery";
+import { libraryLook, offeredStarters } from "./lookGallery";
 import { applyLook, updatedTheme } from "./studio/themeSwitch";
 import { contrastRatio } from "../features/site/colorSchemes";
 
 describe("guided start (next starters plan phase 3)", () => {
   it("gives every offered starter, in the control room's order, in the style that answers the feel", () => {
     const calm = shortlist({ feel: "calm" });
-    expect(calm.map((e) => e.theme.id)).toEqual(STARTER_SITES);
+    expect(calm.map((e) => e.theme.id)).toEqual(offeredStarters(null));
     expect(calm.map((e) => e.name)).toEqual(["Slow Season Sage", "Catalogue Blueprint", "Aurel Sand"]);
     expect(shortlist({ feel: "bold" }).map((e) => e.name)).toEqual(["Slow Season Night", "Catalogue", "Aurel Night"]);
     const order = ["aurel-editorial", "juniper-catalogue", "juniper-slow-season"];
