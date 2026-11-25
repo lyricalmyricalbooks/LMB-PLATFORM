@@ -8,9 +8,9 @@
 // - nothing once every step is done, for a closed or abandoned shop, or for the test shop;
 // - tips can be turned off (the email's own link, `turnOff`); the billing emails can't, since services/billing sends
 //   them and never asks this module.
-// - Get started nudges (plan 17.14, startNudges.js) ride the same sweep on days 2 and 4, only when the setting START_NUDGES
-//   is `beside` (sent with the setup tip that day) or `instead` (sent in place of that day's tip). `hold`, the default,
-//   sends none, and then this sweep behaves exactly as before.
+// - Get started nudges (plan 17.14, startNudges.js) ride the same sweep on days 1 to 10 while the shop isn't open, one a
+//   day at most. The setting START_NUDGES decides: `instead` (the default since the sign-up plan's move 5: sent in
+//   place of that day's tip, so never two emails in a day), `beside` (sent with it) or `hold` (none, the sweep as before).
 //
 // Every tip is recorded in the sweep's own store (so a re-run sends nothing new), in the registry (an event) and in the
 // shop's audit log. Words are plain and name no rival; the email itself is the "trial-tip" template in services/email.
@@ -23,7 +23,7 @@
 //   store     get(shopId) -> { sent: { [day]: { step, at } }, lastAt, off } | null; set(shopId, row)
 //   settings  platformSettings(env) (services/settings.js): platformName, platformUrl, trialDays
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { START_NUDGE_WORDS, nudgeDayOf, startNudgeDue } from "./startNudges.js";
+import { START_NUDGE_WORDS, nudgeDayOf, nudgeSubject, startNudgeDue } from "./startNudges.js";
 import { sellsBooks, sellsOf, sellsServices, wordsFor } from "../../shared/sells/sells.js";
 
 export const TIP_DAYS = Object.freeze([2, 4, 7, 21, 60]);
@@ -77,15 +77,16 @@ export function tipWords(step, sells, { freeAddress = "" } = {}) {
   return { ...tip, subject: w(tip.subject), paragraphs: tip.paragraphs.map(w), action: w(tip.action), ...GOODS_TIPS[step], ...(sellsServices(sells) ? SERVICES_TIPS[step] : {}) };
 }
 
-/** A Get started nudge in the shop's words, like tipWords. */
-const GOODS_NUDGES = Object.freeze({
-  details: { paragraphs: ["Your shop's name, contact email and address go on your receipts, labels and contact page.", "Open the Overview and fill in step 1. It takes a few minutes."] },
-});
-export function nudgeWords(stage, sells) {
-  const nudge = START_NUDGE_WORDS[stage];
-  if (!nudge || sellsBooks(sells)) return nudge;
-  const w = wordsFor(sells);
-  return { ...nudge, subject: w(nudge.subject), paragraphs: nudge.paragraphs.map(w), action: w(nudge.action), ...GOODS_NUDGES[stage] };
+/**
+ * A Get started nudge in the shop's words, like tipWords. With `left` (stages still to do), the subject says how close
+ * the press is: "One step from open: add your first book" (sign-up plan, move 5).
+ */
+export function nudgeWords(stage, sells, left) {
+  const base = START_NUDGE_WORDS[stage];
+  if (!base) return base;
+  const w = sellsBooks(sells) ? (t) => t : wordsFor(sells);
+  const nudge = sellsBooks(sells) ? base : { ...base, subject: w(base.subject), paragraphs: base.paragraphs.map(w), action: w(base.action) };
+  return left ? { ...nudge, subject: nudgeSubject(nudge.subject, left) } : nudge;
 }
 
 /** The guide's order (firstWeek.ts ORDER, with the add-a-book step), for a shop whose admin hasn't saved its progress yet. */
@@ -181,8 +182,8 @@ export function createTrialTips({ registry, auditLog, guide, email, store, setti
               if (!row.ownerEmail || !profile?.siteUrl || profile.apps?.shop === false) {
                 skipped.push({ shopId, why: "no-shop-admin", nudge: due.nudge.stage });
               } else {
-                const { stage, day: nudgeDay } = due.nudge;
-                const words = nudgeWords(stage, sellsOf(start, profile));
+                const { stage, day: nudgeDay, left } = due.nudge;
+                const words = nudgeWords(stage, sellsOf(start, profile), left);
                 const sentAt = at.toISOString();
                 await email.sendPlatform({
                   kind: "trial-tip",

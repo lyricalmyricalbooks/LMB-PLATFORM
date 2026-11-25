@@ -3568,6 +3568,19 @@ async function loadSetup() {
       metaParts: [`${rows.reduce((n, r) => n + r.count, 0)} presses`],
       body: [rows.length ? el("ul", { className: "cr-history" }, ...rows.map((r) => el("li", { textContent: `${lookWords(r.id)}: ${r.count}` }))) : emptyState("None yet.")],
     });
+    // How far new shops got, stage by stage (control-room/signupFunnel.js, sign-up to open shop plan, move 5).
+    $("#setup-funnel").replaceChildren(el("p", { className: "rp-hint", textContent: "Counting each new shop's steps…" }));
+    api("GET", "/control/signup-funnel").then(({ days, shops, stages, unread }) => {
+      $("#setup-funnel").replaceChildren(sheet({
+        title: "How far new shops got",
+        metaParts: [`${plural(shops, "shop")} made in the last ${days} days`, unread.length ? `${unread.length} couldn't be read` : null].filter(Boolean),
+        body: [shops ? el("ol", { className: "cr-bars", ariaLabel: "Shops at each step" }, ...stages.map((s) => el("li", {},
+          el("span", { textContent: `${s.words} · ${s.percent}%` }),
+          el("span", { className: "cr-bar-track", ariaHidden: "true" }, el("span", { className: "cr-bar", style: `width: ${s.percent}%`, ...(s.count ? {} : { dataset: { none: "" } }) })),
+          el("span", { className: "rp-mono", textContent: String(s.count) }))))
+          : emptyState("No new shops yet.", "Each shop shows here from the moment it's made.")],
+      }));
+    }).catch((failure) => $("#setup-funnel").replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
     $("#setup-looks").replaceChildren(lookSheet("Website looks", looks.website)); // One admin look (Colophon) now, so no admin-look counts.
     // The looks live shops wear now (control-room/shopLooks.js), read from each shop: after the setup looks, not before.
     api("GET", "/control/live-looks").then(({ looks: worn, templates, shops, waiting, withSamples, welcome, unread }) => {

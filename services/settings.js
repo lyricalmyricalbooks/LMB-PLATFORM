@@ -25,8 +25,9 @@
 //   PLAN_PRICE_SHOP, PLAN_PRICE_STOCKROOM  older plans' fees, read only; billing prices every shop at PLAN_PRICE_BOTH
 //                              (the running cost comes on top, at cost: services/billing/runningCost.js)
 //   TRIAL_DAYS                 free days before the first charge (no card needed)    default 14
-//   START_NUDGES               Get started nudges on days 2 and 4 (plan 17.14): hold (none sent), beside (sent with the
-//                              setup tips) or instead (sent in place of that day's setup tip)   default hold
+//   START_NUDGES               Get started nudges, one a day at most on days 1 to 10 while the shop isn't open (plan
+//                              17.14, sign-up plan move 5): instead (in place of that day's setup tip), beside (sent
+//                              with the setup tips) or hold (none sent)   default instead
 //   PLATFORM_URL               the platform's own pages (sign-up, account)           default https://<domain>
 //   SHOP_ADDRESS_DOMAIN        the domain shops' free addresses go under (moth-press.<it>), a domain of its own, never
 //                              the platform's (services/domains/freeAddress.js)    default none: web.app addresses
@@ -60,7 +61,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   platformUrl: "https://platform.example",
   signupOpen: false,
   servicesShops: false,
-  startNudges: "hold",
+  startNudges: "instead",
   signupDailyCap: 10,
   openCountries: Object.freeze(["CA", "US"]),
   foundingOffer: Object.freeze({ percentOff: 25, presses: 25, giveBackUnpaid: true }),

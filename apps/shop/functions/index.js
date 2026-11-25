@@ -10,6 +10,7 @@
  */
 
 const { httpStatus, refundRefused } = require("./refundRefusal");
+const { isFirstRealSale, firstSaleWords } = require("./firstOrder");
 const { shopTimeZone } = require("./shared/shopTimeZone");
 const { onSchedule: onScheduleReal } = require("firebase-functions/v2/scheduler");
 // Code plan 15.16: sweeps register with the tick (tick.js) instead of each owning a Cloud Scheduler job.
@@ -4184,12 +4185,19 @@ async function handleOrderUpdated(event) {
       // The shop's one email per paid order (Settings › Notifications › new-order alert).
       // It goes out even when the customer's address is rejected.
       if (shopPaidOn) try {
+        // The shop's first real sale gets its own subject and a "what to do next" block (sign-up plan, move 5).
+        // A failed check only means the plain email.
+        const first = await isFirstRealSale(db, orderId, order).catch(() => false);
+        const firstWords = first ? firstSaleWords({ orderRef: order.orderId || orderId, total: chargedTotalFmt(order), customer: order.customer.name || "A customer", escapeHtml }) : null;
         await sendOrderEmailOnce(orderId, "shopNewOrder", {
           to: ADMIN_TO(),
-          subject: `${order.sandboxPayment ? "[TEST] " : ""}[NEW ${preorderLines.length ? "PRE-ORDER" : "ORDER"}] ${order.orderId || orderId} · paid · ${chargedTotalFmt(order)} · ${order.customer.name}`,
-          html: adminPaidHtml,
+          subject: firstWords ? firstWords.subject : `${order.sandboxPayment ? "[TEST] " : ""}[NEW ${preorderLines.length ? "PRE-ORDER" : "ORDER"}] ${order.orderId || orderId} · paid · ${chargedTotalFmt(order)} · ${order.customer.name}`,
+          html: firstWords ? firstWords.html + adminPaidHtml : adminPaidHtml,
           secret: RESEND_API_KEY.value(),
         });
+        // The control room's sign-up funnel counts shops past their first sale. Only a shop with setup steps has the
+        // document; `update` never makes one for an older shop (that would show it the setup steps).
+        if (first) await db.collection("firstWeek").doc("start").update({ "done.firstSale": String(order.paidAt || new Date().toISOString()) }).catch(() => {});
       } catch (err) {
         console.error("Payment admin notification email failed", err);
       }

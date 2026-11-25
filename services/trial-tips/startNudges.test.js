@@ -1,61 +1,78 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { START_NUDGE_DAYS, START_NUDGE_WORDS, START_STAGES, nextStartStage, nudgeDayOf, startNudgeDue } from "./startNudges.js";
+import { START_NUDGE_FIRST_DAY, START_NUDGE_LAST_DAY, START_NUDGE_WORDS, START_STAGES, nextStartStage, nudgeDayOf, nudgeSubject, stagesLeft, startNudgeDue } from "./startNudges.js";
 
-const step = (...ids) => ids.reduce((doc, id) => ({ ...doc, [id]: { at: "t" } }), { plan: "both" });
-const started = { details: { at: "t" } };
+const step = (...ids) => ids.reduce((doc, id) => ({ ...doc, [id]: id === "welcome" ? { at: "t", firstRun: true } : { at: "t" } }), { plan: "both" });
+const started = step("welcome");
 
-test("the run's stages come in order, and each is done by its marker", () => {
-  assert.deepEqual(START_STAGES.map((s) => s.id), ["details", "bring", "look", "payments", "shipping", "final"]);
-  assert.equal(nextStartStage({ plan: "both" }), null, "no details: an older shop, no run");
+test("the run's stages come in order, the look first, and each is done by its marker (sign-up plan, move 4)", () => {
+  assert.deepEqual(START_STAGES.map((s) => s.id), ["look", "bring", "services", "payments", "details", "shipping", "final"]);
+  assert.equal(nextStartStage({ plan: "both" }), "look");
   assert.equal(nextStartStage(started, { platformCards: false }), "bring");
-  assert.equal(nextStartStage(step("details", "bring", "welcome"), {}), "shipping");
+  assert.equal(nextStartStage(step("welcome", "bring"), {}), "details");
+  assert.equal(nextStartStage(step("welcome", "bring", "details"), {}), "shipping");
+  assert.deepEqual(stagesLeft(started, { platformCards: true }), ["bring", "payments", "details", "shipping", "final"]);
+});
+
+test("an older shop that chose its look before the run existed hears nothing; one part-way through the old order does", () => {
+  assert.equal(nextStartStage({ plan: "both", welcome: { at: "t" } }), null);
+  assert.equal(nextStartStage({ plan: "both", details: { at: "t" } }), "look");
+});
+
+test("a services shop adds its services and has no shipping stage", () => {
+  const salon = { publishes: "hair", welcome: { at: "t", firstRun: true } };
+  assert.deepEqual(stagesLeft(salon), ["services", "details", "final"]);
+  assert.deepEqual(stagesLeft({ ...salon, sellsProducts: true }), ["bring", "details", "shipping", "final"]);
 });
 
 test("Get paid is a stage only for a press whose cards go through the platform", () => {
-  const doc = step("details", "bring", "welcome", "shipping");
-  assert.equal(nextStartStage(doc, { platformCards: false }), "final");
+  const doc = step("welcome", "bring");
+  assert.equal(nextStartStage(doc, { platformCards: false }), "details");
   assert.equal(nextStartStage(doc, { platformCards: true }), "payments");
 });
 
 test("a finished run, a stockroom-only plan, and an open shop have nothing to nudge", () => {
-  const done = step("details", "bring", "welcome", "shipping", "finalCheck");
+  const done = step("welcome", "bring", "details", "shipping", "finalCheck");
   assert.equal(nextStartStage(done), null);
   assert.equal(nextStartStage({ ...started, plan: "stockroom" }), null);
   assert.equal(nextStartStage(started, { open: true }), null);
 });
 
-test("nudges fall on days 2 and 4, and a missed run may send the day after, never later", () => {
-  assert.deepEqual(START_NUDGE_DAYS, [2, 4]);
-  assert.equal(nudgeDayOf(1), null);
-  assert.equal(nudgeDayOf(2), 2);
-  assert.equal(nudgeDayOf(3), 2);
-  assert.equal(nudgeDayOf(4), 4);
-  assert.equal(nudgeDayOf(5), 4);
-  assert.equal(nudgeDayOf(6), null);
+test("nudges may go out any day from day 1 to day 10, and never on the welcome's day or in billing's last days", () => {
+  assert.equal(START_NUDGE_FIRST_DAY, 1);
+  assert.equal(START_NUDGE_LAST_DAY, 10);
+  assert.equal(nudgeDayOf(0), null);
+  assert.equal(nudgeDayOf(1), 1);
+  assert.equal(nudgeDayOf(6), 6);
+  assert.equal(nudgeDayOf(10), 10);
+  assert.equal(nudgeDayOf(11), null);
   assert.equal(nudgeDayOf(null), null);
 });
 
-test("each stage is nudged at most once, and the next stage gets its own nudge", () => {
-  const record = { startNudges: { bring: { at: "t" } } };
+test("each stage is nudged at most once, and the next stage gets its own nudge, with how many steps are left", () => {
+  const record = { startNudges: { bring: { day: 1, at: "t" } } };
   assert.deepEqual(startNudgeDue({ day: 2, doc: started, record }), { nudge: null, why: "already-sent" });
-  assert.deepEqual(startNudgeDue({ day: 4, doc: started, record }), { nudge: null, why: "already-sent" });
-  const next = step("details", "bring");
-  assert.deepEqual(startNudgeDue({ day: 4, doc: next, record }), { nudge: { day: 4, stage: "look" }, why: "due" });
+  const next = step("welcome", "bring");
+  assert.deepEqual(startNudgeDue({ day: 2, doc: next, record }), { nudge: { day: 2, stage: "details", left: 3 }, why: "due" });
 });
 
-test("one nudge per nudge day: a press that finishes a stage after day 2's nudge hears nothing more until day 4", () => {
-  const record = { startNudges: { bring: { day: 2, at: "t" } } };
-  const next = step("details", "bring");
+test("one nudge a day at most: a press that finishes a stage after today's nudge hears about the next one tomorrow", () => {
+  const record = { startNudges: { bring: { day: 3, at: "t" } } };
+  const next = step("welcome", "bring");
   assert.deepEqual(startNudgeDue({ day: 3, doc: next, record }), { nudge: null, why: "already-sent" });
-  assert.deepEqual(startNudgeDue({ day: 4, doc: next, record }), { nudge: { day: 4, stage: "look" }, why: "due" });
+  assert.equal(startNudgeDue({ day: 4, doc: next, record }).nudge.stage, "details");
 });
 
-test("tips off, days between, and a finished run send nothing", () => {
+test("the subject says how close the press is, and the one next step", () => {
+  assert.equal(nudgeSubject("Add your first book", 1), "One step from open: add your first book");
+  assert.equal(nudgeSubject("Add your first book", 3), "3 steps from open. Next: add your first book");
+});
+
+test("tips off, days outside the window, and a finished run send nothing", () => {
   assert.equal(startNudgeDue({ day: 2, doc: started, record: { off: true } }).why, "tips-off");
-  assert.equal(startNudgeDue({ day: 3, doc: started, record: { off: true } }).why, "tips-off");
-  assert.equal(startNudgeDue({ day: 1, doc: started }).why, "not-a-nudge-day");
-  assert.equal(startNudgeDue({ day: 2, doc: step("details", "bring", "welcome", "shipping", "finalCheck") }).why, "nothing-to-nudge");
+  assert.equal(startNudgeDue({ day: 0, doc: started }).why, "not-a-nudge-day");
+  assert.equal(startNudgeDue({ day: 12, doc: started }).why, "not-a-nudge-day");
+  assert.equal(startNudgeDue({ day: 2, doc: step("welcome", "bring", "details", "shipping", "finalCheck") }).why, "nothing-to-nudge");
 });
 
 test("every stage of the run has its nudge in plain words, naming no rival or technical term", () => {

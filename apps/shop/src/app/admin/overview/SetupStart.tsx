@@ -26,6 +26,8 @@ import { openRows, rowsLeft } from "../openList";
 import { countryCode, countryName } from "../shippingCountries";
 import { FinalCheckStage } from "./FinalCheckStage";
 import { ShopOpenedCard, publicAddress } from "./ShopOpenedCard";
+import { FirstOrderCard } from "./FirstOrderCard";
+import { firstOrderToCelebrate } from "./firstOrder";
 import { MoveProgressCard } from "./MoveProgressCard";
 import { chosenDesign, chosenLook, keptFile, type SetupHandover } from "../setupHandover";
 import { SignupDesignStage } from "./SignupDesignStage";
@@ -86,7 +88,9 @@ export function SetupStart({ books, orders, readiness, settings, bookings, onOpe
   // Change 3: tell Home whether a setup step is on screen, so the tour offer and Connect Google wait their turn.
   const guideShowing = !!doc && showFirstWeek(doc, firstWeekSteps(doc, facts as FirstWeekFacts));
   const runStep = doc ? nextRunStep(doc, settings, platform) : null;
-  const showing = state === "loading" ? null : state === "error" || (!!doc && (!!runStep || guideShowing || celebrate));
+  // The first real order's own card (move 5), until the press puts it away.
+  const firstOrder = doc && !runStep ? firstOrderToCelebrate(orders, doc.done?.firstOrder) : null;
+  const showing = state === "loading" ? null : state === "error" || (!!doc && (!!runStep || guideShowing || celebrate || !!firstOrder));
   useEffect(() => { setSetupShowing(showing); }, [showing]);
   // The top bar's "Open · N to go" counts the same rows as the list (move 4); null hands it back to Ready to sell.
   const left = doc && runStep && runStep !== "final" ? rowsLeft(openRows(runSteps(platform, servicesOnly(doc)), runStep)) : null;
@@ -211,8 +215,14 @@ export function SetupStart({ books, orders, readiness, settings, bookings, onOpe
       if (ok && !on) { setOpened(true); setCelebrate(true); }
       return ok;
     });
+    const firstOrderDone = async () => {
+      const at = new Date().toISOString();
+      await adminApi.updateFirstWeek({ done: { firstOrder: at } });
+      setDoc({ ...doc, done: { ...doc.done, firstOrder: at } });
+    };
     return (
       <>
+        {firstOrder && <FirstOrderCard order={firstOrder} onDone={firstOrderDone} onOpen={onOpen} />}
         {celebrate && <ShopOpenedCard address={publicAddress(settings)} name={settings?.info?.name} moved={doc.sellingToday === "online"} onOpen={onOpen} onClose={() => setCelebrate(false)} />}
         <SetupGuideCard doc={doc} setDoc={setDoc} facts={facts} onOpen={onOpen} onSetWall={setWall} />
         <MoveProgressCard doc={doc} setDoc={setDoc} onOpen={onOpen} />

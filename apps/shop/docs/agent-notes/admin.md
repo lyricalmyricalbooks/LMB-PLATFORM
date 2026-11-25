@@ -633,6 +633,15 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
 
 ## Get started: your press first (29 October 2026, code plan 17.1 to 17.4, 17.8, 17.10, 17.11 and 17.13; redesigned 11 November 2026)
 
+**Open and the first order (25 November 2026, sign-up plan move 5).** `ShopOpenedCard` gives three ready ways to tell
+people: Post it (Sales channels), Email your people (`tellEmailHref`, a mailto with a written note) and Put it in your bio
+(copies the link), plus the promise that the first order is emailed and celebrated. `FirstOrderCard` shows on Home once
+the run is over, for the earliest real order (`overview/firstOrder.ts`: paid, not practice, not sandbox, not imported)
+while the shop has at most `FIRST_ORDER_WINDOW` (3) real orders; Done saves `done.firstOrder`. The server's paid-order
+email turns into "Your first order!" for the first real sale (`functions/firstOrder.js`) and writes `done.firstSale` with
+`update` (never creating the document), which the control room's sign-up funnel reads (LMB-PLATFORM
+`control-room/signupFunnel.js`, Setting up › From sign-up to first order).
+
 **One list on Home (25 November 2026, sign-up plan move 4).** The run's order is now the look, the products (or
 services), Get paid, contact details, shipping and the final check (`startRun.ts`; `paymentsStepShows` accepts `bring`
 in place of `details`). Home shows it as one card, `OpenListCard.tsx`, with the rows from `openList.ts`: account and

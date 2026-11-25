@@ -20,7 +20,8 @@ function world({ progress = { steps: ALL, done: [] }, row = {}, guideDoc, env = 
   registry.profiles.set(shop.shopId, { siteUrl: "https://moth-press.web.app", apps: { shop: true, stockroom: false } });
   const auditLog = fakeAuditLog();
   const guide = fakeGuide({ "moth-press": guideDoc === undefined ? { sellingToday: "starting", progress, ...start } : guideDoc });
-  const cfg = platformSettings(env);
+  // The setup tips' own tests run with the nudges held; the nudge tests below name their mode.
+  const cfg = platformSettings({ START_NUDGES: "hold", ...env });
   const email = fakePlatformEmail(cfg);
   const store = fakeTipStore();
   let clock = at(0);
@@ -130,67 +131,74 @@ test("every step of the shop's setup guide has a tip, in plain words naming no r
   }
 });
 
-// Get started nudges (plan 17.14): a press that has opened its admin and not finished its run, on days 2 and 4.
-const STARTED = { details: { at: "t" } };
+// Get started nudges (plan 17.14; one a day at most while not open since the sign-up plan's move 5).
+const STARTED = { welcome: { at: "t", firstRun: true } };
 const keysSent = (w) => w.email.sent.map((m) => m.idempotencyKey);
 
-test("the default setting sends no Get started nudge: the setup tips go out exactly as before", async () => {
-  const w = world({ start: STARTED });
+test("the nudges are on by default, in place of the setup tips: one email a day at most", () => {
+  assert.equal(platformSettings({}).startNudges, "instead");
+});
+
+test("hold sends no Get started nudge: the setup tips go out exactly as before", async () => {
+  const w = world({ env: { START_NUDGES: "hold" }, start: STARTED });
   for (let day = 0; day <= 8; day++) await w.runOn(day);
   assert.deepEqual(keysSent(w), ["trial-tip-moth-press-day-2", "trial-tip-moth-press-day-4", "trial-tip-moth-press-day-7"]);
 });
 
-test("beside: the day-2 nudge goes with that day's setup tip, and is never sent twice", async () => {
-  const w = world({ env: { START_NUDGES: "beside" }, start: STARTED });
+test("instead: day 1 names the next step and how close the press is, and each later stage gets its own day", async () => {
+  const w = world({ env: { START_NUDGES: "instead" }, start: STARTED });
+  await w.runOn(1);
+  assert.deepEqual(keysSent(w), ["start-nudge-moth-press-bring"]);
+  assert.equal(w.email.sent[0].data.subject, "4 steps from open. Next: add your first book");
+  assert.equal(w.email.sent[0].data.link, "https://moth-press.web.app/admin#overview");
+  assert.equal(w.registry.events.get("moth-press").get("start-nudge-bring").step, "bring");
+  // Still stuck on the same step: no repeat, and day 2's setup tip goes out on its own day.
   await w.runOn(2);
   assert.deepEqual(keysSent(w), ["start-nudge-moth-press-bring", "trial-tip-moth-press-day-2"]);
-  assert.equal(w.email.sent[0].data.subject, START_NUDGE_WORDS.bring.subject);
-  assert.equal(w.email.sent[0].data.link, "https://moth-press.web.app/admin#catalog");
-  assert.equal(w.registry.events.get("moth-press").get("start-nudge-bring").step, "bring");
-  // Day 4 still has its setup tip, but the bring nudge is not repeated while that step is still to do.
-  await w.runOn(4);
-  assert.deepEqual(keysSent(w), ["start-nudge-moth-press-bring", "trial-tip-moth-press-day-2", "trial-tip-moth-press-day-4"]);
+  // The press adds a book: day 3 names the next step.
+  w.guide.docs.set("moth-press", { ...w.guide.docs.get("moth-press"), bring: { at: "t" } });
+  await w.runOn(3);
+  assert.equal(keysSent(w)[2], "start-nudge-moth-press-details");
 });
 
-test("instead: the day-2 nudge takes the place of that day's setup tip, which is sent on the next tip day instead", async () => {
+test("instead: a nudge on a tip day takes that day's slot, so the press gets one email that day", async () => {
   const w = world({ env: { START_NUDGES: "instead" }, start: STARTED });
   await w.runOn(2);
   assert.deepEqual(keysSent(w), ["start-nudge-moth-press-bring"]);
-  await w.runOn(3);
-  assert.equal(w.email.sent.length, 1, "day 3 sends nothing: day 2's slot is taken");
-  await w.runOn(4);
-  assert.deepEqual(keysSent(w), ["start-nudge-moth-press-bring", "trial-tip-moth-press-day-4"]);
-  // The tip that was held back is not lost: it is the first step, logo.
-  assert.equal(w.email.sent[1].data.subject, TIPS.logo.subject);
 });
 
-test("a missed run sends the nudge the day after, once, and the setup tip with it", async () => {
+test("beside: the nudge goes with that day's setup tip, and is never sent twice", async () => {
   const w = world({ env: { START_NUDGES: "beside" }, start: STARTED });
-  await w.runOn(3);
+  await w.runOn(2);
   assert.deepEqual(keysSent(w), ["start-nudge-moth-press-bring", "trial-tip-moth-press-day-2"]);
-  assert.equal(w.registry.events.get("moth-press").get("start-nudge-bring").day, 2);
-  // Day 4 is too soon after the day-3 send, and the nudge is already sent: nothing more.
-  assert.equal((await w.runOn(4)).sent.length, 0);
+  await w.runOn(3);
+  assert.equal(w.email.sent.length, 2);
+});
+
+test("an open shop and a finished run get no nudge", async () => {
+  const open = world({ env: { START_NUDGES: "instead" }, start: { ...STARTED, finalCheck: { at: "t", opened: true } } });
+  for (let day = 1; day <= 10; day++) await open.runOn(day);
+  assert.ok(!keysSent(open).some((k) => k.startsWith("start-nudge")));
 });
 
 test("turned-off tips stop the Get started nudges as well", async () => {
-  const w = world({ env: { START_NUDGES: "beside" }, start: STARTED });
+  const w = world({ env: { START_NUDGES: "instead" }, start: STARTED });
   await w.store.set("moth-press", { off: true, offAt: "t" });
-  for (const day of [2, 3, 4, 5]) await w.runOn(day);
+  for (const day of [1, 2, 3, 4, 5]) await w.runOn(day);
   assert.equal(w.email.sent.length, 0);
 });
 
 test("a shop with no owner email is skipped with its reason, and sends nothing", async () => {
-  const w = world({ env: { START_NUDGES: "beside" }, start: STARTED, row: { ownerEmail: "" } });
-  const { skipped } = await w.runOn(2);
+  const w = world({ env: { START_NUDGES: "instead" }, start: STARTED, row: { ownerEmail: "" } });
+  const { skipped } = await w.runOn(1);
   assert.ok(skipped.some((s) => s.why === "no-shop-admin" && s.nudge === "bring"));
   assert.equal(w.email.sent.length, 0);
 });
 
 test("a finished run gets no nudge, and a bad START_NUDGES value is refused when the settings are read", async () => {
-  const done = { details: { at: "t" }, bring: { at: "t" }, welcome: { at: "t" }, google: { at: "t" }, shipping: { at: "t" }, finalCheck: { at: "t" } };
-  const w = world({ env: { START_NUDGES: "beside" }, start: done });
-  await w.runOn(2);
+  const done = { ...STARTED, details: { at: "t" }, bring: { at: "t" }, google: { at: "t" }, shipping: { at: "t" }, finalCheck: { at: "t" } };
+  const w = world({ env: { START_NUDGES: "instead" }, start: done });
+  for (let day = 1; day <= 4; day++) await w.runOn(day);
   assert.ok(!keysSent(w).some((k) => k.startsWith("start-nudge")));
   assert.throws(() => platformSettings({ START_NUDGES: "maybe" }), /START_NUDGES must be one of hold, beside, instead/);
 });

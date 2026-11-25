@@ -100,3 +100,24 @@
 .rp:not(.studio-editor) .rp-sb-counts dt { order: 2; font: 500 11px/1.2 var(--rp-font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--rp-text-muted); }
 .rp:not(.studio-editor) .rp-sb-counts dd { order: 1; margin: 0; font: 600 28px/1 var(--rp-font-display); letter-spacing: -0.02em; }
 .rp:not(.studio-editor) .rp-sb-empty .rp-sb-counts dd { color: var(--rp-text-muted); }
+
+/* Your shop is open: three ready ways to tell people (sign-up to open shop plan, move 5). */
+.rp:not(.studio-editor) .rp-sb-tell { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.rp:not(.studio-editor) .rp-sb-tell a, .rp:not(.studio-editor) .rp-sb-tell button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px;
+  padding: 8px 10px; margin: 0 -10px; border: 0; border-radius: 12px; background: none; color: var(--rp-text); text-align: left; text-decoration: none; cursor: pointer;
+  font: inherit; box-sizing: content-box; }
+.rp:not(.studio-editor) .rp-sb-tell a:hover, .rp:not(.studio-editor) .rp-sb-tell button:hover { background: var(--rp-surface-inset); }
+.rp:not(.studio-editor) .rp-sb-tell a:focus-visible, .rp:not(.studio-editor) .rp-sb-tell button:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp:not(.studio-editor) .rp-sb-tell svg { flex: none; color: var(--rp-text); }
+.rp:not(.studio-editor) .rp-sb-tell span { display: grid; gap: 2px; }
+.rp:not(.studio-editor) .rp-sb-tell strong { font: 600 16px/1.25 var(--rp-font-body); }
+.rp:not(.studio-editor) .rp-sb-tell small { font: 400 13px/1.35 var(--rp-font-body); color: var(--rp-text-muted); }
+.rp:not(.studio-editor) .rp-sb-promise { margin: 4px 0 0; padding-top: 12px; border-top: 1px solid var(--rp-divider); font: 400 13px/1.45 var(--rp-font-body); color: var(--rp-text-muted); }
+
+/* The first order: what to do next, numbered (move 5). */
+.rp:not(.studio-editor) .rp-sb-steps { margin: 0; padding: 0; list-style: none; counter-reset: rp-sb-step; display: grid; gap: 10px; }
+.rp:not(.studio-editor) .rp-sb-steps li { counter-increment: rp-sb-step; display: grid; grid-template-columns: 28px 1fr; column-gap: 12px; align-items: baseline;
+  font: 400 15px/1.45 var(--rp-font-body); color: var(--rp-text); }
+.rp:not(.studio-editor) .rp-sb-steps li::before { content: counter(rp-sb-step); display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 999px;
+  background: var(--rp-success-tint); color: var(--rp-text); font: 600 13px/1 var(--rp-font-body); align-self: start; }
+.rp:not(.studio-editor) .rp-sb-steps strong { font-weight: 600; }
