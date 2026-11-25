@@ -166,7 +166,8 @@ async function checkFrontDoor(browser, walk, log) {
       const presses = walk.world.frontDoorStores.presses;
       const [first] = await presses.listByOwner(`uid-${address}`);
       const pressId = "press-in-setup";
-      await presses.create(pressId, { ...first, pressId, status: "setup", pressName: "Front Door Press", plan: "shop", country: "", shopId: "", shopStatus: "", openUrl: "", createdAt: "2099-01-01T00:00:00.000Z" });
+      // A press that set up before stores were made at sign-up has no look yet (the sign-up answers now carry one, PR #1042).
+      await presses.create(pressId, { ...first, pressId, status: "setup", pressName: "Front Door Press", plan: "shop", country: "", shopId: "", shopStatus: "", openUrl: "", look: "", createdAt: "2099-01-01T00:00:00.000Z" });
       const record = () => presses.get(pressId);
       await page.goto(`${walk.url}/app/?press=${pressId}`);
       await visible(".rp-page-title");
