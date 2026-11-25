@@ -1345,7 +1345,7 @@ await check("Draft a section with AI: the draft shows on the page, Add to page s
   if ((faqs[0].settings.items || []).some(b => !b.id)) throw new Error("drafted blocks have no ids");
 });
 
-await check("Workbench: W opens it, Changes jumps back through edits, Setup's Show me opens Style, G then T switches workspace", desktop, async page => {
+await check("Workbench: W opens it, Changes jumps back through edits, To-dos' Show me opens Style, G then T switches workspace", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const wb = page.locator("[data-studio-workbench]");
   await wb.waitFor({ timeout: 5000 });
@@ -1375,11 +1375,11 @@ await check("Workbench: W opens it, Changes jumps back through edits, Setup's Sh
   await page.locator('[data-studio-workbench][data-open="false"]').waitFor({ timeout: 5000 });
   await page.keyboard.press("w");
   await page.locator('[data-studio-workbench][data-open="true"]').waitFor({ timeout: 5000 });
-  // Setup: Show me on the logo item opens Style at Logo & wordmark.
-  await wb.getByRole("tab", { name: /Setup/ }).click();
+  // To-dos: Show me on the logo item opens Style at Logo & wordmark.
+  await wb.getByRole("tab", { name: /To-dos/ }).click();
   await wb.getByText(/of \d+ done/).waitFor({ timeout: 5000 });
   const themeRow = wb.locator(['logo', 'colors', 'fonts', 'share'].map(id => `[data-setup-id="${id}"][data-done="false"]`).join(", ")).first();
-  if (!(await themeRow.count())) throw new Error("expected an open Style item in Setup");
+  if (!(await themeRow.count())) throw new Error("expected an open Style item in To-dos");
   await themeRow.getByRole("button", { name: "Show me" }).click();
   await page.locator('.studio-rail button[aria-pressed="true"]', { hasText: "Style" }).waitFor({ timeout: 5000 });
   // G then L goes to Page; G then T back to Style.
@@ -2049,7 +2049,8 @@ await check("View website opens the shop in a new tab with the draft and says wh
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();
   await expectText(page, "Home · 1 section");
-  const [tab] = await Promise.all([page.context().waitForEvent("page"), page.getByRole("button", { name: "View website" }).click()]);
+  await page.getByRole("button", { name: "Theme actions" }).click();
+  const [tab] = await Promise.all([page.context().waitForEvent("page"), page.getByRole("menuitem", { name: "View website" }).click()]);
   if (!/[?&]preview=true/.test(tab.url())) throw new Error(`View website opened ${tab.url()}`);
   await tab.locator('[data-draft-preview-banner="unsaved"]').waitFor({ timeout: 30000 });
   // The newsletter section exists only in the unsaved draft, so seeing it proves the tab shows the draft.
@@ -2185,6 +2186,49 @@ await check("on a phone the top bar is two rows of full-size buttons, with View 
   if (bar.unnamed) throw new Error(`${bar.unnamed} top bar buttons have no name`);
   await page.getByRole("button", { name: "Theme actions" }).click();
   await page.getByRole("menuitem", { name: "View website" }).waitFor({ timeout: 5000 });
+});
+
+// A calmer Studio (round three, phase 4): one slim bar, the path in the left panel, a four-stop tour for a first visit,
+// and on a phone the shop stays in sight while Sections slides up over it.
+await check("calmer Studio: slim top bar, path in the left panel, a four-stop tour that is remembered", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const bar = await page.evaluate(() => {
+    const top = document.querySelector(".studio-topbar");
+    return { height: Math.round(top.getBoundingClientRect().height), words: top.textContent, crumbsInPanel: !!document.querySelector("#studio-left [data-studio-breadcrumb], [data-panel-id=studio-left] [data-studio-breadcrumb], .studio-left-col [data-studio-breadcrumb]") };
+  });
+  if (bar.height > 64) throw new Error(`the top bar is ${bar.height}px tall`);
+  if (/View website|Design studio|Switch to Browse/.test(bar.words)) throw new Error(`the top bar still holds moved buttons: ${bar.words}`);
+  if (!bar.crumbsInPanel) throw new Error("the path isn't at the top of the left panel");
+  await page.locator(".studio-canvas-status [data-studio-mode-switch]").waitFor({ timeout: 5000 });
+  const tour = page.locator("[data-studio-tour]");
+  await tour.waitFor({ timeout: 5000 });
+  for (let stop = 1; stop <= 4; stop++) {
+    if ((await tour.getAttribute("data-studio-tour")) !== String(stop)) throw new Error(`expected tour stop ${stop}`);
+    await tour.getByRole("button", { name: stop === 4 ? "Done" : "Next" }).click();
+  }
+  if (await tour.count()) throw new Error("the tour stayed open after Done");
+  await page.reload();
+  await expectText(page, "Preview connected", 30000);
+  await page.waitForTimeout(1200);
+  if (await page.locator("[data-studio-tour]").count()) throw new Error("the tour came back after it was finished");
+  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("menuitem", { name: "Take the tour" }).click();
+  await page.locator("[data-studio-tour='1']").waitFor({ timeout: 5000 });
+}, "?tour=1#designer?tab=sections");
+
+await check("calmer Studio on a phone: Sections slides up over the shop, which stays in sight", { width: 390, height: 844 }, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("tab", { name: "Sections" }).click();
+  await page.waitForTimeout(500);
+  const seen = await page.evaluate(() => {
+    const frame = document.querySelector(".studio-preview-frame").getBoundingClientRect();
+    const sheet = document.querySelector(".studio-rail").getBoundingClientRect();
+    return { frameTop: frame.top, sheetTop: sheet.top, frameShown: frame.height > 0 && frame.width > 0 };
+  });
+  if (!seen.frameShown || seen.sheetTop - seen.frameTop < 80) throw new Error(`the shop is hidden under the sheet (${JSON.stringify(seen)})`);
+  await page.getByRole("tab", { name: "Preview" }).click();
+  await page.waitForTimeout(300);
+  if (await page.locator(".studio-rail").isVisible()) throw new Error("the sheet stayed open on Preview");
 });
 
 await check("a computer opens on the computer preview", desktop, async page => {

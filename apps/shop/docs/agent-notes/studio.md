@@ -992,3 +992,30 @@ starter (`starterOf`).
   published), each with Studio's Show me (`goSetup`; new `SetupGo` kind `admin` opens another admin page).
 - Fixture: `/studio-fixture.html?starter=<id>[/<style>]&sells=…#designer?tab=essentials&yours=1` puts a whole starter
   in the draft; `studio-e2e.mjs` check "Make it yours: four steps…".
+
+## Calmer Studio (25 November 2026, round three phase 4)
+
+The preview takes most of the screen. Nothing was removed; each thing moved to where it is used.
+
+- **Top bar** (`studio-topbar`): Exit, Find (icon only, `data-studio-find`, still "Find anything (Ctrl+K)"), the page
+  picker, computer/tablet/phone, undo and redo, the save state, ⋯ Theme actions, Save draft and Publish
+  (`data-studio-publish`). The "Design studio" title is gone. **View website** is always a Theme actions item (it was one
+  only on phones), and Theme actions also lists **Find anything** and **Take the tour**.
+- **Browse mode** moved to the preview's own bar (`.studio-canvas-status`, `.studio-mode-switch`, same
+  `data-studio-mode-switch` and names "Switch to Browse mode" / "Switch to Edit mode").
+- **The path** (`StudioBreadcrumb`, `crumbsBar`) sits at the top of the left panel on a computer (`.studio-left-col`), and
+  under the top bar on a phone only while Edit is open. The **starter update** notice is one mint line at the top of the
+  list (`.studio-panel-notice`, still `data-studio-look-update`), not a band over the preview.
+- **Settings column**: `studio-left` starts at 24% (min 18%, was 28%/20%); the remembered layout id moved to
+  `studio-panels-v4`, so every owner starts once from the new width and can drag it wider.
+- **Phone**: the shop is always drawn. Sections (with the workspace row on top) and Edit open as a sheet over the lower
+  56% of the screen (`data-mobile-panel` outline/settings); the preview's own bar hides under the sheet. Make it yours on a
+  phone is therefore the shop's header on top and the steps below.
+- **Tour** (`StudioTour.tsx`): four stops (the rail, the preview, the page picker, Publish), each skipped when its part
+  isn't on screen (a phone, or no Publish before the shop exists). No backdrop, so Studio stays usable. It shows once per
+  browser under the old tips key `studio-tips-dismissed`, waits while Make it yours is open, and Theme actions › Take the
+  tour starts it again. The fixture marks it seen unless `?tour=1`, so browser checks never click under it.
+- **Workbench › To-dos** (was Setup): the badge says "N left" (or ✓), never a fraction, so the only set-up count an owner
+  sees is the admin Home list (agreed with the sign-up flow thread).
+- Checks: "calmer Studio: slim top bar, path in the left panel, a four-stop tour that is remembered" and "calmer Studio on
+  a phone: Sections slides up over the shop, which stays in sight".

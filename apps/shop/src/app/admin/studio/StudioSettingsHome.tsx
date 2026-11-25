@@ -141,29 +141,6 @@ export function SettingsSubsection({ title, count, changed, defaultOpen = false,
   );
 }
 
-const TIPS_KEY = "studio-tips-dismissed";
-const readDismissed = () => { try { return window.localStorage.getItem(TIPS_KEY) === "1"; } catch { return false; } };
-
-/** Four-line orientation card. Dismissal is remembered in this browser only. */
-export function StudioTips({ forceOpen = 0 }: { forceOpen?: number }) {
-  const [hidden, setHidden] = useState(readDismissed);
-  useEffect(() => { if (forceOpen) setHidden(false); }, [forceOpen]);
-  if (hidden) return null;
-  const dismiss = () => { setHidden(true); try { window.localStorage.setItem(TIPS_KEY, "1"); } catch { /* private mode */ } };
-  return (
-    <aside className="studio-tips" aria-label="How Studio works">
-      <strong>How Studio works</strong>
-      <ol>
-        <li><b>Click anything in the preview</b> to open its settings. Double-click text to type over it.</li>
-        <li><b>Style</b> changes the look of every page; <b>Page</b> adds and arranges sections.</li>
-        <li><b>Save draft</b> keeps your work private. <b>Publish</b> puts it live. <b>Find</b>, at the top, searches every setting.</li>
-        <li>Not sure where to start? <b>Style › Basics</b> has the first things to set; <b>Theme actions › Open the Workbench › Setup</b> has a checklist.</li>
-      </ol>
-      <button type="button" className="studio-reset" onClick={dismiss}>Got it, hide these tips</button>
-    </aside>
-  );
-}
-
 const HINT_KEY = "studio-click-hint-dismissed";
 const readHintHidden = () => { try { return window.localStorage.getItem(HINT_KEY) === "1"; } catch { return false; } };
 

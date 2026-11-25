@@ -1,12 +1,11 @@
 .studio-editor { position: fixed; inset: 0; z-index: 300; display: flex; flex-direction: column; background: var(--rp-canvas); color: var(--rp-text); font-family: var(--rp-font-body, sans-serif); }
-.studio-topbar { min-height: 64px; display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--rp-border); background: var(--rp-surface); flex-wrap: wrap; }
-.studio-title { font-size: 14px; margin-right: 8px; }
+.studio-topbar { min-height: 56px; display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--rp-border); background: var(--rp-surface); flex-wrap: wrap; }
 /* Save state: what happened on top, what it means for the shop below (keeps Publish on the first row). */
 .studio-status { display: inline-grid; line-height: 1.2; text-align: left; border-radius: 10px; }
 .studio-status > span:last-child { font-weight: 600; color: var(--rp-text-subtle); }
 .studio-status-sep { display: none; }
-/* Medium-wide screens: the Exit button already says where you are; dropping the title keeps Publish on the first row. */
-@media (max-width: 1599px) { .studio-title, .studio-topbar .studio-tools-menu > span { display: none; } }
+/* Medium-wide screens: the ⋯ button drops its words, keeping Publish on the first row. */
+@media (max-width: 1599px) { .studio-topbar .studio-tools-menu > span { display: none; } }
 .studio-editor select { max-width: 220px; min-height: 36px; border: 1px solid var(--rp-border); border-radius: 6px; background: var(--rp-input-bg); color: var(--rp-text); padding: 4px 8px; font-size: 12px; }
 .studio-workspace { flex: 1; display: flex; min-height: 0; position: relative; }
 .studio-sidebar { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--rp-border); background: var(--rp-surface); }
@@ -78,7 +77,6 @@
 .studio-editor .bg-neutral-900 { background-color: var(--rp-primary); color: var(--rp-on-primary); }
 .studio-editor .rp-dialog-root { z-index: 450; }
 @media (max-width: 1099px) {
-  .studio-title { display: none; }
   .studio-topbar { padding: 8px; gap: 5px; }
 }
 @media (max-width: 767px) {
@@ -206,10 +204,6 @@
 .studio-subsection-body { display: grid; gap: 16px; padding: 4px 16px 18px; }
 .studio-changed-group { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px 4px; font-size: 13px; }
 .studio-section-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px; }
-.studio-tips { margin: 12px; padding: 12px; border: 2px solid var(--rp-border-strong, var(--rp-border)); background: var(--rp-surface); display: grid; gap: 6px; font-size: 12px; line-height: 1.5; }
-.studio-tips ol { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
-.studio-tips kbd { font: 600 10px/1 var(--rp-font-mono, monospace); padding: 2px 4px; border: 1px solid var(--rp-border); }
-.studio-tips .studio-reset { justify-self: start; }
 .studio-editor .studio-upload-error, .rp .studio-upload-error { color: var(--rp-danger); font-weight: 600; }
 .studio-overrides { margin: 12px; border: 2px solid var(--rp-border-strong); background: var(--rp-surface); padding: 10px 12px; }
 .studio-overrides summary { cursor: pointer; display: grid; gap: 2px; }
@@ -806,8 +800,6 @@ ul.studio-update-notes { padding-left: 18px; }
 :root[data-admin-look="colophon"] .studio-editor .studio-rail { gap: 6px; padding: 10px 8px; }
 :root[data-admin-look="colophon"] .studio-editor .studio-rail button { border: 0; border-radius: 14px !important; }
 :root[data-admin-look="colophon"] .studio-editor .studio-rail button[aria-pressed=true] { background: var(--rp-primary); color: var(--rp-on-primary); box-shadow: none; }
-:root[data-admin-look="colophon"] .studio-editor .studio-tips { border: 0; border-radius: 22px; padding: 16px; background: var(--rp-tile-mint); color: var(--rp-on-tile); }
-:root[data-admin-look="colophon"] .studio-editor .studio-tips :is(a, button, strong, h2, h3, p, li) { color: inherit; }
 :root[data-admin-look="colophon"] .studio-editor .studio-click-hint { border: 0; border-radius: 14px; padding: 10px 12px; background: var(--rp-surface-sunken); }
 :root[data-admin-look="colophon"] .studio-editor :is(.studio-overrides, .studio-media-note, .studio-ai-menu, .studio-ai-draft, .studio-shop-map, .studio-template-card, .studio-workbench, .studio-essential, .studio-control-card, .studio-region-context) { border: 1px solid var(--rp-border); border-radius: 14px; }
 :root[data-admin-look="colophon"] .studio-editor .studio-workbench { overflow: hidden; }
@@ -855,3 +847,44 @@ ul.studio-update-notes { padding-left: 18px; }
 /* A chosen tab drawn as an ink button (Header menu / Footer menu) keeps its ink fill: the pale tab tint under its
    light words could not be read, by day or by night. */
 .studio-editor [role="tab"][aria-selected="true"].bg-neutral-900 { background-color: var(--rp-primary); }
+
+/* A calmer Studio (25 November 2026, round three phase 4). One slim top bar; the path and the starter-update notice
+   sit at the top of the left panel; Browse mode sits on the preview's own bar; a four-stop tour replaces the tips card;
+   on a phone the shop stays on screen and Sections and Edit slide up over it as a sheet. */
+.studio-left-col { height: 100%; display: flex; flex-direction: column; min-height: 0; background: var(--rp-surface); }
+.studio-left-col > .studio-breadcrumb { flex: none; }
+.studio-left-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.studio-left-body > * { flex: 1; min-height: 0; }
+.studio-canvas-where { flex: 1; min-width: 0; }
+.studio-mode-switch { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 12px; border: 1px solid var(--rp-border); border-radius: 999px; background: var(--rp-surface); color: var(--rp-text); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.studio-mode-switch:hover { border-color: var(--rp-text); }
+.studio-mode-switch[aria-pressed=true] { background: var(--rp-primary); color: var(--rp-on-primary); border-color: var(--rp-primary); }
+.studio-panel-notice { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 10px 12px 0; padding: 10px 12px; border-radius: 12px; background: var(--rp-tile-mint, var(--rp-primary-tint)); color: var(--rp-on-tile, var(--rp-text)); font-size: 12px; line-height: 1.45; }
+.studio-panel-notice > span:first-child { flex: 1 1 180px; }
+.studio-panel-notice-actions { display: inline-flex; gap: 12px; }
+.studio-text-button { display: inline-flex; align-items: center; min-height: 28px; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.studio-tour { position: fixed; z-index: 360; width: min(300px, calc(100vw - 16px)); display: grid; gap: 6px; padding: 14px 16px 12px; border-radius: 16px; background: var(--rp-primary); color: var(--rp-on-primary); box-shadow: var(--rp-shadow-float); font-size: 13px; line-height: 1.45; }
+.studio-tour strong { font-size: 15px; }
+.studio-tour p { margin: 0; opacity: .9; }
+.studio-tour-head { display: flex; align-items: center; justify-content: space-between; }
+.studio-tour-head small { font-size: 11px; font-weight: 700; letter-spacing: .06em; opacity: .75; }
+.studio-tour-close { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 999px; color: inherit; }
+.studio-tour-close:hover { background: color-mix(in srgb, var(--rp-on-primary) 14%, transparent); }
+.studio-tour-actions { display: flex; align-items: center; justify-content: flex-end; gap: 14px; margin-top: 4px; }
+.studio-tour .studio-text-button { opacity: .85; }
+.studio-tour-next { min-height: 36px; padding: 0 18px; border-radius: 999px; background: var(--rp-on-primary); color: var(--rp-primary); font-weight: 800; }
+@media (pointer: coarse) { .studio-tour-close, .studio-tour-next, .studio-mode-switch, .studio-text-button { min-height: 44px; min-width: 44px; } }
+@media (max-width: 767px) {
+  /* The shop stays on screen; Sections (with the workspace row) and Edit open as a sheet over its lower part. */
+  .studio-editor .studio-canvas { display: flex !important; }
+  .studio-editor[data-mobile-panel=outline] .studio-rail { position: fixed; left: 0; right: 0; bottom: 56dvh; z-index: 320; background: var(--rp-surface); border-radius: 18px 18px 0 0; box-shadow: var(--rp-shadow-float); padding-top: 14px; }
+  .studio-editor[data-mobile-panel=outline] .studio-rail::before { content: ""; position: absolute; top: 5px; left: 50%; width: 40px; height: 4px; margin-left: -20px; border-radius: 999px; background: var(--rp-border); }
+  .studio-editor[data-mobile-panel=outline] .studio-workspace > .studio-sidebar,
+  .studio-editor[data-mobile-panel=settings] .studio-workspace > .studio-inspector,
+  .studio-editor[data-mobile-panel=settings] .studio-workspace > aside { position: fixed; left: 0; right: 0; bottom: 0; height: 56dvh; z-index: 320; overflow: auto; background: var(--rp-surface); }
+  .studio-editor[data-mobile-panel=settings] .studio-workspace > .studio-inspector,
+  .studio-editor[data-mobile-panel=settings] .studio-workspace > aside { border-radius: 18px 18px 0 0; box-shadow: var(--rp-shadow-float); }
+  .studio-editor:not([data-mobile-panel=settings]) .studio-breadcrumb { display: none; }
+  .studio-canvas-where { display: none; }
+  .studio-editor:not([data-mobile-panel=preview]) .studio-canvas-status { display: none; }
+}

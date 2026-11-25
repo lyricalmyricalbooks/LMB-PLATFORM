@@ -70,12 +70,13 @@ import type { OutlineActions } from "./StudioOutline";
 import { useStudioPersistence } from "./useStudioPersistence";
 import { friendlyError } from "./friendlyError";
 import { toastDuration } from "./toastTiming";
-import { ActionMenu, Dialog, GhostButton, PrimaryButton, SecondaryButton, useConfirm, usePrompt } from "../riso/components";
+import { ActionMenu, Dialog, PrimaryButton, SecondaryButton, useConfirm, usePrompt } from "../riso/components";
 import { applyInlineText, INLINE_STYLE_KEYS } from "./inlineText";
 import { filterSettingGroups } from "./studioNavigation";
 import { designChecks as buildDesignChecks, designSize } from "./studioChecks";
 import { CATEGORY_PAGES, EXTRA_STYLE_CATEGORIES, SHOP_MAP, textSubsectionsFor, TEXT_BLURBS, TEXT_HEADINGS, THEME_HEADINGS, blurbFor, changedCopyCount, changedCounts, changedFields, defaultFor, isChanged, subsectionsFor } from "./settingsMap";
-import { CategoryHeader, PreviewClickHint, SettingsHome, SettingsSubsection, StudioTips, type HomeHeading } from "./StudioSettingsHome";
+import { CategoryHeader, PreviewClickHint, SettingsHome, SettingsSubsection, type HomeHeading } from "./StudioSettingsHome";
+import { StudioTour } from "./StudioTour";
 
 import { saveSavedThemes, type Workspace } from "../themeStore";
 import { writeDesignValue } from "../../features/site/designModel";
@@ -469,8 +470,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [desktopWidth, setDesktopWidth] = useState<DesktopWidth>(isDesktopWidth(remembered.desktopWidth) ? remembered.desktopWidth : 1200);
   const canvasWidth = device === "desktop" ? desktopWidth : parseInt(DEVICE_W[device], 10);
   const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 767px)").matches);
-  // Panel widths are remembered per browser (react-resizable-panels v4 format; "v1" was v2's).
-  const panelLayout = useDefaultLayout({ id: "studio-panels-v3", storage: PANEL_STORAGE, onlySaveAfterUserInteractions: true });
+  // Panel widths are remembered per browser (react-resizable-panels v4 format; "v1" was v2's; "v4" since the
+  // narrower settings column of 25 November 2026, so every owner starts from the new width once).
+  const panelLayout = useDefaultLayout({ id: "studio-panels-v4", storage: PANEL_STORAGE, onlySaveAfterUserInteractions: true });
   useEffect(() => {
     const media = window.matchMedia?.("(max-width: 767px)");
     if (!media) return;
@@ -2365,8 +2367,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               nameField={(() => { const hit = essentialCopyField("siteName"); return hit ? <StudioCopyField field={hit.field} design={design} settings={settings} aiWhere={hit.group} onChange={value => setCopy("siteName", value)} /> : null; })()}
               logoField={(() => { const hit = essentialStyleField("logoUrl"); return hit ? renderStyleField(hit.group, hit.field) : null; })()}
               nextFour={makeItNext} onGo={item => goSetup(item)} onClose={() => setMakeIt(false)} />}
+            {/* A release changed the press's starter: one line at the top of the panel, with the way to Designs (starterVersions.ts). */}
+            {lookUpdate && leftTab !== "themes" && !lookUpdateSeen && !brandKit && !makeIt && <div className="studio-panel-notice" role="status" data-studio-look-update>
+              <span>A new version of {lookUpdate.name} is ready. Your own changes stay on top.</span>
+              <span className="studio-panel-notice-actions">
+                <button type="button" className="studio-text-button" onClick={() => { setLeftTab("themes"); setMobilePanel("outline"); setLookUpdateSeen(true); }}>See what's new</button>
+                <button type="button" className="studio-text-button" onClick={() => setLookUpdateSeen(true)}>Not now</button>
+              </span>
+            </div>}
             <div hidden={brandKit || makeIt}>
-            <StudioTips forceOpen={tipsNonce} />
             {leftTab === "sections" && <PreviewClickHint />}
             {leftTab === "essentials" && <div className="studio-essentials" data-studio-panel="essentials">
               {starterOf(design) && <section className="studio-essential studio-make-open" data-essential="make-it-yours">
@@ -2836,7 +2845,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   );
   const canvasPanel = (
         <main className="studio-canvas">
-          <div className="studio-canvas-status"><span>{template.label} · {device} ({canvasWidth}px) · {mode === "edit" ? "Double-click text to type · click other elements for settings" : "Browse your website"}</span>{linkHint && mode === "edit" && <span role="status" data-studio-link-hint>Links don't open while you're editing. Use Switch to Browse mode to follow them.</span>}<span role="status">{previewStatus === "loading" ? "Loading preview…" : previewStatus === "error" ? "Preview unavailable" : "Preview connected"}</span>{previewStatus === "error" && <button className={btn} onClick={() => setPreviewRevision(r => r + 1)}>Retry preview</button>}
+          <div className="studio-canvas-status"><button type="button" className="studio-mode-switch" data-studio-mode-switch aria-pressed={mode === "browse"} onClick={() => setMode(m => m === "edit" ? "browse" : "edit")}
+              aria-label={mode === "edit" ? "Switch to Browse mode" : "Switch to Edit mode"}
+              title={mode === "edit" ? "You are in Edit mode: clicking the preview selects parts to edit. Click to switch to Browse mode, where links and buttons work like on the shop." : "You are in Browse mode: links and buttons work like on the shop. Click to switch to Edit mode and select parts to edit."}>
+              {mode === "edit" ? <Globe size={13} aria-hidden="true" /> : <Pencil size={13} aria-hidden="true" />} {mode === "edit" ? "Browse mode" : "Back to editing"}</button>
+            <span className="studio-canvas-where">{template.label} · {device} ({canvasWidth}px) · {mode === "edit" ? "Double-click text to type · click other elements for settings" : "Browse your website"}</span>{linkHint && mode === "edit" && <span role="status" data-studio-link-hint>Links don't open while you're editing. Use Browse mode, just above your shop, to follow them.</span>}<span role="status">{previewStatus === "loading" ? "Loading preview…" : previewStatus === "error" ? "Preview unavailable" : "Preview connected"}</span>{previewStatus === "error" && <button className={btn} onClick={() => setPreviewRevision(r => r + 1)}>Retry preview</button>}
             {device === "desktop" && <label className="studio-zoom">Screen width<select aria-label="Desktop preview screen width" value={String(desktopWidth)} onChange={e => setDesktopWidth(Number(e.target.value) as DesktopWidth)}>
               {DESKTOP_WIDTHS.map(w => <option key={w} value={w}>{DESKTOP_WIDTH_LABELS[w]}</option>)}</select></label>}
             <label className="studio-zoom">Zoom<select aria-label="Preview zoom" value={String(zoom)} onChange={e => setZoom(e.target.value === "fit" ? "fit" : Number(e.target.value) as Zoom)}>
@@ -2883,6 +2896,14 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             onClose={closeElement} />
   );
 
+  // The path (Back and where you are) sits at the top of the left panel on a computer, and under the top bar on a phone.
+  const crumbsBar = (
+      <StudioBreadcrumb
+        crumbs={placeCrumbs(place, placeLabels).map(c => ({ label: c.label, onSelect: crumbAction(c.level) }))}
+        onBack={goBackPlace} canBack={placeHist.back.length > 0}
+        backTitle={backTarget ? `Back to ${describePlace(backTarget, placeLabels)} (Alt+←)` : "Nothing to go back to yet. Back returns you to where you were before your last jump (Alt+←)"} />
+  );
+
   return (
     <StudioPickerProvider value={pickerData}>
     <DynamicSourcesContext.Provider value={dynamicSourcesValue}>
@@ -2891,8 +2912,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       {/* top bar */}
       <header className="studio-topbar">
         <button className={btn} disabled={Boolean(inlineEditing)} onClick={exit}><ArrowLeft size={14} aria-hidden="true" /> <span className="studio-topbar-label">{beforeShop ? "Done" : "Exit"}</span></button>
-        <strong className="studio-title">Design studio</strong>
-        <button className={btn} onClick={() => setFindOpen(true)} aria-label="Find anything (Ctrl+K)" title="Find any setting, word, page, section or action"><Search size={14} aria-hidden="true" /> <span className="studio-topbar-label">Find</span> <kbd aria-hidden="true">Ctrl K</kbd></button>
+        <button className={iconBtn} data-studio-find onClick={() => setFindOpen(true)} aria-label="Find anything (Ctrl+K)" title="Find any setting, word, page, section or action (Ctrl+K)"><Search size={15} aria-hidden="true" /></button>
         <TemplatePicker options={pickerList} current={pickerCurrent} onPick={pickPage} />
         <div className="studio-device-group flex items-center gap-0.5" role="group" aria-label="Preview size">
           {([["desktop", Monitor, "Computer"], ["tablet", Tablet, "Tablet"], ["mobile", Smartphone, "Phone"]] as const).map(([d, Icon, name]) => (
@@ -2900,9 +2920,6 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               onClick={() => setDevice(d)} aria-label={`${name} preview`} title={`${name} preview`} aria-pressed={device === d}><Icon size={15} /></button>
           ))}
         </div>
-        <button className={btn} data-studio-mode-switch aria-pressed={mode === "browse"} onClick={() => setMode(m => m === "edit" ? "browse" : "edit")}
-          title={mode === "edit" ? "You are in Edit mode: clicking the preview selects parts to edit. Click to switch to Browse mode, where links and buttons work like on the shop." : "You are in Browse mode: links and buttons work like on the shop. Click to switch to Edit mode and select parts to edit."}>
-          {mode === "edit" ? <Globe size={14} aria-hidden="true" /> : <Pencil size={14} aria-hidden="true" />} <span className="studio-topbar-label">{mode === "edit" ? "Switch to Browse mode" : "Switch to Edit mode"}</span></button>
 
         <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.past.length} onClick={() => stepHistory("undo")} aria-label="Undo (Ctrl+Z)" title={hist.past.length ? `Undo: ${undoLabel(hist)} (Ctrl+Z)` : "Nothing to undo"}><Undo2 size={15} /></button>
         <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.future.length} onClick={() => stepHistory("redo")} aria-label="Redo (Ctrl+Shift+Z)" title={hist.future.length ? `Redo: ${redoLabel(hist)} (Ctrl+Shift+Z or Ctrl+Y)` : "Nothing to redo"}><Redo2 size={15} /></button>
@@ -2915,40 +2932,29 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             : <><strong>{dirtyDraft ? "Not saved yet" : unpublished ? "Saved as draft" : "Live"}</strong><span className="studio-status-sep"> · </span><span>{dirtyDraft || unpublished ? "shop unchanged" : "the shop shows this"}</span></>}
         </span>
         <div className="studio-tools-menu"><span>Theme actions</span><ActionMenu label="Theme actions" actions={[
-          ...(narrow && !beforeShop ? [{ label: "View website", icon: <Eye size={14} />, onSelect: openPreviewTab }] : []),
+          ...(!beforeShop ? [{ label: "View website", icon: <Eye size={14} />, onSelect: openPreviewTab }] : []),
+          { label: "Find anything", icon: <Search size={14} />, onSelect: () => setFindOpen(true) },
           { label: "Version history", icon: <History size={14} />, onSelect: () => { setHistoryOpen(true); loadVersions(); } },
           { label: "Brand kit…", icon: <Sparkles size={14} />, onSelect: openBrandKit },
           ...(beforeShop ? [] : [{ label: "Schedule publishing…", icon: <Clock size={14} />, onSelect: () => setSchedule({ themeId: null }) }]),
           { label: "Studio Health", icon: <ShieldCheck size={14} />, onSelect: openHealth },
           ...(!narrow ? [{ label: workbench.open ? "Close the Workbench" : "Open the Workbench", icon: <ListChecks size={14} />, onSelect: () => (workbench.open ? setWorkbench(w => ({ ...w, open: false })) : openWorkbench(workbench.tab)) }] : []),
-          { label: "Show Studio tips", onSelect: () => setTipsNonce(n => n + 1) },
+          { label: "Take the tour", onSelect: () => setTipsNonce(n => n + 1) },
           ...(!beforeShop && unpublished && busy === null && !inlineEditing ? [{ label: "Discard saved draft…", tone: "danger" as const, onSelect: () => setConfirmAction("discard") }] : []),
         ]} /></div>
-        {!beforeShop && <button className={btn} onClick={openPreviewTab} data-studio-view-website
-          title={dirtyDraft ? "Open your shop in a new tab with all your changes, including ones not saved yet. Shoppers still see the live shop until you Publish." : unpublished ? "Open your shop in a new tab with your saved draft. Shoppers still see the live shop until you Publish." : "Open your shop in a new tab. It matches the live shop: nothing is waiting to be published."}>
-          <Eye size={14} aria-hidden="true" /> View website</button>}
         {!beforeShop && <>
         <button className={btn} disabled={Boolean(inlineEditing) || !dirtyDraft || busy !== null} onClick={saveDraft}
           title={inlineEditing ? "Finish the text edit first" : !dirtyDraft ? "Nothing new to save" : "Save your changes without putting them on the shop"}>{busy === "draft" ? "Saving…" : "Save draft"}</button>
-        <button className={btnPrimary} disabled={Boolean(inlineEditing) || (!unpublished && !dirtyDraft) || busy !== null} onClick={() => setConfirmAction("publish")}
+        <button className={btnPrimary} data-studio-publish disabled={Boolean(inlineEditing) || (!unpublished && !dirtyDraft) || busy !== null} onClick={() => setConfirmAction("publish")}
           title={inlineEditing ? "Finish the text edit first" : !unpublished && !dirtyDraft ? "No changes to publish yet: the shop already shows this design" : "Review and put your changes on the live shop"}>{busy === "publish" ? "Publishing…" : "Publish"}</button>
         </>}
       </header>
 
-      <StudioBreadcrumb
-        crumbs={placeCrumbs(place, placeLabels).map(c => ({ label: c.label, onSelect: crumbAction(c.level) }))}
-        onBack={goBackPlace} canBack={placeHist.back.length > 0}
-        backTitle={backTarget ? `Back to ${describePlace(backTarget, placeLabels)} (Alt+←)` : "Nothing to go back to yet. Back returns you to where you were before your last jump (Alt+←)"} />
+      {narrow && crumbsBar}
       <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{[["outline", "Sections"], ["preview", "Preview"], ["settings", "Edit"]].map(([panel, name]) => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{name}</button>)}</div>
       {inlineEditing && <div className="studio-inline-status" role="status">Editing {inlineEditing} in the preview. Finish the text edit or release the spacing handle to keep it; Escape cancels.</div>}
       {recovery && <div className="studio-recovery" role="status"><span>Local edits from {new Date(recovery.savedAt).toLocaleString()}.{recovery.conflict ? " The server draft has changed; recovering will load your local version as unsaved edits." : " Recover your unsaved work?"}</span><SecondaryButton onClick={recover}>Recover local changes</SecondaryButton><SecondaryButton onClick={() => { void askConfirm({ title: "Discard local edits?", message: "The unsaved edits kept on this device will be deleted. This can't be undone.", confirmLabel: "Discard local edits" }).then(ok => { if (ok) dismissRecovery(); }); }}>Discard local recovery</SecondaryButton></div>}
       {liveSyncPaused && <div className="studio-recovery" role="status" data-studio-live-sync-paused><span>Live updates from other tabs are paused. Reload Studio before publishing to be safe.</span></div>}
-      {/* A release changed the press's starter: said once wherever Studio opens, with the way to Themes (starterVersions.ts). */}
-      {lookUpdate && leftTab !== "themes" && !lookUpdateSeen && <div className="studio-recovery studio-incoming" role="status" data-studio-look-update>
-        <span>A new version of {lookUpdate.name} is ready. Your own changes stay on top.</span>
-        <SecondaryButton size="sm" onClick={() => { setLeftTab("themes"); setMobilePanel("outline"); setLookUpdateSeen(true); }}>See what's new</SecondaryButton>
-        <GhostButton size="sm" onClick={() => setLookUpdateSeen(true)}>Not now</GhostButton>
-      </div>}
       {themePreview && <div className="studio-recovery studio-incoming" role="status" data-studio-theme-preview>
         <span>Previewing “{themePreview.label}” in the canvas. Your draft hasn't changed.</span>
         <SecondaryButton size="sm" onClick={() => setThemePreview(null)}>Stop preview</SecondaryButton>
@@ -2995,8 +3001,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           <PanelGroup orientation="horizontal" className="studio-panels" defaultLayout={panelLayout.defaultLayout} onLayoutChanged={panelLayout.onLayoutChanged}>
             {/* Settings open in the left panel, in place of the list (starters rethink, step 6): no empty third
                 column, so the preview gets the room. A picker the list is showing (Add section, Add block) stays. */}
-            <Panel id="studio-left" defaultSize="28%" minSize="20%" maxSize="45%" style={PANEL_STYLE}>
-              {(selected || elementPanel) && adding === null && !blockPicker ? (selected ? inspectorPanel : elementPanel) : sidebarPanel}
+            <Panel id="studio-left" defaultSize="24%" minSize="18%" maxSize="45%" style={PANEL_STYLE}>
+              <div className="studio-left-col">
+                {crumbsBar}
+                <div className="studio-left-body">{(selected || elementPanel) && adding === null && !blockPicker ? (selected ? inspectorPanel : elementPanel) : sidebarPanel}</div>
+              </div>
             </Panel>
             <Separator className="studio-resize-handle" aria-label="Resize the settings panel" />
             <Panel id="studio-canvas" minSize="40%" style={PANEL_STYLE}>{canvasPanel}</Panel>
@@ -3007,6 +3016,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       </MediaPickerContext.Provider>
       </CopyTargetContext.Provider>
       <MediaPickerDialog lib={mediaLib} />
+      <StudioTour restart={tipsNonce} hold={makeIt} />
 
       <Dialog open={!!moveDialog} onClose={() => setMoveDialog(null)}
         title={moveDialog?.kind === "block" ? "Move block to another section" : `Move ${moveDialog?.kind === "sections" && moveDialog.ids.length > 1 ? `${moveDialog.ids.length} sections` : "section"} to another page`}

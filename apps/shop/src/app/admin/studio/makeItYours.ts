@@ -246,7 +246,7 @@ export const hasOpening = (design: any) => openingAt(design) !== null;
 
 /**
  * The set-up checklist narrowed to the four things a new starter still needs: real photos, real products (or services),
- * a look on a phone and publishing. Each says where Studio takes the owner (the same "Show me" as Workbench › Setup).
+ * a look on a phone and publishing. Each says where Studio takes the owner (the same "Show me" as Workbench › To-dos).
  */
 export function nextFour(i: { design: any; sells?: string | null; hasOwnProducts: boolean; phoneChecked: boolean; published: boolean }): SetupItem[] {
   const services = shopKind(i.sells) === "services";
