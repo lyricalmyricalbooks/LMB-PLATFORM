@@ -30,7 +30,13 @@
     "ignore": [],
     "cleanUrls": true,
     "trailingSlash": false,
-    "redirects": [],
+    "redirects": [
+      {
+        "regex": "^/stockroom(?:/|/index\\.html)?$",
+        "destination": "/stockroom/app",
+        "type": 301
+      }
+    ],
     "rewrites": [
       {
         "regex": "^/stockroom/app$",

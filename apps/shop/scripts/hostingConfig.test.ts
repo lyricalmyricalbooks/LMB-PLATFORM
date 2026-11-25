@@ -44,8 +44,13 @@ describe('Firebase Hosting serves every storefront route (firebase.json)', () =>
     }
   });
 
-  it('starts with no redirects: a press adds its own old addresses, and none point at another shop', () => {
-    expect(hosting.redirects).toEqual([]);
+  it('redirects only the bare stockroom address to the app: a press adds its own old addresses, and none point at another shop', () => {
+    // The stockroom names its files relative to itself (./assets/…), so /stockroom (which trailingSlash: false gives
+    // instead of /stockroom/) would load them from /assets/ and show a blank page. Its real address is /stockroom/app.
+    expect(hosting.redirects).toEqual([{ regex: '^/stockroom(?:/|/index\\.html)?$', destination: '/stockroom/app', type: 301 }]);
+    const to = (path: string) => hosting.redirects.find((rule: { regex: string }) => new RegExp(rule.regex).test(path))?.destination;
+    for (const path of ['/stockroom', '/stockroom/', '/stockroom/index.html']) expect(to(path), path).toBe('/stockroom/app');
+    for (const path of ['/stockroom/app', '/stockroom/assets/index-Ab12.js', '/stockroomx', '/', '/admin']) expect(to(path), path).toBeUndefined();
   });
 
   it('serves /cart as the shop with the bag open, kept out of search results by header (not robots.txt)', () => {
