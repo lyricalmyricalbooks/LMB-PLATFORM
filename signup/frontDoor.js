@@ -179,8 +179,8 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       return { link };
     },
 
-    async startPress(claims) {
-      const { pressId } = await accountStart.start(claims, {});
+    async startPress(claims, body = {}) {
+      const { pressId } = await accountStart.start(claims, { another: body.another === true });
       return { press: shown(await presses.get(pressId)) };
     },
 
@@ -446,7 +446,7 @@ export const frontDoorPublicRoutes = (door) => ({
 
 /** The signed-in routes: the press's setup record. */
 export const frontDoorRoutes = (door) => ({
-  "POST /api/press": (claims) => door.startPress(claims),
+  "POST /api/press": (claims, request) => door.startPress(claims, request?.body ?? {}),
   "GET /api/press": (claims) => door.myPresses(claims),
   "POST /api/press/setup": (claims, request) => door.saveSetup(claims, request.body ?? {}),
   "POST /api/press/import": (claims, request) => door.startImport(claims, request.body ?? {}),

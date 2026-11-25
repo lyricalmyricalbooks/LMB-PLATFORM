@@ -14,6 +14,8 @@ export function frontPageWords({ open = false, trialDays = null } = {}) {
     return {
       cta: "Join the waitlist",
       ctaShort: "Join",
+      go: "Join the waitlist",
+      build: "Join the waitlist",
       submit: "Join the waitlist",
       note: "Free setup · no card · we're starting in Canada",
       consent: true,
@@ -22,8 +24,11 @@ export function frontPageWords({ open = false, trialDays = null } = {}) {
   return {
     cta: "Start free trial",
     ctaShort: "Start trial",
+    go: "Start your shop",
+    build: "Build your shop",
     submit: "Start free trial",
-    note: Number.isInteger(trialDays) && trialDays > 0 ? `Free setup · no card · ${trialDays} days free once you open` : "Free setup · no card",
+    // The trial starts the day the shop is made (signup.js begin), so the words count from today, not from opening.
+    note: Number.isInteger(trialDays) && trialDays > 0 ? `Free setup · no card · ${trialDays} days free from today` : "Free setup · no card",
     consent: false,
   };
 }
@@ -37,6 +42,15 @@ export function showFrontPage(doc, words, { signupUrl = "" } = {}) {
   $("start-submit").textContent = words.submit;
   $("start-note").textContent = words.note;
   $("start-consent").hidden = !words.consent;
+  // Only the buttons that start (they point at the email box) change; "See Colophon for services" stays as it is.
+  // The hero's and the starters card's buttons say what they do: join the waitlist, or start a shop (25 November 2026:
+  // "Start your shop" used to lead to the waitlist form).
+  for (const [selector, text] of [['.cp-fp-go[href="#start"]', words.go], ['.cp-fp-arrow[href="#start"]', words.build]]) {
+    for (const link of doc.querySelectorAll?.(selector) ?? []) {
+      const words = [...link.childNodes].find((node) => node.nodeType === 3);
+      if (words) words.textContent = `${text} `;
+    }
+  }
 }
 
 /** Leaves the email for the front door. Storage can be off (private windows): the front door then just asks again. */

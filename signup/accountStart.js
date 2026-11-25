@@ -35,6 +35,20 @@ export function createAccountStart({ presses, now = () => new Date(), suffix = r
     throw new SignupError(503, "We couldn't save your press just now. Try again in a minute.");
   }
 
+  // "Start another shop" (the account page, 25 November 2026): a press that already has a shop gets a second, empty
+  // setup record. One still in setup comes back instead, so a double click never makes two.
+  async function another(claims, mine) {
+    const waiting = mine.find((p) => p.status === "setup" && !p.pressName);
+    if (waiting) return { pressId: waiting.pressId, status: waiting.status };
+    atMost(mine);
+    const base = `press-${createHash("sha256").update(claims.uid).digest("hex").slice(0, 12)}`;
+    for (let i = 0; i < 3; i += 1) {
+      const pressId = `${base}-${suffix()}`;
+      if (await presses.create(pressId, recordFor(claims, pressId, ""))) return { pressId, status: "setup" };
+    }
+    throw new SignupError(503, "We couldn't save your press just now. Try again in a minute.");
+  }
+
   return {
     /** Makes (or finds, when the same press is started again) the setup record. Returns { pressId, status }. */
     async start(claims, input = {}) {
@@ -44,7 +58,7 @@ export function createAccountStart({ presses, now = () => new Date(), suffix = r
       }
       const pressName = String(input.pressName ?? "").trim().slice(0, 120);
       const mine = await presses.listByOwner(claims.uid);
-      if (!pressName) return nameless(claims, mine);
+      if (!pressName) return input.another === true ? another(claims, mine) : nameless(claims, mine);
       // The same press started again (a double click, a lost answer): the same record comes back.
       const again = mine.find((p) => p.pressName.toLowerCase() === pressName.toLowerCase());
       if (again) return { pressId: again.pressId, status: again.status };

@@ -228,7 +228,7 @@ async function fileFor(folder, name) {
       body: text.toString("utf8")
         .replace(/export const WAITLIST_FIREBASE = .*;/, 'export const WAITLIST_FIREBASE = { projectId: "demo-walkthrough", apiKey: "" };')
         .replace(/export const PLANS_URL = .*;/, 'export const PLANS_URL = "/api/plans";')
-        .replace(/export const SIGNUP_URL = .*;/, 'export const SIGNUP_URL = "/signup/";'),
+        .replace(/export const SIGNUP_URL = .*;/, 'export const SIGNUP_URL = "/join/";'),
     };
   }
   if (key === "status/config.js") return { type: TYPES[".js"], body: text.toString("utf8").replace(/export const STATUS_URL = .*;/, 'export const STATUS_URL = "/walkthrough/status";') };
