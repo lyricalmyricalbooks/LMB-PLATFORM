@@ -5,10 +5,12 @@ import { adminApi } from "../api";
 import type { FirstWeekDoc, WelcomeDone } from "../firstWeek";
 import type { ReadinessItem } from "../launchReadiness";
 import { LoadingState, SecondaryButton, SectionCard } from "../riso/components";
-import { platformCardsProvider, shopProfile } from "../../../lib/shopProfile";
+import { platformCardsProvider, providerName, shopProfile } from "../../../lib/shopProfile";
 import { auth } from "../../../lib/firebase";
 import { SetupGuideCard } from "./SetupGuideCard";
 import { PressDetailsStage } from "./PressDetailsStage";
+import { policiesToFill } from "../pressDetails";
+import { currentSells } from "../sells";
 import { BringShopStage } from "./BringShopStage";
 import type { BringMarker } from "../bringShop";
 import { ownBooks } from "../lookGallery";
@@ -130,7 +132,9 @@ export function SetupStart({ books, orders, readiness, settings, bookings, onOpe
       };
       // The brand name and country sign-up asked are not asked again (sign-up plan, move 2).
       const known = { name: shopProfile.name, country: doc.country, email: auth?.currentUser?.email };
-      return <PressDetailsStage settings={settings} known={known} onDone={detailsDone} onRetrySettings={onRetrySettings} />;
+      // The store policies opening needs come filled in with these details (move 4: check, don't write).
+      const fill = { keys: policiesToFill(servicesOnly(doc)), sells: currentSells(doc), cards: providerName() };
+      return <PressDetailsStage settings={settings} known={known} fill={fill} onDone={detailsDone} onRetrySettings={onRetrySettings} />;
     }
     if (step === "bring") {
       // Step 2 (plan 17.3): where the press sells now, and its products brought over (or started fresh).

@@ -30,7 +30,7 @@ describe("the one list on Home (sign-up to open shop plan, move 4)", () => {
     const services = openRows(runSteps("square", true), "payments", { provider: "square" });
     expect(services.map((r) => r.id)).toEqual(["account", "name", "look", "services", "payments", "delivery"]);
     expect(services.find((r) => r.id === "payments")?.detail).toContain("Square");
-    expect(services.find((r) => r.id === "delivery")?.title).toBe("Contact details");
+    expect(services.find((r) => r.id === "delivery")?.title).toBe("Contact and policies");
   });
 
   it("reads a look's id as its name", () => {

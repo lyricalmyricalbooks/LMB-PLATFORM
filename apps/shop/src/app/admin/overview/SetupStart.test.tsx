@@ -237,6 +237,7 @@ describe("Get started, contact details after the look and the products (plan 17.
     expect(document.querySelector("[data-row=look]")?.getAttribute("data-state")).toBe("done");
     expect(document.querySelector("[data-row=bring]")?.getAttribute("data-state")).toBe("done");
     expect(text()).toContain("1 step to open Moth Press");
+    expect(text()).toContain("We'll also fill in your shipping, returns, privacy and terms pages");
     expect(text()).not.toContain("Choose your look");
     expect((field("Brand name") as HTMLInputElement).value).toBe("Moth Press");
     expect((field("Country") as HTMLSelectElement).value).toBe("Canada");
@@ -265,6 +266,8 @@ describe("Get started, contact details after the look and the products (plan 17.
     expect(api.updateSettings).toHaveBeenCalledWith({
       info: { name: "Moth Press", email: "hello@mothpress.example" },
       location: { street: "12 Queen Street", city: "Toronto", state: "", zip: "M5H 2N2", country: "Canada" },
+      // The four policies opening needs come filled in with these details (move 4).
+      policies: { shipping: expect.stringContaining("Moth Press"), returns: expect.any(String), privacy: expect.stringContaining("hello@mothpress.example"), terms: expect.any(String) },
     });
     expect(api.updateFirstWeek).toHaveBeenCalledWith({ details: { at: expect.any(String) } });
     // Shipping is in the same row: the row stays the one to do now, on its second part.

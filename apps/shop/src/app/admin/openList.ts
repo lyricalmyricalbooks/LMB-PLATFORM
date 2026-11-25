@@ -1,7 +1,7 @@
 // The one list on Home (sign-up to open shop plan, move 4): what a new shop has done and what is left before it opens,
 // in one card. It replaces Get started's step strip and is read from the same run (startRun.ts decides the order; this
 // file only names the rows). The first two rows are always done: the account and the name were made at sign-up.
-// The contact step and shipping read as one row, "Delivery and contact", since both are about reaching customers.
+// The contact step and shipping read as one row, "Delivery and policies" (the policies come filled in at the contact step, pressDetailsPatch).
 
 import type { RunStep } from "./startRun";
 
@@ -63,10 +63,10 @@ export function openRows(steps: RunStep[], step: RunStep | null, facts: OpenFact
       ? ["Set up getting paid", "Card payments go to your bank."]
       : ["Get paid", `Connect ${facts.provider === "square" ? "Square" : "Stripe"} so card payments reach your bank. About 5 minutes.`],
     delivery: (s) => s === "done"
-      ? [shipping ? "Delivery and contact" : "Contact details", "Customers know how to reach you."]
+      ? [shipping ? "Delivery and policies" : "Contact and policies", "Customers know how to reach you and what to expect."]
       : shipping
-        ? ["Delivery and contact", "Where customers reach you, and how orders get to them. We filled in rates you can check."]
-        : ["Contact details", "Where clients reach you, shown on your shop and in your emails."],
+        ? ["Delivery and policies", "Where customers reach you and how orders get to them. Rates and policies come filled in: check them and carry on."]
+        : ["Contact and policies", "Where clients reach you. Your privacy and terms pages come filled in for you to check."],
   };
   const all: OpenRowId[] = ["account", "name", ...ids];
   return all.map((id) => {

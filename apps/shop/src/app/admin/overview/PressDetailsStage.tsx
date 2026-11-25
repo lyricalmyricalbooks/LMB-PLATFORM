@@ -2,7 +2,7 @@ import { useState } from "react";
 import { POSTAL_LABEL, US_SHOP } from "../moneySign";
 import { adminApi } from "../api";
 import { COUNTRIES } from "../../features/site/shippingZones";
-import { nameAndCountryKnown, pressDetailsFrom, pressDetailsPatch, pressDetailsProblems, type PressDetails, type PressDetailsField, type SignupFacts } from "../pressDetails";
+import { nameAndCountryKnown, pressDetailsFrom, pressDetailsPatch, pressDetailsProblems, type PressDetails, type PolicyFill, type PressDetailsField, type SignupFacts } from "../pressDetails";
 import { friendlyError } from "../studio/friendlyError";
 import { LoadingState, PrimaryButton, SecondaryButton, SectionCard, SelectField, TextField } from "../riso/components";
 
@@ -11,8 +11,10 @@ import { LoadingState, PrimaryButton, SecondaryButton, SectionCard, SelectField,
  * the Overview for a new shop. `settings` is settings/website as the Overview read it: undefined while it loads, null
  * when it couldn't be read. `onDone` gets the time once the details are saved; the parent records it on `firstWeek`.
  */
-export function PressDetailsStage({ settings, known = {}, onDone, onRetrySettings }: {
+export function PressDetailsStage({ settings, known = {}, fill, onDone, onRetrySettings }: {
   settings: any;
+  /** The store policies to fill in with these details when they are still empty (the one list on Home, move 4). */
+  fill?: PolicyFill;
   /** What sign-up already asked (brand name, country, sign-in email). A name and country given there are not asked again. */
   known?: SignupFacts;
   onDone: (at: string) => Promise<void>;
@@ -51,7 +53,7 @@ export function PressDetailsStage({ settings, known = {}, onDone, onRetrySetting
     setBusy(true); setError("");
     try {
       // Settings first, then the marker: if the save fails the step is still open, and running it again is safe.
-      await adminApi.updateSettings(pressDetailsPatch(settings, current));
+      await adminApi.updateSettings(pressDetailsPatch(settings, current, fill));
       await onDone(new Date().toISOString());
     } catch (e) {
       setError(friendlyError(e, "your details"));
@@ -90,6 +92,7 @@ export function PressDetailsStage({ settings, known = {}, onDone, onRetrySetting
       <div style={{ marginTop: 16 }}>
         <PrimaryButton disabled={busy} onClick={save}>{busy ? "Saving…" : "Save and continue"}</PrimaryButton>
       </div>
+      {fill && <p className="rp-hint" style={{ margin: "12px 0 0" }}>We'll also fill in your {fill.keys.length === 2 ? "privacy and terms pages" : "shipping, returns, privacy and terms pages"} with these details, so you only need to read them over. Any page you've already written stays as it is.</p>}
     </SectionCard>
   );
 }
