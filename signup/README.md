@@ -33,6 +33,15 @@ shop; retake them when a starter's look changes) and, once a name is typed, the 
 (`DEMO_URL` in `config.js`, empty in the walkthrough). Under 900px the tile is left out and a strip above the form gives
 the trial's facts. One main button; "Or design your shop first" sits under it, and Sign out is in the header.
 
+**No dead ends (25 November 2026, sign-up to open shop plan, move 1).** The front page's buttons say what they do: closed,
+every start button reads "Join the waitlist"; open, they read "Start your shop" and go to `join/`, and the note says
+"N days free from today" (the trial starts when the shop is made, not when it opens). On `join/`, a country that isn't
+open yet shows a calm "Your place is saved" page (`#view-later`, with Change my country) instead of a red error, and a
+new press without an invite while sign-up is closed (`/api/press/open` answers 403 with `closed: true`) sees "You're on
+the waitlist" (`#view-invite`): `join/waitlist.js` adds the email to the front page's waitlist with the sample shop's
+starter as the source, and the saved answers carry on when the invite comes. "Start another shop" on the account page
+goes to `join/?another=1`, which makes a second empty press record once (`accountStart.js` `another`).
+
 ## The server (`signup.js`, `api.js`)
 
 `createApi({ signup, verifyIdToken, settings, routes })` is the platform's one web door, hosted later as one function

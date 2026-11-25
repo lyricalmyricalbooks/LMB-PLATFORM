@@ -48,6 +48,7 @@
   @media (max-width: 640px) { .fd-chips { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   .fd-chips label.choice.fd-extra[hidden] { display: none; }
   .cp .fd-more { justify-self: start; padding: 0; font-weight: 600; color: var(--rp-text); text-decoration: underline; text-underline-offset: 3px; }
+  .cp .fd-kept { justify-self: start; }
   .fd-sub { margin: 0; font: 600 13px/1.3 var(--rp-font-body); }
   .fd-code::placeholder { color: var(--rp-text-faint); }
   .cp label.fd-terms { align-items: center; min-height: 44px; font-weight: 500; }
@@ -189,7 +190,23 @@
       <div class="fd-after-go"><p class="hint" id="start-note">No card needed. We'll remind you before the trial ends.</p>
         <button type="button" class="ghost" id="design-first">Or design your shop first</button></div>
       <p class="hint" id="keep-setup" hidden><a href="">Keep setting up first</a> and start the trial later.</p>
-    </form>
+          </form>
+  </section>
+
+  <!-- Not started yet, and the answers are kept (25 November 2026: these used to be red errors under the button). -->
+  <section id="view-later" class="stack" hidden aria-labelledby="later-title">
+    <span class="pill fd-kept" data-tone="success">Your place is saved</span>
+    <h2 id="later-title" tabindex="-1" class="cp-title">We'll email you the day we open in <span id="later-country">your country</span></h2>
+    <p>Colophon is open in <span id="later-open">Canada and the United States</span> for now. Your answers and your starting look are kept, so when shops can start where you are, you sign in with <strong class="fd-email-again"></strong> and press one button.</p>
+    <div class="fd-row"><button type="button" class="ghost" id="later-change">Change my country</button><a class="ghost button" href="/">Back to Colophon</a></div>
+  </section>
+
+  <section id="view-invite" class="stack" hidden aria-labelledby="invite-title">
+    <span class="pill fd-kept" data-tone="success">You're on the waitlist</span>
+    <h2 id="invite-title" tabindex="-1" class="cp-title">We'll email you an invite</h2>
+    <p>We're letting in a few shops at a time while we open. Your answers and your starting look are saved, so when your invite comes you sign in with <strong class="fd-email-again"></strong> and your store starts from right here.</p>
+    <p class="hint" id="invite-note">Nothing more to do for now. You can close this page.</p>
+    <div class="fd-row"><a class="ghost button" href="/">Back to Colophon</a></div>
   </section>
 
   </div>

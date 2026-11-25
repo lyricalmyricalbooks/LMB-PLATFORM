@@ -32,7 +32,7 @@ test("closed (today): every button joins the waitlist, and the page says who ema
 
 test("open: Start free trial everywhere, the trial length only from the plans answer", () => {
   const words = frontPageWords({ open: true, trialDays: 14 });
-  assert.equal(words.note, "Free setup · no card · 14 days free once you open");
+  assert.equal(words.note, "Free setup · no card · 14 days free from today");
   assert.equal(frontPageWords({ open: true, trialDays: null }).note, "Free setup · no card");
   assert.equal(frontPageWords({ open: true, trialDays: 0 }).note, "Free setup · no card");
   const doc = fakeDocument();

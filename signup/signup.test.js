@@ -148,7 +148,7 @@ test("closed sign-up: a new press needs an invite; one already signed up carries
   open = false;
   const api = createApi({ signup, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}) });
   const refused = await api({ method: "POST", path: "/api/signup", body: { ...details, pressName: "Second Press" }, headers: { Authorization: `Bearer ${JSON.stringify(ADA)}` } });
-  assert.deepEqual([refused.status, refused.body.message], [403, CLOSED_WORDS]);
+  assert.deepEqual([refused.status, refused.body.message, refused.body.closed], [403, CLOSED_WORDS, true], "the front door shows its waitlist page, not an error");
   assert.equal(trials.length, 1, "no second trial");
   assert.equal(stores.signups.rows.size, 1);
   assert.equal((await signup.start(ADA, details)).shopId, first.shopId, "the press already signed up carries on");
