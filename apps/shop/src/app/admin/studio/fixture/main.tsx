@@ -6,6 +6,7 @@ import "../../../../styles/index.css";
 import "../../../../styles/adminCompat.css";
 import { adminApi } from "../../api";
 import { StudioEditor } from "../StudioEditor";
+import { TOUR_KEY } from "../StudioTour";
 import { createStudioFixture, installFakeStudioApi } from "./fakeStudioApi";
 import { parseStudioLocation } from "../../../lib/studioLocation";
 import { setAiTransport } from "../../aiWriter";
@@ -17,6 +18,8 @@ import { wordsFor } from "../../../../shared/shopSells";
 
 // The fixture wears the admin's one look, as Studio does inside a shop's admin.
 applyAdminLook();
+// The first-visit tour stays away from browser checks (it would sit over what they click); `?tour=1` shows it.
+if (!new URLSearchParams(location.search).has("tour")) { try { localStorage.setItem(TOUR_KEY, "1"); } catch { /* blocked */ } }
 
 // `?live=1` loads a snapshot of the published design (features/site/__fixtures__/liveDesign.json).
 const live = new URLSearchParams(location.search).has("live")

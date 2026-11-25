@@ -1,6 +1,6 @@
 // Studio Workbench (Studio 3.0 phase 1): a panel docked under the preview, like Stripe's Workbench, so checks and
 // history stay in view while the owner edits. Three tabs: Health (the page audit), Changes (every undo step, click
-// one to go back to it, plus what differs from the live shop) and Setup (the launch checklist). Collapsed, it is a
+// one to go back to it, plus what differs from the live shop) and To-dos (the website checklist; was Setup). Collapsed, it is a
 // one-line taskbar. Read-only apart from Changes' jump, which is ordinary Undo/Redo.
 import { useEffect, useRef, type ReactNode } from "react";
 import { ChevronDown, ChevronUp, History, ListChecks, ShieldCheck } from "lucide-react";
@@ -34,14 +34,15 @@ type Props = {
 const TABS: { id: WorkbenchTab; label: string; Icon: typeof History }[] = [
   { id: "health", label: "Health", Icon: ShieldCheck },
   { id: "changes", label: "Changes", Icon: History },
-  { id: "setup", label: "Setup", Icon: ListChecks },
+  { id: "setup", label: "To-dos", Icon: ListChecks },
 ];
 
 export function StudioWorkbench(p: Props) {
   const done = p.setup.items.filter(x => x.done).length;
   const steps = p.changes.rows.filter(r => r.state === "past").length;
   const badge = (id: WorkbenchTab) => id === "health" ? (p.healthIssues == null ? "" : p.healthIssues ? `${p.healthIssues} to fix` : "✓")
-    : id === "changes" ? (steps ? String(steps) : "") : `${done}/${p.setup.items.length}`;
+    : id === "changes" ? (steps ? String(steps) : "") : (p.setup.items.length - done ? `${p.setup.items.length - done} left` : "✓");
+  // To-dos are the website's own jobs, counted as "N left" with no fraction: the shop's set-up count lives only on Home.
   const panelRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Partial<Record<WorkbenchTab, HTMLButtonElement | null>>>({});
   // Esc inside the Workbench collapses it and puts focus back on its tab, so keyboard users don't lose their place.

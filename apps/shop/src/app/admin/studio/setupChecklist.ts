@@ -1,4 +1,4 @@
-// Workbench › Setup (Studio 3.0 phase 1): a launch checklist read from the design and shop data Studio already has.
+// Workbench › To-dos (Studio 3.0 phase 1; called Setup until 25 November 2026): a launch checklist read from the design and shop data Studio already has.
 // Pure: each item says whether it is done and where Studio should take the owner to do it ("Show me").
 import { SALE_POLICY_KEYS } from "../../features/site/policyPages";
 
