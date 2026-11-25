@@ -472,3 +472,14 @@ describe("The first order (sign-up to open shop plan, move 5)", () => {
     expect(document.querySelector("[data-first-order]")).toBeNull();
   });
 });
+
+describe("A shop that is already open (sign-up plan, move 5 follow-up)", () => {
+  it("shows the setup guide, not 'N steps to open', and gives the top bar no run count", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both", sellingToday: "starting", publishes: "other" });
+    await mount({ settings: { info: { name: "Test Goods" }, design: { showUnderConstruction: false } }, waitForWelcome: false });
+    expect(document.querySelector("[data-open-list]")).toBeNull();
+    expect(text()).not.toMatch(/steps? to open/);
+    const { getRunLeft } = await import("./firstStep");
+    expect(getRunLeft()).toBeNull();
+  });
+});

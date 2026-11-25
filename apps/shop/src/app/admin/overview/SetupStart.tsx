@@ -87,7 +87,10 @@ export function SetupStart({ books, orders, readiness, settings, bookings, onOpe
 
   // Change 3: tell Home whether a setup step is on screen, so the tour offer and Connect Google wait their turn.
   const guideShowing = !!doc && showFirstWeek(doc, firstWeekSteps(doc, facts as FirstWeekFacts));
-  const runStep = doc ? nextRunStep(doc, settings, platform) : null;
+  // A shop that is already open (opened from Settings, or a test shop) has nothing left "to open": it gets the setup
+  // guide, not the list. Opening it here in this visit keeps the list until the final check is recorded.
+  const alreadyOpen = settings?.design?.showUnderConstruction === false && !opened;
+  const runStep = doc && !alreadyOpen ? nextRunStep(doc, settings, platform) : null;
   // The first real order's own card (move 5), until the press puts it away.
   const firstOrder = doc && !runStep ? firstOrderToCelebrate(orders, doc.done?.firstOrder) : null;
   const showing = state === "loading" ? null : state === "error" || (!!doc && (!!runStep || guideShowing || celebrate || !!firstOrder));
@@ -118,7 +121,7 @@ export function SetupStart({ books, orders, readiness, settings, bookings, onOpe
     setDoc({ ...doc, done: { ...doc.done, setupFile: at } });
   };
   // Get started's steps in order (startRun.ts): the look, your products, Get paid, contact and shipping, open your shop.
-  const step = nextRunStep(doc, settings, platform);
+  const step = runStep;
   const inRun = !!step && !(step === "final" && finalLater);
   // The one list on Home (move 4): the run's rows, with the facts sign-up already gave.
   const shopName = settings?.info?.name || shopProfile.name;
