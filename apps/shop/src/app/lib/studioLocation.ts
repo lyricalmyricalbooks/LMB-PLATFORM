@@ -4,6 +4,8 @@
 export type StudioLocation = {
   templateId?: string; showGlobal?: boolean; productSlug?: string; collectionSlug?: string;
   leftTab?: "essentials" | "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes"; device?: "desktop" | "tablet" | "mobile";
+  /** Open on Make it yours, the four steps after a new shop picks its starter (`yours=1`). */
+  yours?: boolean;
 };
 
 const TABS = new Set(["essentials", "sections", "style", "text", "menus", "pages", "media", "themes"]);
@@ -25,6 +27,7 @@ export function parseStudioLocation(hashOrQuery: string): StudioLocation | null 
   const c = q.get("c"); if (c && SLUG.test(c)) { loc.collectionSlug = c; loc.templateId ??= "collectionPage"; }
   const tab = q.get("tab"); if (tab && TABS.has(tab)) loc.leftTab = tab as StudioLocation["leftTab"]; else if (tab && RETIRED_TABS[tab]) loc.leftTab = RETIRED_TABS[tab];
   const d = q.get("d"); if (d && DEVICES.has(d)) loc.device = d as StudioLocation["device"];
+  if (q.get("yours") === "1") loc.yours = true;
   return loc;
 }
 
@@ -36,6 +39,7 @@ export function studioHash(loc: StudioLocation): string {
   if (loc.collectionSlug) q.set("c", loc.collectionSlug);
   if (loc.leftTab) q.set("tab", loc.leftTab);
   if (loc.device) q.set("d", loc.device);
+  if (loc.yours) q.set("yours", "1");
   const query = q.toString();
   return `#designer${query ? "?" + query : ""}`;
 }

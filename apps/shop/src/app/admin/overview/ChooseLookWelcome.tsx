@@ -111,9 +111,13 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
         await shop.followEmailTheme(theme.id);
       }
       await onDone({ theme: theme.id, at: new Date().toISOString(), ...(skipped ? { skipped: true } : {}) });
-      // The look is in the draft: open the shop designer on it.
+      // The look is in the draft: in the shop's own admin, Studio opens on Make it yours (the four steps after the pick,
+      // studio/makeItYours.ts) beside the real preview. Skip keeps the owner on Home.
       setBrowsing(false);
-      if (toDesigner && typeof window !== "undefined") window.location.hash = "settings/designer";
+      if (typeof window !== "undefined") {
+        if (!apply && !skipped) window.location.hash = "designer?yours=1";
+        else if (toDesigner) window.location.hash = "settings/designer";
+      }
     } catch (err) {
       setError(friendlyError(err, `use “${theme.name}”`));
       setBusy("");

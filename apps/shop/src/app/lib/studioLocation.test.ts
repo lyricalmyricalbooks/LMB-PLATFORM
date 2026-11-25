@@ -7,6 +7,10 @@ describe("Studio links", () => {
     expect(parseStudioLocation(studioHash(loc))).toEqual(loc);
     expect(studioHash({})).toBe("#designer");
     expect(parseStudioLocation("#designer")).toEqual({});
+    // Make it yours, right after a new shop picks its starter.
+    expect(parseStudioLocation("#designer?yours=1")).toEqual({ yours: true });
+    expect(studioHash({ yours: true })).toBe("#designer?yours=1");
+    expect(parseStudioLocation("#designer?yours=yes")).toEqual({});
   });
   it("ignores anything unexpected", () => {
     expect(parseStudioLocation("#orders/123")).toBeNull();
