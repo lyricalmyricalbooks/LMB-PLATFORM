@@ -180,6 +180,11 @@ export function deployPlan({ project = DEFAULT_PROJECT, region = REGION, version
     title: "Let only the scheduler call the jobs server",
     command: "gcloud", args: ["run", "services", "add-iam-policy-binding", JOBS_SERVICE, ...at, `--region=${region}`, `--member=serviceAccount:${schedulerAccount(project)}`, "--role=roles/run.invoker"],
   });
+  // Open my shop runs the shop maker at once (server/jobsNudge.js, sign-up plan move 3): the web door may call the jobs server.
+  steps.push({
+    title: "Let the web door start a job now (the shop maker on Open my shop)",
+    command: "gcloud", args: ["run", "services", "add-iam-policy-binding", JOBS_SERVICE, ...at, `--region=${region}`, `--member=serviceAccount:${accountOf(API_SERVICE, project)}`, "--role=roles/run.invoker"],
+  });
   // The whole platform site (site/build.js), now with its /api addresses sent to the web door.
   steps.push({ title: "Build the platform's pages with the server's addresses on", command: "node", args: ["site/build.js", "--api"] });
   steps.push({ title: "Send the platform's /api addresses to the web door (Hosting)", command: "npx", args: ["--yes", FIREBASE_TOOLS, "deploy", "--only", "hosting", "--project", project], cwd: "site/out" });

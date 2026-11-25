@@ -36,6 +36,7 @@
 //   GET  /tips/off, /checkup/off the emails' "turn off" pages
 //
 // What can't be real yet answers plainly that it isn't switched on (server/notConnected.js; listed in README.md).
+import { jobsNudge } from "./jobsNudge.js";
 import { freeAddressTaken } from "../services/domains/freeAddress.js";
 import { accountRoutes, deletionRoutes } from "../accounts/routes.js";
 import { createAccountDeletion } from "../accounts/deleteAccount.js";
@@ -271,7 +272,9 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // "Your web address" in setup names where a press bought its domain from the public lookup (nothing is connected
   // until the shop is made). Whether that seller has Colophon's Allow window waits for the Domain Connect settings.
   const domainLookup = sellerLookupClient({ fetch, resolveTxt, config: readDomainConnectConfig(env) });
-  const frontDoor = createFrontDoor({ ...firestoreFrontDoorStores(platform), email, auth: signInLinkMaker, settings, now, signup, stagedFiles, making: (shopId) => shopMaker.progress(shopId), domainLookup, freeNameTaken: freeAddressTaken(registry), live });
+  const frontDoor = createFrontDoor({ ...firestoreFrontDoorStores(platform), email, auth: signInLinkMaker, settings, now, signup, stagedFiles, making: (shopId) => shopMaker.progress(shopId), domainLookup, freeNameTaken: freeAddressTaken(registry), live,
+    // On Cloud Run (K_SERVICE is set there), Open my shop runs the shop maker now instead of at the next minute (move 3).
+    ...(env.K_SERVICE ? { startMaking: (() => { const nudge = jobsNudge({ fetch, log }); return () => nudge("shop-maker"); })() } : {}) });
   // The clock for a press that hasn't opened (18.11): two warnings, then its setup is cleared.
   const setupClock = createSetupClock({ presses: firestoreFrontDoorStores(platform).presses, stagedFiles, email, settings, now });
   const repairStore = firestoreRepairs(platform);
