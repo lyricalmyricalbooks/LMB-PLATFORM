@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nameAndCountryKnown, pressDetailsFrom, pressDetailsPatch, pressDetailsProblems, type PressDetails } from "./pressDetails";
+import { nameAndCountryKnown, pressDetailsFrom, pressDetailsPatch, pressDetailsProblems, policiesToFill, type PressDetails } from "./pressDetails";
 
 const full: PressDetails = {
   name: "Moth Press", email: "hello@mothpress.example", street: "12 Queen Street", city: "Toronto",
@@ -53,5 +53,20 @@ describe("sign-up answers are not asked again (sign-up plan, move 2)", () => {
     expect(nameAndCountryKnown({}, { name: "", country: "CA" })).toBe(false);
     expect(nameAndCountryKnown({}, { name: "Lantern Zines", country: "ZZ" })).toBe(false);
     expect(nameAndCountryKnown({ info: { name: "Moth" }, location: { country: "Canada" } })).toBe(true);
+  });
+});
+
+describe("the contact step fills in the policies opening needs (sign-up plan, move 4)", () => {
+  const d = { name: "Moth Press", email: "hello@mothpress.example", street: "12 Queen Street", city: "Toronto", state: "ON", zip: "M5H 2N2", country: "Canada" };
+  it("fills every empty policy with the new details, and never touches saved words", () => {
+    const patch = pressDetailsPatch({ policies: { returns: "Our own returns words." } }, d, { keys: policiesToFill(false) });
+    expect(Object.keys(patch.policies)).toEqual(["returns", "shipping", "privacy", "terms"]);
+    expect(patch.policies.returns).toBe("Our own returns words.");
+    expect(patch.policies.privacy).toContain("hello@mothpress.example");
+    expect(patch.policies.shipping).toContain("Moth Press");
+  });
+  it("a services shop gets privacy and terms only, and no fill leaves policies alone", () => {
+    expect(Object.keys(pressDetailsPatch({}, d, { keys: policiesToFill(true) }).policies)).toEqual(["privacy", "terms"]);
+    expect("policies" in pressDetailsPatch({}, d)).toBe(false);
   });
 });

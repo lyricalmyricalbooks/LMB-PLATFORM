@@ -1649,14 +1649,15 @@ if (new URLSearchParams(location.search).get("guide")) {
   api.getSettings = async () => ({ design: { showUnderConstruction: true, logoUrl: "https://photos.example/logo.png" } });
 }
 
-// ?start=details|bring|look|shipping|final (Get started screenshots): a new private shop part way through the run.
+// ?start=look|bring|details|shipping|final (Get started screenshots): a new private shop part way through the run, in
+// the run's order since move 4 (startRun.ts).
 // `&sold=clothing` (or any sign-up answer) makes it a shop that sells that instead of books.
 const startAt = new URLSearchParams(location.search).get("start");
 if (startAt) {
   const at = "2026-11-01T10:00:00.000Z";
-  const order = ["details", "bring", "look", "shipping", "final"];
+  const order = ["look", "bring", "details", "shipping", "final"];
   const upTo = Math.max(0, order.indexOf(startAt));
-  const marks: Record<string, any> = { details: { at }, bring: { at, skipped: true }, look: { at, theme: "riso" }, shipping: { at, skipped: true } };
+  const marks: Record<string, any> = { details: { at }, bring: { at, skipped: true }, look: { at, theme: "aurel", firstRun: true }, shipping: { at, skipped: true } };
   const week: any = { plan: "both", sellingToday: "starting", publishes: new URLSearchParams(location.search).get("sold") || "books" };
   order.slice(0, upTo).forEach((step) => { week[step === "look" ? "welcome" : step] = marks[step]; });
   const api = adminApi as any;
@@ -1889,9 +1890,9 @@ if (new URLSearchParams(location.search).get("variants")) {
 {
   const sells = new URLSearchParams(location.search).get("sells");
   if (sells) {
-    // `&start=1`: the shop is at Get started's second step (its services), before it has a look.
+    // `&start=1`: the shop is at Get started's second step (its services), with its look picked.
     const starting = new URLSearchParams(location.search).get("start") === "1";
-    const week: any = { publishes: sells, details: { at: "2026-11-01T09:00:00.000Z" }, ...(starting ? {} : { bring: { at: "2026-11-01T09:30:00.000Z", skipped: true }, welcome: { at: "2026-11-01T10:00:00.000Z", theme: "riso" } }), sellsProducts: new URLSearchParams(location.search).get("products") === "1" };
+    const week: any = { publishes: sells, welcome: { at: "2026-11-01T10:00:00.000Z", theme: "riso", firstRun: true }, ...(starting ? {} : { details: { at: "2026-11-01T09:00:00.000Z" }, bring: { at: "2026-11-01T09:30:00.000Z", skipped: true } }), sellsProducts: new URLSearchParams(location.search).get("products") === "1" };
     const api = adminApi as any;
     api.getFirstWeek = async () => JSON.parse(JSON.stringify(week));
     // Ben's private note, kept by the team (the client card's notes), with his phone.

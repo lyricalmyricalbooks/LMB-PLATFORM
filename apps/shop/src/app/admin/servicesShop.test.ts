@@ -131,17 +131,19 @@ describe("setting up a services shop", () => {
   });
 
   it("walks Get started without the products and shipping steps", () => {
-    expect(runSteps("stripe", true)).toEqual(["details", "services", "look", "payments", "final"]);
-    expect(runSteps(null, true)).toEqual(["details", "services", "look", "final"]);
-    expect(runSteps("stripe")).toEqual(["details", "bring", "look", "payments", "shipping", "final"]);
+    expect(runSteps("stripe", true)).toEqual(["look", "services", "payments", "details", "final"]);
+    expect(runSteps(null, true)).toEqual(["look", "services", "details", "final"]);
+    expect(runSteps("stripe")).toEqual(["look", "bring", "payments", "details", "shipping", "final"]);
     const at = { at: "2026-11-14T10:00:00.000Z" };
-    const salon = { publishes: "hair", details: at };
-    expect(nextRunStep(salon, settings, null)).toBe("services");
-    expect(nextRunStep({ ...salon, bring: at }, settings, null)).toBe("look");
-    expect(nextRunStep({ ...salon, bring: at, welcome: at }, settings, null)).toBe("final");
-    expect(nextRunStep({ ...salon, bring: at, welcome: at, finalCheck: at }, settings, null)).toBeNull();
+    const look = { ...at, theme: "x", firstRun: true };
+    const salon = { publishes: "hair" };
+    expect(nextRunStep(salon, settings, null)).toBe("look");
+    expect(nextRunStep({ ...salon, welcome: look }, settings, null)).toBe("services");
+    expect(nextRunStep({ ...salon, welcome: look, bring: at }, settings, null)).toBe("details");
+    expect(nextRunStep({ ...salon, welcome: look, bring: at, details: at }, settings, null)).toBe("final");
+    expect(nextRunStep({ ...salon, welcome: look, bring: at, details: at, finalCheck: at }, settings, null)).toBeNull();
     // A product shop, and a services shop that sells products too, keep the products and shipping steps.
-    expect(nextRunStep({ publishes: "clothing", details: at }, settings, null)).toBe("bring");
+    expect(nextRunStep({ publishes: "clothing", welcome: look }, settings, null)).toBe("bring");
     expect(nextRunStep({ publishes: "hair", sellsProducts: true, details: at, bring: at, welcome: at }, settings, null)).toBe("shipping");
   });
 

@@ -1,6 +1,8 @@
 import { homeCountryName } from "../../lib/shopProfile";
 import { POSTAL_LABEL } from "./moneySign";
 import { countryCode, countryName } from "./shippingCountries";
+import { starterFacts, withStarter } from "./starterPolicies";
+import type { PolicyKey } from "../features/site/policyPages";
 // Get started, step 1: the press's own details (plan 17.2). Pure: reads and writes the same settings fields the
 // Settings screen uses (info.name, info.email, location.*), so nothing is stored twice. Shown once, before the look,
 // in the Overview's first-visit run (overview/PressDetailsStage.tsx).
@@ -77,8 +79,8 @@ export function pressDetailsProblems(d: PressDetails): Partial<Record<PressDetai
  * The settings fields to write. Spreads the shop's own `info` and `location` first, so a field this step does not show
  * (the phone number on labels, for one) survives the save.
  */
-export function pressDetailsPatch(settings: any, d: PressDetails) {
-  return {
+export function pressDetailsPatch(settings: any, d: PressDetails, fill?: PolicyFill) {
+  const patch: Record<string, any> = {
     info: { ...(settings?.info || {}), name: d.name.trim(), email: d.email.trim() },
     location: {
       ...(settings?.location || {}),
@@ -89,4 +91,19 @@ export function pressDetailsPatch(settings: any, d: PressDetails) {
       country: d.country.trim(),
     },
   };
+  // Sign-up plan, move 4: the store policies a shop needs before it opens come filled in with these details, as if the
+  // press had pressed "Start from our wording" on each. Only an empty policy is filled; saved words are never touched.
+  if (fill) {
+    const facts = starterFacts({ ...settings, ...patch }, fill.sells, fill.cards);
+    const policies = { ...(settings?.policies || {}) };
+    for (const key of fill.keys) policies[key] = withStarter(policies[key], key, facts);
+    patch.policies = policies;
+  }
+  return patch;
 }
+
+/** Which policies the details step fills in, and the facts their wording reads. */
+export type PolicyFill = { keys: PolicyKey[]; sells?: string | null; cards?: "Stripe" | "Square" };
+
+/** The policies a shop needs before it opens (launchReadiness's list): privacy and terms only for a services shop. */
+export const policiesToFill = (services: boolean): PolicyKey[] => services ? ["privacy", "terms"] : ["shipping", "returns", "privacy", "terms"];

@@ -64,8 +64,12 @@ export async function blockersBeforeOpening(read: () => Promise<ReadinessItem[]>
   try { return openBlockers(await read()); } catch { return null; }
 }
 
-/** The top bar's button while the shop is private (design handoff "Colophon platform"): how many steps are left, if known. */
-export function openButtonLabel(stepsLeft: number | null): string {
-  if (!stepsLeft) return "Open to shoppers";
-  return `Open to shoppers · ${stepsLeft} ${stepsLeft === 1 ? "step" : "steps"}`;
+/**
+ * The top bar's button while the shop is private (design handoff "Colophon platform"): how many steps are left, if
+ * known. `runLeft` is the one list on Home's count (move 4), which reads first so the bar and the list agree.
+ */
+export function openButtonLabel(stepsLeft: number | null, runLeft: number | null = null): string {
+  const n = runLeft ?? stepsLeft;
+  if (!n) return "Open to shoppers";
+  return runLeft != null ? `Open · ${n} to go` : `Open to shoppers · ${n} ${n === 1 ? "step" : "steps"}`;
 }

@@ -26,3 +26,23 @@ export function firstStepNow(setup: boolean | null, tourWaiting: boolean): "setu
   if (setup) return "setup";
   return tourWaiting ? "tour" : "google";
 }
+
+/**
+ * How many steps the one list on Home has left before the shop opens (sign-up to open shop plan, move 4), so the top
+ * bar's Open button counts what the list shows. `null` when there is no run (the bar then counts Ready to sell's
+ * blockers, as before).
+ */
+let runLeft: number | null = null;
+const runListeners = new Set<() => void>();
+
+export function setRunLeft(n: number | null) {
+  if (runLeft === n) return;
+  runLeft = n;
+  runListeners.forEach((l) => l());
+}
+
+export function getRunLeft() { return runLeft; }
+
+export function useRunLeft(): number | null {
+  return useSyncExternalStore((l) => { runListeners.add(l); return () => { runListeners.delete(l); }; }, getRunLeft, getRunLeft);
+}

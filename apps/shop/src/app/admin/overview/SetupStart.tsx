@@ -1,14 +1,16 @@
-import { setSetupShowing } from "./firstStep";
+import { setRunLeft, setSetupShowing } from "./firstStep";
 import { firstWeekSteps, showFirstWeek, type FirstWeekFacts } from "../firstWeek";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { adminApi } from "../api";
 import type { FirstWeekDoc, WelcomeDone } from "../firstWeek";
 import type { ReadinessItem } from "../launchReadiness";
 import { LoadingState, SecondaryButton, SectionCard } from "../riso/components";
-import { platformCardsProvider, shopProfile } from "../../../lib/shopProfile";
+import { platformCardsProvider, providerName, shopProfile } from "../../../lib/shopProfile";
 import { auth } from "../../../lib/firebase";
 import { SetupGuideCard } from "./SetupGuideCard";
 import { PressDetailsStage } from "./PressDetailsStage";
+import { policiesToFill } from "../pressDetails";
+import { currentSells } from "../sells";
 import { BringShopStage } from "./BringShopStage";
 import type { BringMarker } from "../bringShop";
 import { ownBooks } from "../lookGallery";
@@ -19,7 +21,9 @@ import type { FinalCheckMarker } from "../finalCheckStage";
 import type { PaymentsMarker } from "../paymentsStage";
 import { PaymentsStage } from "./PaymentsStage";
 import { nextRunStep, runSteps } from "../startRun";
-import { RunProgress } from "./RunProgress";
+import { OpenListCard } from "./OpenListCard";
+import { openRows, rowsLeft } from "../openList";
+import { countryCode, countryName } from "../shippingCountries";
 import { FinalCheckStage } from "./FinalCheckStage";
 import { ShopOpenedCard, publicAddress } from "./ShopOpenedCard";
 import { MoveProgressCard } from "./MoveProgressCard";
@@ -84,6 +88,9 @@ export function SetupStart({ books, orders, readiness, settings, bookings, onOpe
   const runStep = doc ? nextRunStep(doc, settings, platform) : null;
   const showing = state === "loading" ? null : state === "error" || (!!doc && (!!runStep || guideShowing || celebrate));
   useEffect(() => { setSetupShowing(showing); }, [showing]);
+  // The top bar's "Open · N to go" counts the same rows as the list (move 4); null hands it back to Ready to sell.
+  const left = doc && runStep && runStep !== "final" ? rowsLeft(openRows(runSteps(platform, servicesOnly(doc)), runStep)) : null;
+  useEffect(() => { if (state !== "loading") setRunLeft(left); }, [left, state]);
   useEffect(() => () => setSetupShowing(false), []);
 
   // A shop setup never wrote a document for (most shops made before the platform) sees nothing while it loads.
@@ -106,8 +113,17 @@ export function SetupStart({ books, orders, readiness, settings, bookings, onOpe
     await adminApi.updateFirstWeek({ done: { setupFile: at } });
     setDoc({ ...doc, done: { ...doc.done, setupFile: at } });
   };
-  // Get started's steps in order (startRun.ts): your brand, your products, the look, Get paid, shipping, open your shop.
+  // Get started's steps in order (startRun.ts): the look, your products, Get paid, contact and shipping, open your shop.
   const step = nextRunStep(doc, settings, platform);
+  const inRun = !!step && !(step === "final" && finalLater);
+  // The one list on Home (move 4): the run's rows, with the facts sign-up already gave.
+  const shopName = settings?.info?.name || shopProfile.name;
+  const code = typeof doc.country === "string" && countryCode(doc.country) ? doc.country : "";
+  const look = (doc.welcome as WelcomeDone | undefined)?.theme || chosenLook(handover)?.theme;
+  const rows = inRun ? openRows(runSteps(platform, servicesOnly(doc)), step, {
+    email: auth?.currentUser?.email, name: shopName, country: code ? countryName(code) : "", look,
+    lookStyle: chosenLook(handover)?.theme === look ? chosenLook(handover)?.style : "", provider: platform,
+  }) : null;
   const stage = () => {
     if (step === "details") {
       const detailsDone = async (at: string) => {
@@ -116,7 +132,9 @@ export function SetupStart({ books, orders, readiness, settings, bookings, onOpe
       };
       // The brand name and country sign-up asked are not asked again (sign-up plan, move 2).
       const known = { name: shopProfile.name, country: doc.country, email: auth?.currentUser?.email };
-      return <PressDetailsStage settings={settings} known={known} onDone={detailsDone} onRetrySettings={onRetrySettings} />;
+      // The store policies opening needs come filled in with these details (move 4: check, don't write).
+      const fill = { keys: policiesToFill(servicesOnly(doc)), sells: currentSells(doc), cards: providerName() };
+      return <PressDetailsStage settings={settings} known={known} fill={fill} onDone={detailsDone} onRetrySettings={onRetrySettings} />;
     }
     if (step === "bring") {
       // Step 2 (plan 17.3): where the press sells now, and its products brought over (or started fresh).
@@ -137,7 +155,9 @@ export function SetupStart({ books, orders, readiness, settings, bookings, onOpe
       return <ServicesStage bookings={bookings} onDone={servicesDone} onOpen={onOpen} />;
     }
     if (step === "look") {
-      const done = async (welcome: WelcomeDone) => {
+      // `firstRun` tells this run from an older shop's welcome (startRun.ts): the look now comes first.
+      const done = async (picked: WelcomeDone) => {
+        const welcome = { ...picked, firstRun: true };
         await adminApi.updateFirstWeek({ welcome });
         setDoc({ ...doc, welcome });
       };
@@ -202,8 +222,7 @@ export function SetupStart({ books, orders, readiness, settings, bookings, onOpe
   return (
     <>
       {showLateFile && <KeptFileCard books={books!} kept={lateFile!} onDone={lateFileDone} />}
-      {step && !(step === "final" && finalLater) && <RunProgress step={step} steps={runSteps(platform, servicesOnly(doc))} />}
-      {stage()}
+      {inRun ? <OpenListCard rows={rows!} name={shopName} final={step === "final"}>{stage()}</OpenListCard> : stage()}
     </>
   );
 }

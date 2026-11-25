@@ -3,6 +3,7 @@
 /* GENERATED from shared/admin-look/pressroom.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
 /* GENERATED from shared/admin-look/pressroom.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
 /* GENERATED from shared/admin-look/pressroom.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
+/* GENERATED from shared/admin-look/pressroom.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
 /*
  * Riso Press — the admin application design system
  * -----------------------------------------------------
@@ -2219,26 +2220,63 @@ div.rp-listcard-main { cursor: default; }
 .rp:not(.studio-editor) .rp-worth-list { list-style: none; margin: 0; padding: 0; }
 .rp:not(.studio-editor) .rp-worth-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; }
 .rp:not(.studio-editor) .rp-worth-list li + li { border-top: 1px solid var(--rp-divider); }
-/* Get started's progress strip (overview/RunProgress.tsx, 11 November 2026): a mint band above the step's card. Desktop
-   lists every step as a pill (ticked, the current one in ink); phones show "Step N of M · name" and a bar instead. */
+/* A mint band with a heading and a count on the right (ClosingTile.tsx; was Get started's progress strip). */
 .rp:not(.studio-editor) .rp-run { display: grid; gap: 14px; padding: 18px 22px; margin-bottom: 16px; border-radius: var(--rp-radius-lg); background: var(--rp-tile-mint, var(--rp-surface)); color: var(--rp-on-tile, var(--rp-text)); }
 .rp:not(.studio-editor) .rp-run-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
 .rp:not(.studio-editor) .rp-run-kicker { font: 600 var(--rp-text-lg)/1.2 var(--rp-font-body); letter-spacing: -.01em; }
 .rp:not(.studio-editor) .rp-run-count { font: 500 var(--rp-text-xs)/1.2 var(--rp-font-mono); text-transform: uppercase; letter-spacing: .04em; }
-.rp:not(.studio-editor) .rp-run-now { display: none; }
-.rp:not(.studio-editor) .rp-run-bar { height: 6px; border-radius: 999px; background: color-mix(in srgb, currentColor 14%, transparent); overflow: hidden; }
-.rp:not(.studio-editor) .rp-run-bar > span { display: block; height: 100%; min-width: 6px; border-radius: inherit; background: currentColor; transition: width .3s ease; }
-.rp:not(.studio-editor) .rp-run-steps { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.rp:not(.studio-editor) .rp-run-steps > li { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 14px 4px 4px; border-radius: 999px; font-size: var(--rp-text-sm); background: var(--rp-surface); color: var(--rp-text-muted); }
-.rp:not(.studio-editor) .rp-run-steps > li[data-state="done"] { color: var(--rp-text); }
-.rp:not(.studio-editor) .rp-run-steps > li[data-state="now"] { background: var(--rp-primary); color: var(--rp-on-primary); font-weight: 600; }
-.rp:not(.studio-editor) .rp-run-dot { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; font: 500 var(--rp-text-xs)/1 var(--rp-font-mono); background: var(--rp-surface-sunken); color: var(--rp-text); }
-.rp:not(.studio-editor) .rp-run-steps > li[data-state="done"] .rp-run-dot { background: var(--rp-tile-mint, var(--rp-success-tint)); }
-.rp:not(.studio-editor) .rp-run-steps > li[data-state="now"] .rp-run-dot { background: var(--rp-on-primary); color: var(--rp-primary); }
 @media (max-width: 767px) {
   .rp:not(.studio-editor) .rp-run { padding: 14px 16px; gap: 10px; margin-bottom: 12px; }
-  .rp:not(.studio-editor) .rp-run-steps { display: none; }
-  .rp:not(.studio-editor) .rp-run-now { display: inline; }
+}
+/* The one list on Home (overview/OpenListCard.tsx, sign-up to open shop plan move 4): a mint header with a ring, the
+   done rows struck through, the step to do now opened in place on cream, the rest numbered, and Open my shop at the
+   foot. The step's own card sits flat inside the "now" row; the row's title stands in for the card's. */
+.rp:not(.studio-editor) .rp-openlist { margin-bottom: 20px; border-radius: var(--rp-radius-lg); background: var(--rp-surface); border: 1px solid var(--rp-border); overflow: hidden; }
+.rp:not(.studio-editor) .rp-openlist-head { display: flex; align-items: center; gap: 22px; padding: 26px 32px; background: var(--rp-tile-mint, var(--rp-surface-2)); color: var(--rp-on-tile, var(--rp-text)); }
+.rp:not(.studio-editor) .rp-openlist-ring { --rp-ring: 0%; flex: none; display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: conic-gradient(currentColor var(--rp-ring), color-mix(in srgb, currentColor 16%, transparent) 0); }
+.rp:not(.studio-editor) .rp-openlist-ring > span { display: grid; place-items: center; width: 50px; height: 50px; border-radius: 50%; background: var(--rp-tile-mint, var(--rp-surface-2)); font: 600 16px/1 var(--rp-font-body); }
+.rp:not(.studio-editor) .rp-openlist-kicker { margin: 0 0 4px; font: 500 var(--rp-text-xs)/1.2 var(--rp-font-mono); text-transform: uppercase; letter-spacing: .08em; }
+.rp:not(.studio-editor) .rp-openlist-title { margin: 0; font: 700 28px/1.15 var(--rp-font-body); letter-spacing: -.02em; }
+.rp:not(.studio-editor) .rp-openlist-sub { margin: 6px 0 0; font-size: 16px; }
+.rp:not(.studio-editor) .rp-openlist-rows { margin: 0; padding: 8px 24px; list-style: none; }
+.rp:not(.studio-editor) .rp-openlist-row { display: flex; align-items: center; gap: 16px; padding: 16px 8px; border-bottom: 1px solid var(--rp-divider); }
+.rp:not(.studio-editor) .rp-openlist-row:last-child { border-bottom: 0; }
+.rp:not(.studio-editor) .rp-openlist-mark { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--rp-border-strong); font: 600 var(--rp-text-xs)/1 var(--rp-font-body); color: var(--rp-text); }
+.rp:not(.studio-editor) .rp-openlist-row[data-state="done"] .rp-openlist-mark { border-color: var(--rp-text); background: var(--rp-text); color: var(--rp-surface); }
+.rp:not(.studio-editor) .rp-openlist-text { flex: 1; min-width: 0; }
+.rp:not(.studio-editor) .rp-openlist-row-title { margin: 0; font: 600 17px/1.3 var(--rp-font-body); color: var(--rp-text); }
+.rp:not(.studio-editor) .rp-openlist-row-detail { margin: 3px 0 0; font-size: 15px; line-height: 1.45; color: var(--rp-text-muted); }
+.rp:not(.studio-editor) .rp-openlist-row[data-state="done"] .rp-openlist-row-title { text-decoration: line-through; text-decoration-thickness: 1px; color: var(--rp-text-muted); }
+.rp:not(.studio-editor) .rp-openlist-row[data-state="next"] { color: var(--rp-text-muted); }
+.rp:not(.studio-editor) .rp-openlist-link { flex: none; font-weight: 600; color: var(--rp-text); text-decoration: underline; text-underline-offset: 3px; }
+.rp:not(.studio-editor) .rp-openlist-row[data-state="now"] { align-items: flex-start; margin: 8px -16px; padding: 22px 24px; border: 0; border-radius: var(--rp-radius-lg); background: var(--rp-surface-2); }
+.rp:not(.studio-editor) .rp-openlist-row[data-state="now"] .rp-openlist-mark { border-color: var(--rp-text); margin-top: 2px; }
+.rp:not(.studio-editor) .rp-openlist-now { flex: 1; min-width: 0; }
+.rp:not(.studio-editor) .rp-openlist-next { margin: 4px 0 6px; font: 500 var(--rp-text-xs)/1.2 var(--rp-font-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--rp-text-muted); }
+.rp:not(.studio-editor) .rp-openlist-now .rp-openlist-row-title { font-size: 22px; letter-spacing: -.01em; }
+.rp:not(.studio-editor) .rp-openlist-stage { margin-top: 14px; }
+.rp:not(.studio-editor) :is(.rp-openlist-stage, .rp-openlist-final) .rp-card { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+.rp:not(.studio-editor) .rp-openlist-stage > .rp-card > .rp-card-head .rp-card-heading { display: none; }
+.rp:not(.studio-editor) :is(.rp-openlist-stage, .rp-openlist-final) > .rp-card > .rp-card-head { padding: 0 0 8px; justify-content: flex-end; }
+.rp:not(.studio-editor) .rp-openlist-stage > .rp-card > .rp-card-body { padding: 0; }
+.rp:not(.studio-editor) .rp-openlist-final { padding: 8px 32px 28px; border-top: 1px solid var(--rp-divider); }
+.rp:not(.studio-editor) .rp-openlist-final > .rp-card > .rp-card-body { padding: 0; }
+.rp:not(.studio-editor) .rp-openlist-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; padding: 18px 32px 26px; border-top: 1px solid var(--rp-divider); }
+.rp:not(.studio-editor) .rp-openlist-foot .rp-btn:disabled { opacity: 1; background: var(--rp-surface-sunken); border-color: var(--rp-surface-sunken); color: var(--rp-text-muted); }
+.rp:not(.studio-editor) .rp-openlist-wait { margin: 0; flex: 1 1 260px; font-size: 15px; color: var(--rp-text-muted); }
+@media (max-width: 767px) {
+  .rp:not(.studio-editor) .rp-openlist-head { gap: 14px; padding: 18px 16px; align-items: flex-start; }
+  .rp:not(.studio-editor) .rp-openlist-ring { width: 52px; height: 52px; }
+  .rp:not(.studio-editor) .rp-openlist-ring > span { width: 40px; height: 40px; font-size: 14px; }
+  .rp:not(.studio-editor) .rp-openlist-title { font-size: 22px; }
+  .rp:not(.studio-editor) .rp-openlist-rows { padding: 4px 12px; }
+  .rp:not(.studio-editor) .rp-openlist-row { gap: 12px; padding: 14px 4px; flex-wrap: wrap; }
+  .rp:not(.studio-editor) .rp-openlist-text { flex: 1 1 calc(100% - 40px); }
+  .rp:not(.studio-editor) .rp-openlist-link { margin-left: 38px; }
+  .rp:not(.studio-editor) .rp-openlist-sub { font-size: 15px; }
+  .rp:not(.studio-editor) .rp-openlist-row[data-state="now"] { margin: 6px -8px; padding: 16px 14px; flex-wrap: nowrap; }
+  .rp:not(.studio-editor) .rp-openlist-now .rp-openlist-row-title { font-size: 19px; }
+  .rp:not(.studio-editor) .rp-openlist-foot, .rp:not(.studio-editor) .rp-openlist-final { padding: 14px 16px 18px; }
 }
 /* A step's own card under the strip: one line saying where orders ship from, with Change beside it. */
 .rp:not(.studio-editor) .rp-run-fact { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 12px 16px; border-radius: var(--rp-radius); background: var(--rp-surface-sunken); }

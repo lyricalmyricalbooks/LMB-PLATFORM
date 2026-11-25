@@ -66,7 +66,7 @@ import { keepAdminOffline } from "./adminOffline";
 import { AdminTour, type TourPhase } from "./walkthrough/AdminTour";
 import { PageHelpPanel, PageTour } from "./pageHelp/PageHelpPanel";
 import { pageHelpFor, pageHelpKey } from "./pageHelp/pageHelp";
-import { useSetupShowing } from "./overview/firstStep";
+import { useRunLeft, useSetupShowing } from "./overview/firstStep";
 import { markTourSeen, tourFor, tourSeen } from "./walkthrough/tourSteps";
 import { markTourSeenOnAccount, tourSeenOnAccount } from "./walkthrough/tourStore";
 import { stockroomBridge } from "./stockroomBridge";
@@ -550,6 +550,8 @@ export function Dashboard() {
   const wallUp = !!settings?.design?.showUnderConstruction;
   const [openBlockersList, setOpenBlockersList] = useState<ReadinessItem[] | null>(null);
   const openSteps = openBlockersList ? openBlockersList.length : null;
+  // The one list on Home's count, when the shop is still on its first run (sign-up to open shop plan, move 4).
+  const runLeft = useRunLeft();
   const [launchOpen, setLaunchOpen] = useState(false);
   useEffect(() => {
     if (!user || !wallUp) return;
@@ -1085,7 +1087,7 @@ export function Dashboard() {
               {wallUp && (
                 <span className="rp-open-shop">
                   <PrimaryButton size="sm" busy={ucSaving} onClick={() => { if (openSteps) setLaunchOpen(true); else void toggleUnderConstruction(false); }}>
-                    <span className="rp-open-shop-long">{openButtonLabel(openSteps)}</span><span className="rp-open-shop-short" aria-hidden>Open</span>
+                    <span className="rp-open-shop-long">{openButtonLabel(openSteps, runLeft)}</span><span className="rp-open-shop-short" aria-hidden>Open</span>
                   </PrimaryButton>
                 </span>
               )}
