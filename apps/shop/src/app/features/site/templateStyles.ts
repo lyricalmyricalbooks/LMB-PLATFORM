@@ -49,6 +49,12 @@ export const TEMPLATE_STYLES = [
   { id: "aurel", label: "Aurel (editorial, centred wordmark, numbered photos)" },
   { id: "slowseason", label: "Slow Season (huge capitals, numbered photos, big footer name)" },
   { id: "catalogue", label: "Catalogue (numbered collection, acid tags, staggered grid)" },
+  { id: "gallery", label: "Gallery (big photos, few products, quiet type)" },
+  { id: "warehouse", label: "Warehouse (dense grid, bold capitals, square tags)" },
+  { id: "larder", label: "Larder (warm serif, soft tiles, rounded buttons)" },
+  { id: "salon", label: "Salon (light serif, airy rows, pill buttons)" },
+  { id: "workshop", label: "Workshop (geometric type, rounded cards, chunky buttons)" },
+  { id: "commission", label: "Commission (editorial serif, framed photos, underlined links)" },
 ] as const;
 export const TEMPLATE_STYLE_IDS = TEMPLATE_STYLES.map((t) => t.id);
 export type TemplateStyleId = (typeof TEMPLATE_STYLES)[number]["id"];
@@ -663,11 +669,98 @@ ${S} .fm-footer-brand > p:first-of-type span{color:var(--accent-2);font-family:v
 `,
 });
 
+/** Gallery (25 November 2026, round three phase 2): a big-photo shop with few products. Large untinted photos, quiet
+ * spaced capitals, prices set small under the title, thin text-link buttons. */
+export const GALLERY_CSS = lookCss({
+  hWeight: "400", hLine: ".95", hSpace: "-.03em", navLine: "transparent",
+  hoverPhoto: "scale:1.02;", cardHover: "translate:0 0;",
+  titleCss: "font-weight:400;font-size:1.5rem;letter-spacing:-.02em;", priceCss: "font-size:.78rem;letter-spacing:.08em;",
+  btnRadius: "0px", btnCase: "uppercase", btnCss: "letter-spacing:.16em;font-size:.7rem;font-weight:500;", corner: "0px", footLine: HAIR_U,
+  extra: `
+${S} header[data-section="navigation"] .fm-logo{letter-spacing:.3em !important;text-transform:uppercase;font-weight:400 !important;}
+${S} header[data-section="navigation"] nav a,${S} header[data-section="navigation"] nav button{font-size:11px;letter-spacing:.14em;text-transform:uppercase;}
+${S} .fm-card .fm-photo-frame img{filter:none;}
+${S} .fm-card-meta{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;}
+`,
+});
+
+/** Warehouse (25 November 2026): a large catalogue. Bold condensed capitals, a dense grid with hairline frames, square
+ * price tags in the accent, flat square buttons. */
+export const WAREHOUSE_CSS = lookCss({
+  hWeight: "400", hCase: "uppercase", hLine: ".9", hSpace: "-.01em", navRule: "2px", navLine: K("outline", "rgb(var(--fg-rgb))"),
+  frameW: "1px", frameLine: K("outline", HAIR_N), cardHover: "translate:0 -2px;",
+  titleCase: "uppercase", titleCss: "font-size:.92rem;font-weight:400;letter-spacing:.01em;",
+  priceCss: "background:var(--accent);color:var(--bg-color);padding:.1rem .45rem !important;font-weight:700;display:inline-block;",
+  btnRadius: "0px", btnCase: "uppercase", btnCss: "letter-spacing:.08em;font-weight:800;", corner: "0px", footRule: "2px", footLine: K("outline", "rgb(var(--fg-rgb))"),
+  extra: `
+${S} .fm-card .fm-photo-frame img{filter:none;}
+${S} header[data-section="navigation"] .fm-logo{text-transform:uppercase;letter-spacing:-.01em !important;}
+${S} .fm-split-title{font-size:var(--fm-split-title, clamp(44px, 5.2vw, 84px));line-height:.92;letter-spacing:-.02em;}
+@media (max-width:767px){${S} .fm-split-title{font-size:var(--fm-split-title-phone, 40px);}}
+${S} header[data-section="navigation"] nav a,${S} header[data-section="navigation"] nav button{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;}
+`,
+});
+
+/** Larder (25 November 2026): food and drink. A warm serif, products on soft rounded tiles, rounded buttons. */
+export const LARDER_CSS = lookCss({
+  hWeight: "400", hLine: "1", hSpace: "-.02em", navLine: HAIR_U,
+  photoRadius: "14px", cardHover: "translate:0 -3px;",
+  titleCss: "font-size:1.2rem;font-weight:400;", priceCss: "font-weight:600;",
+  btnRadius: "999px", btnCase: "none", btnCss: "letter-spacing:.01em;font-weight:600;", corner: "14px", inputRadius: "12px", footLine: HAIR_U,
+  extra: `
+${S} .fm-card .fm-photo-frame img{filter:none;}
+${S} .fm-card .fm-photo-frame{background:var(--surface);}
+${S} header[data-section="navigation"] nav a,${S} header[data-section="navigation"] nav button{font-size:14px;letter-spacing:0;text-transform:none;}
+`,
+});
+
+/** Salon (25 November 2026): appointments. A light serif, airy spacing, pill buttons, soft photo corners. */
+export const SALON_CSS = lookCss({
+  hWeight: "500", hLine: "1", hSpace: "-.01em", navLine: "transparent",
+  photoRadius: "6px", cardHover: "translate:0 0;", hoverPhoto: "scale:1.02;",
+  titleCss: "font-size:1.3rem;font-weight:500;", priceCss: "font-size:.85rem;letter-spacing:.04em;",
+  btnRadius: "999px", btnCase: "uppercase", btnCss: "letter-spacing:.14em;font-size:.72rem;font-weight:600;", corner: "6px", inputRadius: "8px", footLine: HAIR_U,
+  extra: `
+${S} .fm-card .fm-photo-frame img{filter:none;}
+${S} header[data-section="navigation"] .fm-logo{font-style:italic;font-weight:500 !important;}
+${S} header[data-section="navigation"] nav a,${S} header[data-section="navigation"] nav button{font-size:12px;letter-spacing:.12em;text-transform:uppercase;}
+`,
+});
+
+/** Workshop (25 November 2026): classes. Geometric display type, rounded cards on the surface, chunky buttons with a
+ * small drop shadow. */
+export const WORKSHOP_CSS = lookCss({
+  hWeight: "700", hLine: ".95", hSpace: "-.03em", navLine: HAIR_N,
+  cardBox: "var(--surface)", cardPad: ".6rem", cardRadius: "16px", photoRadius: "12px",
+  titleCss: "font-size:1.1rem;font-weight:700;", priceCss: "font-weight:600;",
+  btnRadius: "14px", btnCase: "none", btnShadow: "drop", btnX: "3px", btnCss: "font-weight:700;letter-spacing:0;", corner: "16px", inputRadius: "12px",
+  glassRadius: "16px", footCurve: "24px", footLine: HAIR_N,
+  extra: `
+${S} .fm-card .fm-photo-frame img{filter:none;}
+${S} .fm-split-title{font-size:var(--fm-split-title, clamp(44px, 5.4vw, 88px));line-height:.95;letter-spacing:-.03em;}
+@media (max-width:767px){${S} .fm-split-title{font-size:var(--fm-split-title-phone, 42px);}}
+`,
+});
+
+/** Commission (25 November 2026): made to order and enquiries. An editorial serif, framed photos, underlined links. */
+export const COMMISSION_CSS = lookCss({
+  hWeight: "400", hLine: "1", hSpace: "-.02em", navLine: HAIR_N,
+  frameW: "1px", frameLine: K("outline", HAIR_N), cardHover: "translate:0 0;", hoverPhoto: "scale:1.01;",
+  titleCss: "font-size:1.25rem;font-weight:400;font-style:italic;", priceCss: "font-size:.8rem;letter-spacing:.06em;",
+  btnRadius: "0px", btnCase: "uppercase", btnCss: "letter-spacing:.14em;font-size:.72rem;font-weight:600;", corner: "0px", footLine: HAIR_N,
+  extra: `
+${S} .fm-card .fm-photo-frame img{filter:none;}
+${S} .fm-card .fm-photo-frame{padding:.5rem;background:var(--surface);}
+${S} header[data-section="navigation"] nav a,${S} header[data-section="navigation"] nav button{font-size:13px;letter-spacing:.02em;text-transform:none;}
+`,
+});
+
 /** Each template's own stylesheet, by id. A template missing here fails the coverage test. */
 export const TEMPLATE_CSS: Record<TemplateStyleId, string> = {
   marquee: MARQUEE_CSS, shelf: SHELF_CSS, atlas: ATLAS_CSS, mosaic: MOSAIC_CSS, arch: ARCH_CSS, market: MARKET_CSS, index: INDEX_CSS,
   folio: FOLIO_CSS, lantern: LANTERN_CSS, gutter: GUTTER_CSS, signal: SIGNAL_CSS, kiln: KILN_CSS, almanac: ALMANAC_CSS, console: CONSOLE_CSS,
   picnic: PICNIC_CSS, cutout: CUTOUT_CSS, reel: REEL_CSS, aurel: AUREL_CSS, slowseason: SLOWSEASON_CSS, catalogue: CATALOGUE_CSS,
+  gallery: GALLERY_CSS, warehouse: WAREHOUSE_CSS, larder: LARDER_CSS, salon: SALON_CSS, workshop: WORKSHOP_CSS, commission: COMMISSION_CSS,
 };
 
 /** Which template a design draws, or "" for any other look. */

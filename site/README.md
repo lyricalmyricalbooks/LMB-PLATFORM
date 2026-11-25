@@ -12,6 +12,8 @@ The platform's live web site, https://lmb-platform-prod.web.app, put live by Git
   front page's copy at `/waitlist/` points at `/`), a share preview with `share.png`, and the front page Colophon's
   business label. The build writes `robots.txt` and `sitemap.xml` from the same list. Moving to Colophon's own
   domain means changing `SITE_URL` there.
+- Pages whose words a script draws from fixed text (the trust page) are drawn into the page at build too
+  (`DRAWN_AHEAD` in `build.js`), so AI search crawlers, which don't run scripts, read them.
 - `check-live.js` opens every page on the live site after a deploy and fails the run if one is missing.
 - `github-access.sh` lets GitHub deploy, once (below).
 

@@ -1,5 +1,7 @@
 node_modules/
 .env*
+# The shop server's shared, non-secret settings (apps/shop/functions/.env)
+!apps/shop/functions/.env
 *.log
 .firebase/
 # The demo shop's working files and saved data (demo/run.js)

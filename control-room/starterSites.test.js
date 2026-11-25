@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { STARTERS, STARTERS_DOC, STARTERS_RECORD, cleanRecord, createStarterSites, recordFrom, shopDocOf, starterRows, starterSitesRoutes } from "./starterSites.js";
+import { AWAITING_YES, STARTERS, STARTERS_DOC, STARTERS_RECORD, cleanRecord, createStarterSites, recordFrom, shopDocOf, starterRows, starterSitesPublicRoutes, starterSitesRoutes } from "./starterSites.js";
 import { controlRoomAdmins } from "./controlRoom.js";
 import { fakeShopData } from "../accounts/fakes.js";
 import { fakeAuditLog, fakeRegistry } from "../setup/fakes.js";
@@ -40,6 +40,12 @@ async function world({ broken = [] } = {}) {
 
 const choice = (overrides = {}) => ALL.map((id) => ({ id, shown: true, fresh: false, ...(overrides[id] ?? {}) }));
 
+test("new starters wait for the owner's yes in the shop and here alike", () => {
+  const gallery = readFileSync(new URL("../apps/shop/src/app/admin/lookGallery.ts", import.meta.url), "utf8");
+  assert.deepEqual([...AWAITING_YES], JSON.parse(gallery.match(/export const AWAITING_YES = (\[[^\]]*\])/)[1]));
+  assert.deepEqual(starterRows(null).filter((s) => s.state === "waiting").map((s) => s.id), [...AWAITING_YES]);
+});
+
 test("the control room's list is the shop's own starters, in the shop's order, with the names the shop shows", () => {
   const gallery = readFileSync(new URL("../apps/shop/src/app/admin/lookGallery.ts", import.meta.url), "utf8");
   const ids = JSON.parse(gallery.match(/export const STARTER_SITES = (\[[^\]]*\])/)[1]);
@@ -56,7 +62,7 @@ test("only platform admins see or change the starters", async () => {
   const answer = await w.get(ADMIN, "/api/control/starters");
   assert.equal(answer.status, 200);
   assert.equal(answer.body.saved, false);
-  assert.deepEqual(answer.body.starters.map((s) => [s.id, s.state]), ALL.map((id) => [id, "shown"]));
+  assert.deepEqual(answer.body.starters.map((s) => [s.id, s.state]), ALL.map((id) => [id, AWAITING_YES.includes(id) ? "waiting" : "shown"]));
 });
 
 test("saving writes the record once and every live shop with a website gets it; a repeat writes nothing new", async () => {
@@ -66,10 +72,11 @@ test("saving writes the record once and every live shop with a website gets it; 
   assert.equal(first.status, 200, JSON.stringify(first.body));
   assert.equal(first.body.changed, true);
   assert.equal(first.body.shops, 2);
-  assert.deepEqual(first.body.starters.map((s) => [s.id, s.state, s.fresh]), [["aurel-editorial", "shown", true], ["juniper-catalogue", "hidden", false], ["juniper-slow-season", "shown", false]]);
+  const reversed = [...ALL].reverse();
+  assert.deepEqual(first.body.starters.map((s) => [s.id, s.state, s.fresh]), reversed.map((id) => [id, id === "juniper-catalogue" ? "hidden" : "shown", id === "aurel-editorial"]));
   for (const shopId of ["moth-press", "fern-goods"]) {
     const doc = await w.shopData.get(shopId, STARTERS_DOC);
-    assert.deepEqual(doc.order, ["aurel-editorial", "juniper-catalogue", "juniper-slow-season"]);
+    assert.deepEqual(doc.order, reversed);
     assert.deepEqual(doc.hidden, ["juniper-catalogue"]);
     assert.deepEqual(doc.fresh, ["aurel-editorial"]);
   }
@@ -110,7 +117,7 @@ test("the sweep does nothing while nothing was ever saved", async () => {
 
 test("a starter the shop added after the last save waits hidden; ids the shop no longer has are dropped", () => {
   const record = { order: ["juniper-catalogue", "old-gone", "juniper-slow-season"], hidden: [], fresh: ["old-gone"], known: ["juniper-catalogue", "juniper-slow-season", "old-gone"] };
-  assert.deepEqual(starterRows(record).map((s) => [s.id, s.state]), [["juniper-catalogue", "shown"], ["juniper-slow-season", "shown"], ["aurel-editorial", "waiting"]]);
+  assert.deepEqual(starterRows(record).map((s) => [s.id, s.state]), [["juniper-catalogue", "shown"], ["juniper-slow-season", "shown"], ["aurel-editorial", "waiting"], ...AWAITING_YES.map((id) => [id, "waiting"])]);
   assert.deepEqual(shopDocOf(record).known, ["juniper-catalogue", "juniper-slow-season"]);
   assert.equal(cleanRecord(null), null);
   assert.deepEqual(recordFrom(choice(), "a", "t").known, ALL);
@@ -148,4 +155,15 @@ test("a style can be hidden from shops, never a starter's own; shops get the lis
   assert.equal(back.body.changed, true);
   assert.deepEqual((await w.shopData.get("moth-press", STARTERS_DOC)).hiddenStyles, []);
   assert.ok(starterRows(null).every((s) => s.styles.every((x) => x.shown)));
+});
+
+test("the public starter library reads which starters are offered, with no sign-in and nothing about who saved it", async () => {
+  const w = await world();
+  const route = starterSitesPublicRoutes(w.desk)["GET /api/starters/offered"];
+  assert.deepEqual(await route({}), { choice: null });
+  await w.ask(ADMIN, "/api/control/starters/save", { starters: choice({ "juniper-catalogue": { shown: false } }) });
+  const { choice: offered } = await route({});
+  assert.deepEqual(offered.hidden, ["juniper-catalogue"]);
+  assert.deepEqual(offered.known, ALL);
+  assert.deepEqual(Object.keys(offered).sort(), ["hidden", "hiddenStyles", "known", "order"]);
 });

@@ -99,7 +99,7 @@ describe("Choose your look as a theme store", () => {
     await click(button(`Try on ${builtLooks()[0].name}`));
     const group = () => dialog()!.querySelector("[data-show-with]") as HTMLElement;
     const labels = [...group().querySelectorAll("button")].map(b => b.textContent?.trim());
-    expect(labels).toEqual(["Clothing", "Home goods", "Books and prints"]);
+    expect(labels).toEqual(["Clothing", "Home goods", "Books and prints", "Food and drink", "Made to order"]);
     expect(button("Clothing", group()).getAttribute("aria-pressed")).toBe("true");
     expect(dialog()!.textContent).toContain("Example wool sweater");
     await click(button("Home goods", group()));
@@ -108,7 +108,7 @@ describe("Choose your look as a theme store", () => {
     expect(dialog()!.innerHTML).toContain("/samples/home/");
   });
 
-  it("Show with stays out of the way while the press looks at its own products, and for services", async () => {
+  it("Show with stays out of the way while the press looks at its own products; services choose among their own sets", async () => {
     await mount({ publishes: "clothing", books: [{ title: "Wool Hat", photo: "https://cdn.example/h.jpg" }] });
     await click(button(`Try on ${builtLooks()[0].name}`));
     expect(dialog()!.querySelector("[data-show-with]")).toBeNull();
@@ -117,7 +117,8 @@ describe("Choose your look as a theme store", () => {
     act(() => root?.unmount()); root = null; document.body.innerHTML = "";
     await mount({ publishes: "hair" });
     await click(button(`Try on ${builtLooks()[0].name}`));
-    expect(dialog()!.querySelector("[data-show-with]")).toBeNull();
+    const services = [...(dialog()!.querySelector("[data-show-with]") as HTMLElement).querySelectorAll("button")].map(b => b.textContent?.trim());
+    expect(services).toEqual(["Salon and beauty", "Studio and classes", "Made to order"]);
   });
 
   it("a shop that doesn't sell books sees samples and words for what it sells", async () => {

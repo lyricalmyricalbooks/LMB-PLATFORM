@@ -7,6 +7,14 @@
     "nodes": 213,
     "images": 0
   },
+  "aurel-editorial book": {
+    "nodes": 264,
+    "images": 0
+  },
+  "aurel-editorial home": {
+    "nodes": 264,
+    "images": 0
+  },
   "botanical-boutique book": {
     "nodes": 274,
     "images": 0
@@ -77,6 +85,22 @@
   },
   "inkline-tech home": {
     "nodes": 213,
+    "images": 0
+  },
+  "juniper-catalogue book": {
+    "nodes": 264,
+    "images": 0
+  },
+  "juniper-catalogue home": {
+    "nodes": 271,
+    "images": 0
+  },
+  "juniper-slow-season book": {
+    "nodes": 264,
+    "images": 0
+  },
+  "juniper-slow-season home": {
+    "nodes": 264,
     "images": 0
   },
   "luxe-dark-commerce book": {
@@ -351,6 +375,54 @@
     "nodes": 213,
     "images": 0
   },
+  "starter-commission book": {
+    "nodes": 252,
+    "images": 0
+  },
+  "starter-commission home": {
+    "nodes": 217,
+    "images": 0
+  },
+  "starter-gallery book": {
+    "nodes": 252,
+    "images": 0
+  },
+  "starter-gallery home": {
+    "nodes": 188,
+    "images": 0
+  },
+  "starter-larder book": {
+    "nodes": 255,
+    "images": 0
+  },
+  "starter-larder home": {
+    "nodes": 225,
+    "images": 0
+  },
+  "starter-salon book": {
+    "nodes": 252,
+    "images": 0
+  },
+  "starter-salon home": {
+    "nodes": 220,
+    "images": 0
+  },
+  "starter-warehouse book": {
+    "nodes": 259,
+    "images": 0
+  },
+  "starter-warehouse home": {
+    "nodes": 234,
+    "images": 0
+  },
+  "starter-workshop book": {
+    "nodes": 252,
+    "images": 0
+  },
+  "starter-workshop home": {
+    "nodes": 217,
+    "images": 0
+  },
   "starting-look book": {
     "nodes": 274,
     "images": 0
@@ -381,30 +453,6 @@
   },
   "velvet-rose home": {
     "nodes": 213,
-    "images": 0
-  },
-  "juniper-catalogue book": {
-    "nodes": 264,
-    "images": 0
-  },
-  "juniper-catalogue home": {
-    "nodes": 271,
-    "images": 0
-  },
-  "juniper-slow-season book": {
-    "nodes": 264,
-    "images": 0
-  },
-  "juniper-slow-season home": {
-    "nodes": 264,
-    "images": 0
-  },
-  "aurel-editorial book": {
-    "nodes": 264,
-    "images": 0
-  },
-  "aurel-editorial home": {
-    "nodes": 264,
     "images": 0
   }
 }

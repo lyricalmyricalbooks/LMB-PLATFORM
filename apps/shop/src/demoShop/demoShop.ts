@@ -18,7 +18,7 @@ export const DEMO_NAME = "Your shop";
  * The kinds of shop a demo can be shown as, one per sample set (admin/starterSamples.ts), each with the sign-up answer
  * it stands for: the answer is what the shop's words, menu and sample photos follow (shared/shopSells.ts).
  */
-export const DEMO_SELLS = { clothing: "clothing", home: "other", books: "books", studio: "studio" } as const;
+export const DEMO_SELLS = { clothing: "clothing", home: "other", books: "books", studio: "studio", beauty: "hair" } as const;
 export type DemoKind = keyof typeof DEMO_SELLS;
 export type DemoChoice = { starter: string; style: string; sells: DemoKind };
 
@@ -31,13 +31,13 @@ export function demoChoice(asked: { starter?: string | null; style?: string | nu
 }
 
 /**
- * The starter's pictures live at the site's root in a shop (`/starters/…`); in a demo they sit under the demo's own
+ * The starter's pictures live at the site's root in a shop (`/starters/…`, `/samples/…`); in a demo they sit under the demo's own
  * folder, so every such address gets the folder in front.
  */
 export function underBase<T>(value: T, base: string): T {
   const root = base.replace(/\/?$/, "/");
   if (root === "/") return value;
-  return JSON.parse(JSON.stringify(value).replace(/"\/starters\//g, `"${root}starters/`));
+  return JSON.parse(JSON.stringify(value).replace(/"\/(starters|samples)\//g, `"${root}$1/`));
 }
 
 /**

@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MOUNTS } from "../walkthrough/server.js";
-import { buildSite, firebaseJson, liveConfig, neededFiles, outsideFolder, referencesIn, SITE_MOUNTS } from "./build.js";
+import { buildSite, drawAhead, DRAWN_AHEAD, firebaseJson, liveConfig, neededFiles, outsideFolder, referencesIn, SITE_MOUNTS } from "./build.js";
 
 test("the live site publishes every page the walkthrough has, at the same address", () => {
   for (const [address, folder] of Object.entries(MOUNTS)) {
@@ -115,4 +115,20 @@ test("a mistyped address gets Colophon's own not-found page, and the top bar's b
   }
   const look = readFileSync(join(out, "public", "help", "look", "platform-look.js"), "utf8");
   assert.match(look, /signupOpen !== true/);
+});
+
+test("the trust page's words are in the published page, for readers that don't run scripts", () => {
+  const out = mkdtempSync(join(tmpdir(), "site-"));
+  buildSite({ out });
+  const html = readFileSync(join(out, "public", "trust", "index.html"), "utf8");
+  const box = html.slice(html.indexOf('<div id="trust"'));
+  assert.match(box, /^<div id="trust"[^>]*>\s*(<div class="cp-alertline"[\s\S]*?<\/div>\s*)?<div class="cp-promises">/, "the promises are drawn into the box");
+  assert.match(box, /Who else handles your data/);
+  assert.match(html, /rel="canonical" href="https:\/\/lmb-platform-prod\.web\.app\/trust\/"/, "the usual search tags still go in");
+  assert.ok(Object.keys(DRAWN_AHEAD).every((page) => page.endsWith(".html")));
+});
+
+test("drawing ahead stops the build when the page lost its box", () => {
+  assert.throws(() => drawAhead("/trust/index.html", "<main></main>"), /no empty <div id="trust">/);
+  assert.equal(drawAhead("/terms/index.html", "<main></main>"), "<main></main>");
 });

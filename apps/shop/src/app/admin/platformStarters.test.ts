@@ -2,12 +2,16 @@
 // sets the order, hides what it hides and every starter the owner hasn't seen yet, and New tags only offered starters.
 // Choose your look and Studio › Designs list exactly what is offered, after the built looks.
 import { describe, expect, it } from "vitest";
-import { STARTER_SITES, builtLooks, filterLooks, newStarters, offeredStarters } from "./lookGallery";
+import { AWAITING_YES, STARTER_SITES, builtLooks, filterLooks, newStarters, offeredStarters } from "./lookGallery";
 
 describe("platform starters", () => {
   it("shows every starter in the shop's order when nothing was saved or it couldn't be read", () => {
-    expect(offeredStarters(null)).toEqual(STARTER_SITES);
-    expect(offeredStarters(undefined)).toEqual(STARTER_SITES);
+    const ready = STARTER_SITES.filter(id => !AWAITING_YES.includes(id));
+    expect(offeredStarters(null)).toEqual(ready);
+    expect(offeredStarters(undefined)).toEqual(ready);
+    // New starters wait for the platform owner's yes: offered once a saved choice knows them and shows them.
+    expect(AWAITING_YES.every(id => STARTER_SITES.includes(id))).toBe(true);
+    expect(offeredStarters({ known: STARTER_SITES, order: STARTER_SITES })).toEqual(STARTER_SITES);
     expect(newStarters(null)).toEqual([]);
   });
 
@@ -22,7 +26,7 @@ describe("platform starters", () => {
   });
 
   it("the gallery lists the built looks, then the offered starters in their order", () => {
-    const choice = { order: ["juniper-catalogue", "aurel-editorial", "juniper-slow-season"], known: [...STARTER_SITES], hidden: ["juniper-slow-season"] };
+    const choice = { order: ["juniper-catalogue", "aurel-editorial", "juniper-slow-season"], known: ["juniper-catalogue", "aurel-editorial", "juniper-slow-season"], hidden: ["juniper-slow-season"] };
     const all = builtLooks(choice).map(t => t.id);
     expect(all.slice(-2)).toEqual(["juniper-catalogue", "aurel-editorial"]);
     expect(all).not.toContain("juniper-slow-season");
