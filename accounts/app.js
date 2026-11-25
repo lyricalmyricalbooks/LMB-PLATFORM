@@ -249,7 +249,7 @@ async function loadShops() {
   $("#shops-title").replaceChildren(shops.length ? words.count : "No shops yet.", ...(shops.length ? [el("br"), words.then] : []));
   const list = $("#shops");
   if (!shops.length) {
-    list.replaceChildren(el("div", { className: "empty" }, "You're not on any shop's team yet. ", el("a", { href: "../signup/", textContent: "Start a shop" }), ", or ask a shop's owner to invite you."));
+    list.replaceChildren(el("div", { className: "empty" }, "You're not on any shop's team yet. ", el("a", { href: "../join/", textContent: "Start a shop" }), ", or ask a shop's owner to invite you."));
   } else {
     list.replaceChildren(...shops.map(shopCard));
   }

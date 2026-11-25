@@ -190,7 +190,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
         if (mine.length >= MAX_SHOPS_PER_ACCOUNT) throw new SignupError(429, `One account can start up to ${MAX_SHOPS_PER_ACCOUNT} shops. Write to us if you need more.`);
         const isInvited = await invited(person.email);
         const { signupDailyCap, signupOpen } = await live();
-        if (signupOpen !== true && !isInvited) throw new SignupError(403, CLOSED_WORDS);
+        if (signupOpen !== true && !isInvited) throw Object.assign(new SignupError(403, CLOSED_WORDS), { closed: true });
         // A new press never takes over an address already in use, not even one of this account's own sign-ups.
         if (details.address && ((await registry.getShop(details.address)) || (await signups.get(details.address)))) {
           throw new SignupError(409, "That web address is taken.", { address: "That address is taken. Try another." });

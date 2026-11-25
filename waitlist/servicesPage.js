@@ -22,7 +22,7 @@ export function servicesWords({ open = false, trialDays = null } = {}, { signupU
     cta: "Start free trial",
     ctaShort: "Start trial",
     href: join,
-    note: trialDays ? `Free setup · no card · ${trialDays} days free once you open` : "Free setup · no card",
+    note: trialDays ? `Free setup · no card · ${trialDays} days free from today` : "Free setup · no card",
   };
 }
 

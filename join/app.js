@@ -14,7 +14,7 @@ const { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signIn
 const auth = getAuth(initializeApp(PLATFORM_FIREBASE));
 const $ = (selector) => document.querySelector(selector);
 const status = $("#status");
-const STEP_OF = { email: "signin", code: "signin", pick: "brand", start: "brand" };
+const STEP_OF = { email: "signin", code: "signin", pick: "brand", start: "brand", later: "brand", invite: "brand" };
 // A press whose shop is opening or open is run from its admin, reached from the account page.
 const ACCOUNT_PAGE = "../account/";
 const STATUS_WORDS = { setup: "Not started", opening: "Being set up", open: "Open", expired: "Setup ran out" };
@@ -54,7 +54,9 @@ async function api(method, path, body) {
     throw new Error("We couldn't reach Colophon. Check your connection and try again.");
   }
   const answer = await response.json().catch(() => ({ ok: false, message: "We couldn't reach Colophon. Check your connection and try again." }));
-  if (!response.ok || answer.ok === false) throw new Error(answer.message || "Something went wrong. Try again.");
+  if (!response.ok || answer.ok === false) {
+    throw Object.assign(new Error(answer.message || "Something went wrong. Try again."), { status: response.status, closed: answer.closed === true });
+  }
   return answer;
 }
 
@@ -223,7 +225,12 @@ if (STARTER_PICK) {
   $("#starter-pick-link").href = $("#new-starter-link").href;
   $("#starter-pick").hidden = false;
 }
-const starterChange = () => (STARTER_PICK ? { look: STARTER_PICK.look, lookStyle: STARTER_PICK.lookStyle } : {});
+// The starter the tile shows is the one the new shop opens on (sign-up plan, move 2): picked on a sample shop, else the
+// one that suits the kind of shop, so Choose your look inside starts where "Your new store" left off.
+const starterChange = () => {
+  const { starter, style } = previewChoice();
+  return { look: starter, lookStyle: style };
+};
 
 // Bookshop or general shop (14 November 2026, Julian): the first question, so it's clear which one gets the book
 // features. A general shop then says what it sells. Both are saved as one sign-up answer (signup/form.js SHOP_TYPES).
@@ -340,7 +347,7 @@ function showCountry() {
 // "Your new store" shows a real starter: the picture of its home page (join/starters/, taken from the live demo shop),
 // and on a wide screen, once a brand name is typed, the live demo shop itself with that name on it (DEMO_URL, the
 // demo's ?name=&embed=1). Which starter: the one picked on a sample shop (Use this starter), else the one that suits the
-// kind of shop. A shop with no picked starter chooses its look inside, so the tile says "one of the starters".
+// kind of shop. That starter is saved with the answers, so the new shop opens on it (sign-up plan, move 2).
 const STARTER_SHOTS = Object.freeze({
   "aurel-editorial": { shot: "aurel", name: "Aurel", style: "cobalt" },
   "juniper-slow-season": { shot: "slow-season", name: "Slow Season", style: "terracotta" },
@@ -500,20 +507,50 @@ startForm.addEventListener("submit", (event) => {
     const { termsAccepted, shopType: _type, ...change } = answers;
     const { press: saved } = await api("POST", "/press/setup", { pressId: press.pressId, plan: TRIAL_PLAN, ...starterChange(), ...change });
     press = saved;
+    let opened;
     try {
-      const opened = await api("POST", "/press/open", { pressId: press.pressId, plan: TRIAL_PLAN, termsAccepted, termsVersion });
-      press = opened.press;
-      // Its country hasn't opened yet: nothing is made, the place is kept, and the setup guide is the way on.
-      if (opened.shop?.status === "later") throw new Error(opened.shop.message || "Colophon hasn't opened where you are yet. We've saved your place.");
+      opened = await api("POST", "/press/open", { pressId: press.pressId, plan: TRIAL_PLAN, termsAccepted, termsVersion });
     } catch (failure) {
-      // The answers are saved either way, so the setup guide can carry on from them.
-      const keep = $("#keep-setup");
-      if (SETUP_ADMIN_URL) { keep.querySelector("a").href = setupGuideUrl(); keep.hidden = false; }
+      // Sign-up is by invite and this email has none: the answers are already saved, so the person joins the waitlist
+      // and starts from here when the invite comes (25 November 2026: this used to be a red error under the button).
+      if (failure.status === 403 && failure.closed) return showInvite();
       throw failure;
     }
+    press = opened.press;
+    // Its country hasn't opened yet: nothing is made and the place is kept. A calm page says so, not an error.
+    if (opened.shop?.status === "later") return showLater();
     making();
   });
 });
+
+/** The country isn't open yet: the place and the answers are kept, and the person can pick another country. */
+function showLater() {
+  // "the United Kingdom", "the Netherlands": a country's name as it reads inside a sentence.
+  const inSentence = (code) => { const name = COUNTRIES[code]?.name; return name && /^(United |Netherlands)/.test(name) ? `the ${name}` : name; };
+  $("#later-country").textContent = inSentence(press.country) ?? "your country";
+  const open = (plans?.openCountries ?? []).map(inSentence).filter(Boolean);
+  if (open.length) $("#later-open").textContent = open.length > 1 ? `${open.slice(0, -1).join(", ")} and ${open.at(-1)}` : open[0];
+  for (const spot of document.querySelectorAll(".fd-email-again")) spot.textContent = signedInEmail();
+  show("later");
+}
+$("#later-change").addEventListener("click", () => {
+  show("start");
+  startForm.country.focus();
+});
+
+/** Sign-up is by invite and this email has none yet: it joins the waitlist with the starter it picked. */
+async function showInvite() {
+  for (const spot of document.querySelectorAll(".fd-email-again")) spot.textContent = signedInEmail();
+  show("invite");
+  try {
+    const { joinWaitlist } = await import("./waitlist.js");
+    await joinWaitlist({ email: signedInEmail(), starter: STARTER_PICK?.look ?? "" });
+  } catch {
+    // The press and its answers are saved on the platform either way; the invite list reads those too.
+    $("#invite-note").textContent = "Your answers are saved. We'll be in touch.";
+  }
+}
+const signedInEmail = () => auth.currentUser?.email || email || press?.ownerEmail || "your email";
 
 // ── 4. Setting up your store: the shop maker's progress, until the way in is ready ──
 const overlay = $("#making");
@@ -573,18 +610,52 @@ $("#sign-out")?.addEventListener("click", async () => {
 
 // Signed in (just now, or from an earlier visit): back to where the press left off. One press carries on; several get a
 // short picker; a first visit makes the press's setup record.
+// "Email me a sign-in code" on a shop's admin sign-in page comes here as ?open=<shop>: once signed in, the person goes
+// straight into that shop's admin as themselves (sign-up plan move 3). The account page's switcher checks they are on
+// its team; if they aren't, they land on their account page.
+const OPEN_SHOP = /^[a-z][a-z0-9-]{2,62}$/.test(new URLSearchParams(location.search).get("open") ?? "") ? new URLSearchParams(location.search).get("open") : "";
+if (OPEN_SHOP) $("#email-title").textContent = "Sign in to your shop";
+
 async function arrive() {
+  if (OPEN_SHOP) return goInside(OPEN_SHOP, ACCOUNT_PAGE);
+  // "Start another shop" on the account page: a fresh press, once, then the address forgets the ask.
+  if (new URLSearchParams(location.search).get("another") === "1") {
+    const url = new URL(location.href);
+    url.searchParams.delete("another");
+    history.replaceState(null, "", url);
+    return carryOn((await api("POST", "/press", { another: true })).press);
+  }
   const { presses } = await api("GET", "/press");
   if (presses.length > 1) return pick(presses);
   if (presses.length === 1) return carryOn(presses[0]);
   return carryOn((await api("POST", "/press", {})).press);
 }
 
+// Into the store's admin already signed in, as the person who just signed in here (sign-up plan move 3: one sign-in).
+// The account page's switcher makes the way in (accounts/shopSignIn.js); when it can't, the plain admin address.
+async function goInside(shopId, fallback) {
+  try {
+    if (shopId) {
+      const { url } = await api("POST", "/accounts/switch", { shopId });
+      if (url) return location.assign(url);
+    }
+  } catch { /* the plain address below */ }
+  location.assign(fallback || ACCOUNT_PAGE);
+}
+
+// "Go to my store" goes in signed in too; the link's own address stays for a new tab or a press that fails.
+$("#making-go").addEventListener("click", (event) => {
+  const href = event.currentTarget.getAttribute("href");
+  if (!href || event.metaKey || event.ctrlKey || event.shiftKey) return;
+  event.preventDefault();
+  goInside(press?.shopId, href);
+});
+
 function carryOn(chosen) {
   press = chosen;
   // An open store is run from its admin; one being made shows how far it has got.
   if (press.status === "open") {
-    location.assign(press.openUrl || ACCOUNT_PAGE);
+    goInside(press.shopId, press.openUrl);
     return;
   }
   if (press.status === "opening") {

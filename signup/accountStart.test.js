@@ -115,3 +115,19 @@ test("a person whose press has moved past setup gets it back, not a new empty on
   assert.deepEqual(again, { pressId, status: "open" });
   assert.equal(presses.rows.size, 1);
 });
+
+test("Start another shop: a press with a shop gets a second empty record, once", async () => {
+  const presses = fakePresses();
+  let n = 0;
+  const start = createAccountStart({ presses, now: () => NOW, suffix: () => `s${(n += 1)}` });
+  const first = await start.start(ADA, {});
+  presses.rows.set(first.pressId, { ...presses.rows.get(first.pressId), status: "open", pressName: "Moth Press" });
+  // Signing in again gives back the first press, never a second one.
+  assert.equal((await start.start(ADA, {})).pressId, first.pressId);
+  const second = await start.start(ADA, { another: true });
+  assert.notEqual(second.pressId, first.pressId);
+  assert.equal(second.status, "setup");
+  // A double click on "Start another shop" gives the same empty record back.
+  assert.equal((await start.start(ADA, { another: true })).pressId, second.pressId);
+  assert.equal(presses.rows.size, 2);
+});

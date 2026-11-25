@@ -17,7 +17,7 @@
 <a class="rp-skip-link" href="#main">Skip to content</a>
 <header class="cp-mast"><div class="cp-wrap"><div class="cp-fp-nav">
   <a class="cp-word" href="./"><svg class="cp-fp-logo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><circle cx="17" cy="7" r="4.5"/><rect x="2.5" y="12" width="19" height="10" rx="4"/></svg>Colophon<small>shop and stockroom for independent brands</small></a>
-  <nav aria-label="Colophon"><a class="cp-fp-link" href="#platform">Platform</a><a class="cp-fp-link" href="#how">How it works</a><a class="cp-fp-link" href="/pricing">Pricing</a><a class="cp-fp-link" href="/services">For services</a><a class="cp-fp-link" href="#about">About</a><a class="cp-fp-signin" href="../account/">Sign in</a><a class="cp-nav-cta" id="cta" href="#start"><span class="cp-long" id="cta-long">Start selling</span><span class="cp-short" id="cta-short">Start</span><span aria-hidden="true"> →</span></a></nav></div></div></header>
+  <nav aria-label="Colophon"><a class="cp-fp-link" href="#platform">Platform</a><a class="cp-fp-link" href="#how">How it works</a><a class="cp-fp-link" href="/pricing">Pricing</a><a class="cp-fp-link" href="/services">For services</a><a class="cp-fp-link" href="#about">About</a><a class="cp-fp-signin" href="../account/">Sign in</a><a class="cp-nav-cta" id="cta" href="#start"><span class="cp-long" id="cta-long">Join the waitlist</span><span class="cp-short" id="cta-short">Join</span><span aria-hidden="true"> →</span></a></nav></div></div></header>
 <main id="main" tabindex="-1">
   <div class="cp-wrap">
     <section class="cp-fp-hero" aria-labelledby="hero-title">
@@ -25,7 +25,7 @@
         <p class="cp-fp-tag"><b>Founding shops</b><span>Now welcoming independent brands</span></p>
         <h1 id="hero-title">One home for everything you sell.</h1>
         <p class="cp-lede">A beautiful online shop, simple in-person selling, and a stockroom that always knows what's left.</p>
-        <div class="cp-fp-actions"><a class="button primary cp-fp-go" href="#start">Start your shop <span aria-hidden="true">→</span></a><a class="cp-fp-more" href="#platform">Explore the platform <span aria-hidden="true">↓</span></a></div>
+        <div class="cp-fp-actions"><a class="button primary cp-fp-go" href="#start">Join the waitlist <span aria-hidden="true">→</span></a><a class="cp-fp-more" href="#platform">Explore the platform <span aria-hidden="true">↓</span></a></div>
         <p class="cp-fp-svline">Run a salon, studio or lessons? <a href="/services">Colophon takes bookings too <span aria-hidden="true">→</span></a></p>
         <ul class="cp-fp-trust"><li>Free setup</li><li>No credit card</li><li>Built in Canada</li></ul>
       </div>
@@ -60,7 +60,7 @@
           <p class="cp-fp-eyebrow">Your online shop</p>
           <h3>A storefront that feels like you.</h3>
           <p>Choose a starting point, then make every colour, word and section your own. No themes that look like everyone else.</p>
-          <a class="cp-fp-arrow" href="#start">Build your shop <span aria-hidden="true">→</span></a>
+          <a class="cp-fp-arrow" href="#start">Join the waitlist <span aria-hidden="true">→</span></a>
           <!-- Live demo shops (site/build.js /demo/): each starter as a sample shop to click around. -->
           <nav class="cp-fp-live" aria-label="See a starter live">
             <span>See one live</span>
@@ -172,7 +172,7 @@
       if (!view) return;
       signupUrl = SIGNUP_URL;
       showFrontPage(document, frontPageWords({ open: true, trialDays: view.trialDays }), { signupUrl });
-      for (const link of document.querySelectorAll(".cp-fp-go, .cp-fp-arrow")) link.href = signupUrl;
+      for (const link of document.querySelectorAll('.cp-fp-go[href="#start"], .cp-fp-arrow[href="#start"]')) link.href = signupUrl;
     });
   }
 

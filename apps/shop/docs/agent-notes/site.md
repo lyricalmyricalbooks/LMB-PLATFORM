@@ -1123,3 +1123,11 @@ Grouped footer navigation defaults to Explore and Participate & connect, with po
 
 **Footer layout (12 October 2026):** `StoreFooter` puts every band in one padded column (dividers line up with the text), link groups on the right by default (Style › Footer & social links › **Where the link groups sit**), and a bottom-bar **Admin** link (`showFooterAdminLink`, words Text & labels › Footer › `footerAdmin`). Spacing/text/colour/divider controls (`footerPaddingY*`, `footerColumnGap`, `footerLinkGap`, `footerTextSize`, `footer*Color`, `showFooterDividers`) become CSS in `features/site/footerStyle.ts`; the bands are regions `footerBrand`/`footerLinks`/`footerLegal`/`footerBottom`/`footerAdmin` for per-device element styling.
 
+
+## The bare stockroom address (25 November 2026)
+
+The stockroom's page names its files relative to itself (`./assets/…`). With `trailingSlash: false`, `/stockroom/`
+became `/stockroom`, where those files resolve to `/assets/…` (404) and the stockroom shows blank. `firebase.json`
+`redirects` now sends `/stockroom`, `/stockroom/` and `/stockroom/index.html` to `/stockroom/app` (its real address,
+rewritten to `stockroom/index.html`). The release's site check (`clients/shop.js` `siteCheckClient`) reads look files
+from the page's final address after redirects. This had stopped every test shop release since 24 November.

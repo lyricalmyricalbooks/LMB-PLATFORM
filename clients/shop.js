@@ -136,7 +136,8 @@ export function siteCheckClient({ fetch }) {
         const problems = [];
         if (response.status === 200 && !text.trim()) problems.push("the page is empty");
         if (response.status === 200) {
-          for (const asset of pageAssets(text, url)) {
+          // Relative look files resolve against where the page ended up, as a browser's do (after any redirect).
+          for (const asset of pageAssets(text, response.url || url)) {
             // Hosting answers a missing file with the app's page (200, text/html), so the type matters as much as the status.
             const file = await fetch(asset, { method: "GET", redirect: "follow" });
             const type = String(file.headers?.get?.("content-type") ?? "");

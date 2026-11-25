@@ -102,8 +102,11 @@ const UPLOAD_MINUTES = 15;
  * `making` is the shop maker's progress (shopMaker.js `progress`): (shopId) -> { status, done, total, now, message,
  * canRetry, openUrl } | null. Listing the presses (setup mode follows it while the shop is made) adds it to each opening press,
  * and moves the record to `open` the first time it reads `ready` (18.9), keeping the way into the admin.
+ *
+ * `startMaking(shopId)`, optional, starts the shop maker now once Open my shop queued a shop (server/jobsNudge.js on
+ * the hosted server, the shop maker's own `make` in the walkthrough). Without it the minute's sweep makes the shop.
  */
-export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, signup = null, making = null, now = () => new Date(), suffix = randomSuffix, random = null, readOldShop = readPublicShop, domainLookup = null, freeNameTaken = null, live = null }) {
+export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, signup = null, making = null, now = () => new Date(), suffix = randomSuffix, random = null, readOldShop = readPublicShop, domainLookup = null, freeNameTaken = null, live = null, startMaking = null }) {
   const shown = (record) => shownRecord(record, settings?.shopAddressDomain ?? "");
   // A name for the free address held by another press still setting up (or opening), or a shop that has it already.
   /** Endings tried, in order, to suggest a free name close to a taken one. */
@@ -179,8 +182,8 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       return { link };
     },
 
-    async startPress(claims) {
-      const { pressId } = await accountStart.start(claims, {});
+    async startPress(claims, body = {}) {
+      const { pressId } = await accountStart.start(claims, { another: body.another === true });
       return { press: shown(await presses.get(pressId)) };
     },
 
@@ -433,6 +436,11 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
         return { row: updated, result: { ok: true, press: shown(updated) } };
       });
       if (!saved.ok) throw new SignupError(saved.status, saved.message);
+      // No wait (sign-up plan, move 3): a queued shop starts being made now, not at the next minute's sweep. A nudge
+      // that fails changes nothing; the sweep still makes it.
+      if (started.status === "queued" && startMaking) {
+        try { await startMaking(started.shopId); } catch { /* the sweep makes it */ }
+      }
       return { press: saved.press, shop: { status: started.status, trialEnd: started.trialEnd ?? null, ...(started.message ? { message: started.message } : {}) } };
     },
   };
@@ -446,7 +454,7 @@ export const frontDoorPublicRoutes = (door) => ({
 
 /** The signed-in routes: the press's setup record. */
 export const frontDoorRoutes = (door) => ({
-  "POST /api/press": (claims) => door.startPress(claims),
+  "POST /api/press": (claims, request) => door.startPress(claims, request?.body ?? {}),
   "GET /api/press": (claims) => door.myPresses(claims),
   "POST /api/press/setup": (claims, request) => door.saveSetup(claims, request.body ?? {}),
   "POST /api/press/import": (claims, request) => door.startImport(claims, request.body ?? {}),

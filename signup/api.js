@@ -153,7 +153,7 @@ export function createApi({ signup, verifyIdToken, settings, routes = {}, public
       return { status: 200, body: { ok: true, ...(await route(request)) } };
     } catch (error) {
       if (isOurError(error) && error.status < 500) {
-        return { status: error.status, body: { ok: false, message: error.message, ...errorHelp(error.status, request?.path), ...(error.problems ? { problems: error.problems } : {}), ...(Number.isInteger(error.retryAfter) ? { retryAfter: error.retryAfter } : {}) } };
+        return { status: error.status, body: { ok: false, message: error.message, ...errorHelp(error.status, request?.path), ...(error.problems ? { problems: error.problems } : {}), ...(Number.isInteger(error.retryAfter) ? { retryAfter: error.retryAfter } : {}), ...(error.closed === true ? { closed: true } : {}) } };
       }
       // Anything else is ours to look into: it goes in the log with a code, and the press sees the same code.
       const ref = errorRef();

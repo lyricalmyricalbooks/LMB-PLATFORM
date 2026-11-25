@@ -94,7 +94,7 @@ test("the pages load their own files, with the sign-in and the pricing pointed a
   assert.match(signupConfig, /FIREBASE_SDK = "\/walkthrough\/firebase"/);
   const waitlistConfig = await (await get("/waitlist/config.js")).text();
   assert.match(waitlistConfig, /PLANS_URL = "\/api\/plans"/);
-  assert.match(waitlistConfig, /SIGNUP_URL = "\/signup\/"/);
+  assert.match(waitlistConfig, /SIGNUP_URL = "\/join\/"/);
   // Not one address of Google's or of a real project goes out to the browser.
   for (const text of [signupConfig, waitlistConfig, await (await get("/waitlist/firestoreStore.js")).text()]) {
     assert.doesNotMatch(text.replace(/^\s*\/\/.*$/gm, ""), /gstatic|googleapis|lmb-platform-prod|AIza/);

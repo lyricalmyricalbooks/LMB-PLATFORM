@@ -219,3 +219,15 @@ test("a shop's email meter counts what the platform sent for it: not its own Gma
   const log = firestoreSentLog({ query: async () => rows.map((data) => ({ data })) });
   assert.equal(await log.countInMonth("s9", "2026-11"), 1);
 });
+
+test("the site check reads relative look files from where the page ended up, as a browser does", async () => {
+  // /stockroom redirects to /stockroom/app (apps/shop/firebase.json); its page names ./assets/…, so the files live under /stockroom/.
+  const page = '<html><script type="module" src="./assets/index-S1.js"></script></html>';
+  const files = { "https://x.example/stockroom/assets/index-S1.js": [200, "text/javascript"] };
+  const fetch = async (url) => {
+    if (url === "https://x.example/stockroom") return { status: 200, url: "https://x.example/stockroom/app", headers: new Map(), text: async () => page };
+    const [status, type] = files[url] ?? [404, "text/html"];
+    return { status, headers: new Map([["content-type", type]]), text: async () => "" };
+  };
+  assert.deepEqual(await siteCheckClient({ fetch }).get("https://x.example/stockroom"), { status: 200, problems: [] });
+});

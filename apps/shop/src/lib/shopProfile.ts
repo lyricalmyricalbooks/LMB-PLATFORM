@@ -37,6 +37,8 @@ export type ShopProfile = {
   tenant?: string;
   functionsRegion: string;
   siteUrl: string;
+  /** Colophon's own address (no trailing slash): the admin's sign-in page offers an emailed code there. Missing on older shops. */
+  platformUrl?: string;
   appCheckSiteKey?: string;
   apps: { shop: boolean; stockroom: boolean };
   payments?: ShopPayments;
@@ -129,6 +131,7 @@ export function parseShopProfile(value: unknown): ShopProfile | null {
     ...(profile.tenant !== undefined ? { tenant: profile.tenant } : {}),
     functionsRegion: profile.functionsRegion,
     siteUrl: profile.siteUrl,
+    ...(typeof profile.platformUrl === "string" && /^https:\/\/[^/\s]+$/.test(profile.platformUrl) ? { platformUrl: profile.platformUrl } : {}),
     ...(profile.appCheckSiteKey ? { appCheckSiteKey: profile.appCheckSiteKey } : {}),
     apps: { shop: apps.shop, stockroom: apps.stockroom },
     ...(payments ? { payments } : {}),

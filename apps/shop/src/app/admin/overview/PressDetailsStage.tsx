@@ -2,7 +2,7 @@ import { useState } from "react";
 import { POSTAL_LABEL, US_SHOP } from "../moneySign";
 import { adminApi } from "../api";
 import { COUNTRIES } from "../../features/site/shippingZones";
-import { pressDetailsFrom, pressDetailsPatch, pressDetailsProblems, type PressDetails, type PressDetailsField } from "../pressDetails";
+import { nameAndCountryKnown, pressDetailsFrom, pressDetailsPatch, pressDetailsProblems, type PressDetails, type PressDetailsField, type SignupFacts } from "../pressDetails";
 import { friendlyError } from "../studio/friendlyError";
 import { LoadingState, PrimaryButton, SecondaryButton, SectionCard, SelectField, TextField } from "../riso/components";
 
@@ -11,8 +11,10 @@ import { LoadingState, PrimaryButton, SecondaryButton, SectionCard, SelectField,
  * the Overview for a new shop. `settings` is settings/website as the Overview read it: undefined while it loads, null
  * when it couldn't be read. `onDone` gets the time once the details are saved; the parent records it on `firstWeek`.
  */
-export function PressDetailsStage({ settings, onDone, onRetrySettings }: {
+export function PressDetailsStage({ settings, known = {}, onDone, onRetrySettings }: {
   settings: any;
+  /** What sign-up already asked (brand name, country, sign-in email). A name and country given there are not asked again. */
+  known?: SignupFacts;
   onDone: (at: string) => Promise<void>;
   onRetrySettings?: () => void;
 }) {
@@ -33,7 +35,9 @@ export function PressDetailsStage({ settings, onDone, onRetrySettings }: {
     );
   }
 
-  const current = form || pressDetailsFrom(settings);
+  const current = form || pressDetailsFrom(settings, known);
+  // Sign-up asked the brand name and country (move 2 of the sign-up plan): they show as one line here, never as fields again.
+  const asked = nameAndCountryKnown(settings, known);
   const set = (field: PressDetailsField, value: string) => {
     setForm({ ...current, [field]: value });
     if (errors[field]) setErrors({ ...errors, [field]: undefined });
@@ -57,21 +61,29 @@ export function PressDetailsStage({ settings, onDone, onRetrySettings }: {
   };
 
   return (
-    <SectionCard title="Your brand" description="These go on receipts, labels and your contact page." collapsible={false}>
+    <SectionCard title={asked ? "Where customers reach you" : "Your brand"} description={asked ? "Your email and address go on receipts, labels and your contact page." : "These go on receipts, labels and your contact page."} collapsible={false}>
       <div style={{ display: "grid", gap: 14 }}>
-        <TextField label="Brand name" value={current.name} maxLength={100} error={errors.name} placeholder="Moth Press"
-          onChange={(e) => set("name", e.target.value)} />
+        {asked ? (
+          <p className="rp-hint" style={{ margin: 0 }}>
+            <b style={{ color: "var(--rp-text)" }}>{current.name}</b> in <b style={{ color: "var(--rp-text)" }}>{current.country}</b>, as you told us when you signed up. You can change either in Settings.
+          </p>
+        ) : (
+          <TextField label="Brand name" value={current.name} maxLength={100} error={errors.name} placeholder="Moth Press"
+            onChange={(e) => set("name", e.target.value)} />
+        )}
         <TextField label="Contact email" type="email" value={current.email} error={errors.email} placeholder="hello@yourpress.example"
-          autoComplete="email" onChange={(e) => set("email", e.target.value)} />
+          autoComplete="email" hint={asked ? "Customers write to this address. It can be different from the one you sign in with." : undefined} onChange={(e) => set("email", e.target.value)} />
         <TextField label="Street address" value={current.street} error={errors.street} placeholder="12 Queen Street"
           autoComplete="address-line1" hint="Your orders ship from here." onChange={(e) => set("street", e.target.value)} />
         <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
           <TextField label="City" value={current.city} error={errors.city} autoComplete="address-level2" onChange={(e) => set("city", e.target.value)} />
           <TextField label={US_SHOP ? "State" : "State / province"} value={current.state} autoComplete="address-level1" onChange={(e) => set("state", e.target.value)} />
           <TextField label={POSTAL_LABEL} value={current.zip} error={errors.zip} autoComplete="postal-code" onChange={(e) => set("zip", e.target.value)} />
-          <SelectField label="Country" value={current.country} error={errors.country} onChange={(e) => set("country", e.target.value)}>
-            {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
-          </SelectField>
+          {!asked && (
+            <SelectField label="Country" value={current.country} error={errors.country} onChange={(e) => set("country", e.target.value)}>
+              {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
+            </SelectField>
+          )}
         </div>
       </div>
       {error && <p role="alert" className="rp-hint" style={{ margin: "12px 0 0", color: "var(--rp-danger)" }}>{error}</p>}

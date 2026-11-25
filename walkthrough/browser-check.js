@@ -140,8 +140,21 @@ async function checkFrontDoor(browser, walk, log) {
       }
       const [saved] = await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`);
       if (saved?.status !== "open" || saved?.plan !== "both" || saved?.pressName !== "Front Door Press" || saved?.sells !== "clothing" || saved?.sellingToday || saved?.country !== "CA") throw new Error(`saved ${JSON.stringify(saved)}`);
+      // The starter "Your new store" showed (clothing: Aurel) is the one the shop opens on (sign-up plan, move 2).
+      if (saved?.look !== "aurel-editorial" || saved?.lookStyle !== "cobalt") throw new Error(`the shown starter wasn't saved: ${saved?.look} ${saved?.lookStyle}`);
       const row = await walk.world.stores.signups.get(saved.shopId);
       if (!row?.trialStartedAt || row?.plan !== "both") throw new Error(`the trial didn't start with both apps: ${JSON.stringify(row)}`);
+    });
+
+    await step("Email me a sign-in code from a shop's admin comes back here and goes straight into that admin (move 3)", async () => {
+      const [saved] = await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`);
+      const want = (await walk.world.stores.signups.get(saved.shopId))?.openUrl;
+      if (!want) throw new Error("the shop has no way in yet");
+      // The made-up shop's admin isn't served here: answer for it, so the check sees where the page went.
+      await page.route(`${want}**`, (route) => route.fulfill({ contentType: "text/html", body: "<p>the admin</p>" }));
+      await page.goto(`${walk.url}/join/?open=${saved.shopId}`);
+      await page.waitForURL((url) => url.href.startsWith(want), { timeout: 10_000 });
+      await page.unroute(`${want}**`);
     });
     await step("setup mode, for a press that set up before stores were made at sign-up (code plan 18.6)", async () => {
       const built = existsSync(join(ROOT, SETUP_ADMIN_FOLDER, "setup.html"));
@@ -212,6 +225,25 @@ async function checkFrontDoor(browser, walk, log) {
       await page.goto(`${walk.url}/join/`);
       await visible("#view-pick");
       await page.locator("#pick-list button", { hasText: "Brand not named yet" }).click();
+      await visible("#view-start");
+    });
+    await step("a country that isn't open yet keeps its place on a calm page, not an error", async () => {
+      await page.fill("#start-form input[name=pressName]", "Later Press");
+      await page.click("#type-choices label.choice:has(input[value=books])");
+      await page.selectOption("#country", "GB");
+      await page.check("#start-form input[name=termsAccepted]");
+      await page.click("#start-form button[type=submit]");
+      await visible("#view-later");
+      if (!(await page.locator("#later-country").textContent())?.includes("United Kingdom")) throw new Error("the page doesn't name the country");
+      if (await page.locator("#start-error").isVisible()) throw new Error("an error shows too");
+      if (process.env.WALKTHROUGH_SHOTS) {
+        await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "join-later-phone.png"), fullPage: true });
+        const phone = page.viewportSize();
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "join-later.png"), fullPage: true });
+        if (phone) await page.setViewportSize(phone);
+      }
+      await page.click("#later-change");
       await visible("#view-start");
     });
     await step("Create my shop starts the plan and queues the shop (code plan 18.8)", async () => {

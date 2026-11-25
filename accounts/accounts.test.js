@@ -21,7 +21,7 @@ const CAL = { uid: "uid-cal", email: "cal@example.com", email_verified: true };
 const SHOP = "moth-press";
 const OTHER = "press-two";
 
-function world() {
+function world({ signedInUrl } = {}) {
   let clock = Date.parse("2026-10-28T12:00:00Z");
   const settings = platformSettings({});
   const registry = fakeRegistry();
@@ -44,7 +44,7 @@ function world() {
   let n = 0;
   const accounts = createAccounts({
     accounts: signupStores.accounts, ...stores, registry, shopData, auditLog, email, settings,
-    now: () => new Date(clock), token: () => `secret-${(n += 1)}`,
+    now: () => new Date(clock), token: () => `secret-${(n += 1)}`, ...(signedInUrl ? { signedInUrl } : {}),
   });
   const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings, routes: accountRoutes(accounts) });
   const ask = (claims, method, path, body) => api({ method, path, body, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
@@ -71,6 +71,18 @@ test("the shop switcher lists every shop with the person's role and sends them t
   assert.equal((await w.ask(CAL, "POST", "/api/accounts/switch", { shopId: SHOP })).status, 404, "not on the team");
 });
 
+test("the switcher sends a person into the admin already signed in, and never signs them into the stockroom (move 3)", async () => {
+  const asked = [];
+  const w = world({ signedInUrl: async (shopId, email, url) => { asked.push([shopId, email]); return `${url}#support=tok`; } });
+  const own = await w.ask(OWNER, "POST", "/api/accounts/switch", { shopId: SHOP });
+  assert.deepEqual([own.body.url, own.body.signedIn], [`https://${SHOP}.example/admin#support=tok`, true]);
+  assert.deepEqual(asked, [[SHOP, OWNER.email]]);
+  await w.accounts.invite(OWNER, { shopId: SHOP, email: CAL.email, role: "author" });
+  await w.accounts.accept(CAL, w.secretOf(CAL.email));
+  assert.deepEqual(await w.accounts.switchTo(CAL, SHOP), { shopId: SHOP, role: "author", url: `https://${SHOP}-stockroom.web.app`, signedIn: false });
+  assert.equal(asked.length, 1);
+});
+
 test("an author goes to the stockroom, never to the admin", async () => {
   const w = world();
   await w.accounts.invite(OWNER, { shopId: SHOP, email: CAL.email, role: "author" });
@@ -87,7 +99,7 @@ test("a bookkeeper is invited like any role, goes to the admin (its Bookkeeping 
   assert.match(w.email.list().at(-1).data.roleWords, /bookkeeper.*without changing anything/);
   await w.accounts.accept(CAL, w.secretOf(CAL.email));
   assert.equal(w.shopData.docs.get(`${SHOP} members/${CAL.email}`).role, "bookkeeper");
-  assert.deepEqual(await w.accounts.switchTo(CAL, SHOP), { shopId: SHOP, role: "bookkeeper", url: `https://${SHOP}.example/admin` });
+  assert.deepEqual(await w.accounts.switchTo(CAL, SHOP), { shopId: SHOP, role: "bookkeeper", url: `https://${SHOP}.example/admin`, signedIn: false });
   // Only an owner manages the team: a bookkeeper can't invite or see it.
   assert.equal((await w.ask(CAL, "POST", "/api/accounts/team", { shopId: SHOP })).status, 403);
   assert.equal((await w.ask(CAL, "POST", "/api/accounts/invite", { shopId: SHOP, email: "dee@example.com", role: "bookkeeper" })).status, 403);
