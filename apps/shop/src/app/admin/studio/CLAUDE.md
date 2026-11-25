@@ -79,3 +79,4 @@ Details of each feature live in [`docs/agent-notes/studio.md`](../../../../docs/
 - Starters and Studio rethink, step 5: Try this starter (24 November 2026)
 - Make it yours (25 November 2026, round three phase 3)
 - Calmer Studio (25 November 2026, round three phase 4)
+- Site styles, Shoppable photo and Lookbook (25 November 2026, round three phase 5)

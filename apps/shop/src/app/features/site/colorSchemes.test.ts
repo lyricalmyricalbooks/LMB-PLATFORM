@@ -210,7 +210,7 @@ describe("parts of the shop that can follow a scheme carry its class", () => {
       const cards = (text.match(/fm-card-title/g) || []).length;
       const roots = (text.match(/["`]fm-card\s/g) || []).length;
       expect(roots, f).toBeGreaterThanOrEqual(Math.min(cards, 1));
-      expect(roots, f).toBe(f.endsWith("SectionComponents.tsx") ? 4 : 1); // Showcase grid, Product grid, Featured collection, Book spotlight
+      expect(roots, f).toBe(f.endsWith("SectionComponents.tsx") ? 5 : 1); // Showcase grid, Product grid, Featured collection, Book spotlight, a shoppable photo's dot card
     }
   });
   it("keeps the buy card and bag classes the scheme rules target", () => {

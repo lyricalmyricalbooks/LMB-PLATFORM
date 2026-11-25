@@ -2230,6 +2230,59 @@ await check("calmer Studio on a phone: Sections slides up over the shop, which s
   await page.waitForTimeout(300);
   if (await page.locator(".studio-rail").isVisible()) throw new Error("the sheet stayed open on Preview");
 });
+await check("Style › Site styles: one click puts a palette and a font pairing on the whole shop, Undo takes it back", desktop, async page => {
+  await page.locator("[data-open-site-styles]").click();
+  await page.locator("[data-studio-site-styles]").waitFor();
+  await page.locator('[data-site-palette="newsprint"]').click();
+  await page.locator('[data-site-palette="newsprint"][aria-checked="true"]').waitFor({ timeout: 5000 });
+  await page.locator('[data-site-fonts="bookish"]').click();
+  await page.locator('[data-site-fonts="bookish"][aria-checked="true"]').waitFor({ timeout: 5000 });
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator("body").waitFor();
+  await page.waitForFunction(() => {
+    const doc = document.querySelector("iframe")?.contentDocument;
+    // The shop's page (its full-height root) wears the Newsprint paper colour.
+    return !!doc && [...doc.querySelectorAll("body .min-h-screen")].some((el) => getComputedStyle(el).backgroundColor === "rgb(244, 241, 234)");
+  }, null, { timeout: 10000 }).catch(() => { throw new Error("the preview did not take the Newsprint page colour"); });
+  await page.keyboard.press(`${mod}+z`);
+  await page.locator('[data-site-fonts="bookish"][aria-checked="false"]').waitFor({ timeout: 5000 });
+  await page.locator('[data-site-palette="newsprint"][aria-checked="true"]').waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: "Done" }).click();
+  await page.locator("[data-open-site-styles]").waitFor();
+}, "#designer?tab=essentials");
+
+await check("Shoppable photo: dots open a product card with Add to bag", desktop, async page => {
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Shoppable photo/ }).first().click();
+  await expectText(page, "Home · 1 section");
+  const frame = page.frameLocator("iframe").first();
+  const dot = frame.locator("[data-shop-dot]").first();
+  await dot.waitFor({ timeout: 15000 });
+  if (await frame.locator("[data-shop-dot]").count() !== 2) throw new Error("a new Shoppable photo should start with two dots");
+  // Browse mode: clicks in the preview act like a shopper's instead of opening settings.
+  await page.getByRole("button", { name: "Switch to Browse mode" }).click();
+  await dot.click();
+  await frame.locator(".fm-shop-dot-card").first().waitFor({ timeout: 5000 });
+  if ((await dot.getAttribute("aria-expanded")) !== "true") throw new Error("the dot does not say its card is open");
+  // Measured inside the shop (the preview is scaled to fit Studio): every dot is a 44px tap target.
+  const size = await dot.evaluate((el) => [el.offsetWidth, el.offsetHeight]);
+  if (size[0] < 44 || size[1] < 44) throw new Error(`a dot is smaller than a finger (${size.join("×")})`);
+  await dot.click();
+  await frame.locator(".fm-shop-dot-card").waitFor({ state: "detached", timeout: 5000 });
+}, "#designer?tab=sections");
+
+await check("Lookbook: looks in a row become a slider", desktop, async page => {
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Lookbook/ }).first().click();
+  await expectText(page, "Home · 1 section");
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator('[data-lookbook-layout="row"] figure').first().waitFor({ timeout: 15000 });
+  if (await frame.locator('[data-lookbook-layout="row"] figure').count() !== 3) throw new Error("a new Lookbook should start with three looks");
+  // Browse mode: clicks in the preview act like a shopper's instead of opening settings.
+  await page.getByRole("button", { name: "Switch to Browse mode" }).click();
+  await frame.locator("[data-shop-dot]").first().click();
+  await frame.locator(".fm-shop-dot-card").first().waitFor({ timeout: 5000 });
+}, "#designer?tab=sections");
 
 await check("a computer opens on the computer preview", desktop, async page => {
   const pressed = await page.getByRole("button", { name: "Computer preview" }).getAttribute("aria-pressed");

@@ -1,6 +1,7 @@
 import { backgroundImageValue } from "../features/site/backgroundSources";
 import { m, useMotionValue, useSpring } from "motion/react";
 import { quickAddChoice } from "../features/site/buyable";
+import { notForSale } from "../features/site/comingSoon";
 import { displayPrice, showsSale } from "../features/site/displayPrice";
 import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
 import { Send, ChevronLeft, ChevronRight, MapPin, Clock, Users, Navigation } from "lucide-react";
@@ -3574,6 +3575,180 @@ export function StickyAddToBagSection({ settings }: any) {
           </button>
           <span role="status" className="sr-only">{added ? word("addedText") : ""}</span>
         </div>
+      </div>
+    </section>
+  );
+}
+
+// ──────────────────────────────
+// SHOPPABLE PHOTO AND LOOKBOOK (round three, phase 5)
+// ──────────────────────────────
+
+/** One dot on a shoppable photo: a product and where it sits, as a share of the photo's width and height. */
+type ShopDot = { book: any; x: number; y: number };
+
+const clampPct = (v: unknown, fallback: number) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.max(4, Math.min(96, n)) : fallback;
+};
+
+/** A dot's product: the one picked, else (left blank) the shop's next product, so a new section shows something. */
+function dotBook(books: any[], slug: unknown, index: number): any {
+  if (typeof slug === "string" && slug.trim()) return pickBook(books, { productSlug: slug.trim() }) || null;
+  const list = selectBooks(books, {});
+  return list.length ? list[index % list.length] : null;
+}
+
+const LOOK_COLUMNS: Record<number, string> = { 2: "", 3: "lg:grid-cols-3", 4: "lg:grid-cols-4" };
+const SHOP_ASPECTS: Record<string, string> = { portrait: "aspect-[4/5]", square: "aspect-square", landscape: "aspect-[3/2]", wide: "aspect-[16/9]" };
+
+/** The small product card a dot opens: photo, name, price, Add to bag (or the product page when it has choices). */
+function ShopDotCard({ book, settings, type, onProductClick, onClose }: { book: any; settings: any; type: string; onProductClick?: (b: any) => void; onClose: () => void }) {
+  const { addToCart } = useCart();
+  const { formatBookPrice } = useCurrency();
+  const sc = useSectionCopy();
+  const [added, setAdded] = useState(false);
+  const word = (key: string) => settings[key] ?? fb(`${type}.${key}`);
+  const variants = Array.isArray(book.variants) ? book.variants : [];
+  const quick = quickAddChoice(book);
+  const needsChoice = variants.length > 1 || (Array.isArray(book.addOns) && book.addOns.length > 0) || book.preorder === true || book.productType === "giftCard";
+  const viewOnly = notForSale(book) || needsChoice;
+  const soldOut = !viewOnly && !quick.inStock;
+  const photo = smallPhotoUrl(book.photos?.[0], 160);
+  const add = () => {
+    if (viewOnly) { onProductClick?.(book); return; }
+    if (addToCart(book, quick.variant)) { setAdded(true); window.setTimeout(() => setAdded(false), 2500); }
+  };
+  return (
+    <div className="fm-card fm-shop-dot-card flex gap-3 p-3 text-left shadow-lg" style={{ background: "var(--surface, var(--bg-color, Canvas))", color: "var(--text-color, CanvasText)", borderRadius: "var(--rp-card-radius, 10px)", border: "1px solid rgba(var(--fg-rgb, 0, 0, 0), 0.12)" }}>
+      <button type="button" className="h-20 w-16 shrink-0 overflow-hidden" onClick={() => onProductClick?.(book)} aria-label={sc("sectionViewBook", { title: book.title })}>
+        {photo ? <img src={photo} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" /> : <NoPhoto />}
+      </button>
+      <div className="min-w-0 flex-1">
+        <p className="fm-card-title text-sm font-bold leading-snug" style={hStyle(settings)}>{book.title}</p>
+        {settings.showPrices !== false && <p className="fm-card-price-wrap mt-0.5 text-xs fm-muted"><span className="fm-card-price">{formatBookPrice(book)}</span></p>}
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <button type="button" disabled={soldOut} onClick={add}
+            className="min-h-[36px] px-3 text-[11px] font-bold tracking-[0.12em] uppercase disabled:opacity-50"
+            style={{ backgroundColor: "var(--btn-bg, #111111)", color: "var(--btn-text, #ffffff)", ...btnS(settings) }}>
+            {soldOut ? <span data-theme-field="soldOutText">{word("soldOutText")}</span> : viewOnly ? <span data-theme-field="viewText">{word("viewText")}</span> : <span data-theme-field="addText">{word("addText")}</span>}
+          </button>
+          <button type="button" className="min-h-[36px] text-[11px] underline underline-offset-4" onClick={onClose}><span data-theme-field="closeText">{word("closeText")}</span></button>
+        </div>
+        <span role="status" className="sr-only">{added ? word("addedText") : ""}</span>
+      </div>
+    </div>
+  );
+}
+
+/** A photo with dots on it. Each dot opens its product's card beside it (below the photo on phones). */
+function ShoppableFrame({ image, alt, dots, aspect, settings, type, onProductClick, fieldKey }: {
+  image: string; alt: string; dots: ShopDot[]; aspect?: string; settings: any; type: string; onProductClick?: (b: any) => void; fieldKey?: string;
+}) {
+  const [open, setOpen] = useState<number | null>(null);
+  const cardId = useId();
+  const sc = useSectionCopy();
+  const shown = open !== null ? dots[open] : null;
+  return (
+    <div className="relative" onKeyDown={(e) => { if (e.key === "Escape" && open !== null) { e.stopPropagation(); setOpen(null); } }}>
+      <div className={`relative overflow-hidden ${SHOP_ASPECTS[aspect || ""] || SHOP_ASPECTS.portrait}`} style={{ borderRadius: "var(--rp-card-radius, 0px)" }}>
+        {fieldKey ? <StyledImage src={image} alt={alt} settings={settings} fieldKey={fieldKey} loading="lazy" decoding="async" />
+          : <img src={image} alt={alt} loading="lazy" decoding="async" className="h-full w-full object-cover" />}
+        {dots.map((d, i) => (
+          <button key={i} type="button" data-shop-dot={i + 1}
+            className="fm-shop-dot absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
+            style={{ left: `${d.x}%`, top: `${d.y}%` }}
+            aria-expanded={open === i} aria-controls={open === i ? cardId : undefined}
+            aria-label={sc("sectionViewBook", { title: d.book.title })}
+            onClick={() => setOpen(open === i ? null : i)}>
+            <span aria-hidden="true" className="block h-5 w-5 rounded-full transition-transform"
+              style={{ background: "var(--btn-bg, #111111)", boxShadow: "0 0 0 4px rgba(var(--surface-rgb, 255, 255, 255), 0.8)", transform: open === i ? "scale(1.25)" : undefined }} />
+          </button>
+        ))}
+      </div>
+      {shown && (
+        <div id={cardId} role="group" aria-label={shown.book.title}
+          className="fm-shop-dot-pop relative z-10 mt-3 w-full md:absolute md:mt-0 md:w-72"
+          style={{ ["--dot-x" as any]: `${shown.x}%`, ["--dot-y" as any]: `${shown.y}%` }}
+          data-side={shown.x > 55 ? "left" : "right"}>
+          <ShopDotCard book={shown.book} settings={settings} type={type} onProductClick={onProductClick} onClose={() => setOpen(null)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Shoppable photo: one big photo with dots on the products in it; words beside it or above it. */
+export function ShoppablePhotoSection({ settings, books, onProductClick, enableAnimations }: any) {
+  const design = useSectionDesign();
+  const raw = settings.items || settings.blocks;
+  const blocks: any[] = Array.isArray(raw) ? raw : [];
+  const dots: ShopDot[] = blocks.map((b, i) => ({ book: dotBook(books || [], b?.productSlug, i), x: clampPct(b?.x, 30 + i * 20), y: clampPct(b?.y, 40 + (i % 2) * 20) }))
+    .filter((d) => d.book);
+  // No photo yet: Studio's preview shows the shop's stand-in picture so the dots can be placed; shoppers see nothing.
+  const image = settings.imageUrl || (inStudioPreview() ? placeholderImage(design) : "");
+  if (!image) return null;
+  const side = settings.layout === "words-left" || settings.layout === "words-right";
+  const title = settings.title ?? fb("ShoppablePhotoSection.title");
+  const words = (title || settings.body) ? (
+    <div className={side ? "space-y-4" : "mb-8 max-w-2xl space-y-3"}>
+      {title && <h2 className="text-3xl md:text-4xl tracking-tight" style={hStyle(settings)} data-theme-field="title">{title}</h2>}
+      {settings.body && <p className="fm-muted leading-relaxed" style={bStyle(settings)} data-theme-field="body">{settings.body}</p>}
+    </div>
+  ) : null;
+  const frame = <ShoppableFrame image={image} alt={settings.imageAlt || ""} dots={dots} aspect={settings.aspect} settings={settings} type="ShoppablePhotoSection" onProductClick={onProductClick} fieldKey={settings.imageUrl ? "imageUrl" : undefined} />;
+  return (
+    <section style={bgStyle(settings)}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings, "max-w-6xl")}`} data-studio-spacing="" style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {side ? (
+            <div className={`grid gap-10 md:grid-cols-[2fr_3fr] items-center ${settings.layout === "words-right" ? "md:[&>*:first-child]:order-2 md:grid-cols-[3fr_2fr]" : ""}`}>
+              {words}{frame}
+            </div>
+          ) : <>{words}{frame}</>}
+        </AnimationContainer>
+      </div>
+    </section>
+  );
+}
+
+/** Lookbook: several shoppable photos in a row or a slider. A look without its own photo shows its product's. */
+export function LookbookSection({ settings, books, onProductClick, enableAnimations }: any) {
+  const design = useSectionDesign();
+  const raw = settings.items || settings.blocks;
+  const blocks: any[] = Array.isArray(raw) ? raw : [];
+  const list = books || [];
+  const looks = blocks.map((b, i) => {
+    const dots: ShopDot[] = [
+      { book: dotBook(list, b?.productSlug, i * 2), x: clampPct(b?.x, 45), y: clampPct(b?.y, 45) },
+      ...(b?.secondProductSlug ? [{ book: dotBook(list, b.secondProductSlug, i * 2 + 1), x: clampPct(b?.secondX, 65), y: clampPct(b?.secondY, 70) }] : []),
+    ].filter((d) => d.book);
+    // No photo of its own: its product's photo, else the shop's stand-in picture (Style › placeholder image).
+    const image = b?.imageUrl || smallPhotoUrl(dots[0]?.book?.photos?.[0], 900) || placeholderImage(design);
+    return { image, alt: b?.imageAlt || (b?.imageUrl ? "" : dots[0]?.book?.title || ""), caption: b?.caption || "", dots };
+  });
+  if (!looks.length) return inStudioPreview() ? <section style={bgStyle(settings)}><p className="py-16 px-6 text-center text-sm fm-muted">Add looks to this lookbook, each with a photo and the products in it.</p></section> : null;
+  const title = settings.title ?? fb("LookbookSection.title");
+  const slider = settings.layout === "slider";
+  const cols = Math.max(2, Math.min(4, Number(settings.columns) || 3));
+  return (
+    <section style={bgStyle(settings)}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings, "max-w-7xl")}`} data-studio-spacing="" style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {(title || settings.body) && <div className="mb-8 max-w-2xl space-y-3">
+            {title && <h2 className="text-3xl md:text-4xl tracking-tight" style={hStyle(settings)} data-theme-field="title">{title}</h2>}
+            {settings.body && <p className="fm-muted leading-relaxed" style={bStyle(settings)} data-theme-field="body">{settings.body}</p>}
+          </div>}
+          <div className={slider ? "fm-lookbook-slider -mx-6 flex snap-x snap-mandatory gap-5 overflow-x-auto px-6 pb-4" : `grid gap-6 sm:grid-cols-2 ${LOOK_COLUMNS[cols]}`}
+            data-lookbook-layout={slider ? "slider" : "row"} tabIndex={slider ? 0 : undefined} aria-label={slider ? title || undefined : undefined}>
+            {looks.map((l, i) => (
+              <figure key={i} className={slider ? "w-[78%] shrink-0 snap-start sm:w-[44%] lg:w-[31%]" : "fm-lookbook-look"}>
+                <ShoppableFrame image={l.image} alt={l.alt} dots={l.dots} aspect={settings.aspect} settings={settings} type="LookbookSection" onProductClick={onProductClick} />
+                {l.caption && <figcaption className="mt-3 text-sm fm-muted" style={bStyle(settings)}>{l.caption}</figcaption>}
+              </figure>
+            ))}
+          </div>
+        </AnimationContainer>
       </div>
     </section>
   );
