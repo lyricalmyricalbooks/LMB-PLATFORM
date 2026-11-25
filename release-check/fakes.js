@@ -10,7 +10,7 @@ export const READY_PROFILE = Object.freeze({ payments: { provider: "stripe", mod
 export function fakeTestShop({ faults = [], orders = {} } = {}) {
   const has = (fault) => faults.includes(fault);
   const world = {
-    books: Object.fromEntries(TEST_PRINTED_IDS.map((id) => [id, { stockLevel: TEST_STOCK, trackInventory: true }])),
+    books: Object.fromEntries(TEST_PRINTED_IDS.map((id) => [id, { status: "published", stockLevel: TEST_STOCK, trackInventory: true }])),
     orders: structuredClone(orders),
     emailLog: [],
     stockroom: { open: false, onHand: Object.fromEntries(TEST_PRINTED_IDS.map((id) => [id, TEST_STOCK])), published: false, websiteOrders: {} },
@@ -71,6 +71,10 @@ export function fakeTestShop({ faults = [], orders = {} } = {}) {
     async removeOrder(id) {
       world.calls.push(`removeOrder:${id}`);
       delete world.orders[id];
+    },
+    async putBook(id, data) {
+      world.calls.push(`putBook:${id}`);
+      world.books[id] = structuredClone(data);
     },
   };
   const stockroomData = {

@@ -58,6 +58,12 @@ Each test shop also gets sample records (`setup/test-sample-data.js`), so every 
 Setup step 12 adds whatever is missing, and "Make the test shop" looks at it on every run, so a test shop made before a sample existed gets it next run. The control room's **Reset sample data** writes the products and every sample
 record again with today's dates; the stockroom part only when the control room can reach the stockroom.
 
+The release check puts back its own item by itself (25 November 2026, `release-check/checks.js` `restoreTestItem`): before
+check 1, when the first stocked item is missing, not published or sold out, it is written again from the starter catalogue
+(the same record Reset sample data writes), the run's log says "Before the checks: …" and the check's record keeps it under
+`restored`. All eight checks then run on it unchanged. Before this, one hidden sample book on Test Press failed every
+"Update the test shop" run for a day.
+
 ## Why
 
 Today's checks never pay. The shop's click-through check stops before payment, and the admin check only looks for the

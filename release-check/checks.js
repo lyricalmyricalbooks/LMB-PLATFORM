@@ -10,7 +10,7 @@
 //   shopAdmin      refund(orderId) (the shop's own refundOrder, as the test owner)
 //   wait(what, test, { timeoutMs }) resolves with test()'s first truthy answer, or throws "<what> didn't happen in …"
 //   state          what earlier checks found (orderId, stock before), for later ones
-import { TEST_PRINTED_IDS, stockedIds } from "../setup/test-catalogue.js";
+import { TEST_PRINTED_IDS, stockedIds, testShopDocs } from "../setup/test-catalogue.js";
 import { testShopKind } from "../setup/testShopPlace.js";
 
 /** The book test shop's item the check buys. */
@@ -45,6 +45,23 @@ export function cardPaymentsWaiting(profile) {
     return "the test shop's profile has no Stripe test publishable key, so its checkout can't show the card form (repository variable STRIPE_TEST_PUBLISHABLE_KEY, then run \"Make the test shop\")";
   }
   return null;
+}
+
+/**
+ * Before the checks: the item the check looks at and buys is the test shop's own sample, so when it is missing, hidden
+ * or sold out (someone tried things on the test shop, 24-25 November 2026) it goes back as setup step 12 made it, from
+ * the same starter record the control room's Reset sample data writes. Every check still runs on it unchanged; this only
+ * stops a changed sample from blocking every update. Returns what was wrong, in plain words, or null when it was fine.
+ */
+export async function restoreTestItem(ctx) {
+  const id = itemFor(ctx.shop);
+  const item = await ctx.shopData.book(id);
+  const wrong = !item ? "was missing" : item.status !== "published" ? `was ${item.status ? `"${item.status}"` : "not published"}` : (stockOf(item) ?? 0) < 1 ? "was sold out" : null;
+  if (!wrong) return null;
+  const starter = testShopDocs(testShopKind(ctx.shop)).find((doc) => doc.path === `books/${id}`);
+  if (!starter) throw new Error(`the test item ${id} ${wrong} and there is no starter record to put back; setup step 12 adds it`);
+  await ctx.shopData.putBook(id, starter.data);
+  return `the test item ${id} ${wrong}, so it was put back as the starter catalogue has it`;
 }
 
 // Each check that needs a purchase says so (`needsPayment`); while card payments wait, `whenWaiting` runs instead

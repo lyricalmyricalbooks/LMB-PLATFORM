@@ -106,13 +106,52 @@ test("clean-up removes only test orders paid in test mode and older than seven d
   assert.deepEqual(Object.keys(shop.world.orders).sort(), ["TEST-1", "oddTest", "real", "recent"]);
 });
 
-test("a sold-out test book stops check 2 for a person, before anything is bought", async () => {
+test("a sold-out, hidden or missing test item is put back before the checks, logged, and every check still runs", async () => {
+  for (const [why, change] of [
+    ["was sold out", (books) => { books[BOOK].stockLevel = 0; }],
+    ['was "draft"', (books) => { books[BOOK].status = "draft"; }],
+    ["was missing", (books) => { delete books[BOOK]; }],
+  ]) {
+    const { registry, shop, run, lines } = await setup();
+    change(shop.world.books);
+    const result = await run();
+    assert.equal(result.ok, true, `${why}: ${result.error}`);
+    assert.deepEqual(result.results.map((r) => r.status), Array(8).fill("passed"), why);
+    assert.equal(shop.world.calls.filter((c) => c.startsWith("putBook:")).length, 1, why);
+    assert.equal(shop.world.books[BOOK].status, "published");
+    assert.equal(shop.world.books[BOOK].stockLevel, TEST_STOCK, "bought once and refunded, from the starter count");
+    assert.ok(lines.some((line) => line.startsWith(`Before the checks: the test item ${BOOK} ${why}`)), why);
+    assert.match(result.restored, new RegExp(why));
+    const [entry] = await registry.readReleaseChecks(ID);
+    assert.match(entry.restored, new RegExp(why));
+  }
+});
+
+test("a healthy test item is left alone", async () => {
+  const { shop, run, lines } = await setup();
+  const result = await run();
+  assert.equal(result.restored, undefined);
+  assert.ok(!shop.world.calls.some((c) => c.startsWith("putBook:")));
+  assert.ok(!lines.some((line) => line.startsWith("Before the checks")));
+});
+
+test("without a way to put the item back, a sold-out test book still stops check 2 before anything is bought", async () => {
   const { shop, run } = await setup();
+  delete shop.clients.shopData.putBook;
   shop.world.books[BOOK].stockLevel = 0;
   const result = await run();
   assert.equal(result.failedCheck, 2);
   assert.match(result.error, /sold out; reset the test shop.s sample data/);
   assert.ok(!shop.world.calls.includes("buy"));
+});
+
+test("when putting the item back fails, the run says so and the checks report as before", async () => {
+  const { shop, run, lines } = await setup();
+  shop.clients.shopData.putBook = async () => { throw new Error("permission denied"); };
+  shop.world.books[BOOK].stockLevel = 0;
+  const result = await run();
+  assert.ok(lines.includes("Before the checks: permission denied."));
+  assert.equal(result.failedCheck, 2);
 });
 
 test("the waiter asks until the answer comes, then stops", async () => {
