@@ -5,7 +5,7 @@
 // It only ever runs on the test shop: a shop whose registry row isn't marked `testShop: true` (and in test mode) is
 // refused before anything is opened, bought or refunded.
 import { randomUUID } from "node:crypto";
-import { CHECKS, cardPaymentsWaiting } from "./checks.js";
+import { CHECKS, cardPaymentsWaiting, restoreTestItem } from "./checks.js";
 
 const message = (error) => (error instanceof Error ? error.message : String(error));
 
@@ -54,7 +54,15 @@ export async function runReleaseCheck({ shopId, version, registry, auditLog, cli
   let failed = null;
   print(`Release check for ${shopId}${version ? ` on release ${version}` : ""}`);
   if (waiting) print(`The test purchase waits: ${waiting}.`);
+  let restored = null;
   try {
+    // The sample item first (checks.js restoreTestItem): one that can't be put back fails check 1 below as before.
+    try {
+      restored = clients.shopData?.putBook ? await restoreTestItem(ctx) : null;
+      if (restored) print(`Before the checks: ${restored}.`);
+    } catch (error) {
+      print(`Before the checks: ${message(error)}.`);
+    }
     for (const check of checks) {
       if (failed) {
         results.push({ check: check.number, name: check.name, status: "not-run" });
@@ -89,8 +97,9 @@ export async function runReleaseCheck({ shopId, version, registry, auditLog, cli
     kind: "release-check", runId, version: version ?? null, ok: !failed, startedAt, finishedAt: now().toISOString(),
     ...(ctx.state.orderId ? { orderId: ctx.state.orderId } : {}),
     results, ...(failed ? { failedCheck: failed.check, error: failed.error } : {}), ...(waiting ? { waiting } : {}),
+    ...(restored ? { restored } : {}),
   };
   await registry.recordReleaseCheck(shopId, entry);
   await auditLog.write(shopId, `${startedAt}-release-check-${runId}`, entry);
-  return { ok: !failed, results, ...(failed ? { failedCheck: failed.check, error: failed.error } : {}), ...(waiting ? { waiting } : {}) };
+  return { ok: !failed, results, ...(failed ? { failedCheck: failed.check, error: failed.error } : {}), ...(waiting ? { waiting } : {}), ...(restored ? { restored } : {}) };
 }

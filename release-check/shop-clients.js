@@ -3,7 +3,7 @@
 //
 // Where the data lives in the shop copy:
 //   orders/{id}                 paymentStatus, sandboxPayment, isTest, createdAt  (apps/shop/functions/index.js)
-//   books/{id}                  stockLevel
+//   books/{id}                  stockLevel, status (the check's own sample item is put back when missing or hidden)
 //   emailLog                    { orderId, kind: "orderConfirmed", status: "sent", to }  (functions/email/index.js)
 //   refundOrder                 POST { orderId, reason, restock }, Bearer ID token of an admin (index.js refundOrder)
 // and in the stockroom's database (its own named database in the shop's project, plan 1.20):
@@ -15,6 +15,9 @@ export function shopReads(firestore) {
   return {
     order: (id) => firestore.get(`orders/${id}`),
     book: (id) => firestore.get(`books/${id}`),
+    // The release check's one write to a product: its own sample item back as the starter catalogue has it (checks.js
+    // restoreTestItem; the runner runs only on a test shop).
+    putBook: (id, data) => firestore.set(`books/${id}`, data),
     orderEmails: async (orderId) => (await firestore.query("emailLog", { where: [["orderId", "==", orderId]], limit: 20 })).map((row) => row.data),
     // Test orders only (isTest, paid in test mode), older than `iso`. The date is compared here, not in the query, so
     // no extra index is needed.
