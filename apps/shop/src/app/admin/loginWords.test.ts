@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loginWords } from "./loginWords";
+import { emailCodeLink, loginWords } from "./loginWords";
 
 describe("the sign-in screen's words", () => {
   it("keeps a books shop, and a shop with no answer, as a publishing house", () => {
@@ -13,5 +13,15 @@ describe("the sign-in screen's words", () => {
       expect(words.sub).toBe("Shop · Admin");
       expect(words.lede).toBe("Sign in with the shop's Google account to manage products, orders and settings.");
     }
+  });
+});
+
+describe("Email me a sign-in code (sign-up plan move 3)", () => {
+  it("goes to Colophon's sign-in page, which opens this shop signed in", () => {
+    expect(emailCodeLink({ platformUrl: "https://colophon.example", shopId: "moth-press-k3f9q" })).toBe("https://colophon.example/join/?open=moth-press-k3f9q");
+  });
+  it("isn't offered when the shop doesn't know Colophon's address", () => {
+    expect(emailCodeLink({ shopId: "moth-press" })).toBe("");
+    expect(emailCodeLink({ platformUrl: "http://colophon.example", shopId: "moth-press" })).toBe("");
   });
 });

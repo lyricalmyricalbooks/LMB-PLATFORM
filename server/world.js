@@ -37,6 +37,7 @@
 //
 // What can't be real yet answers plainly that it isn't switched on (server/notConnected.js; listed in README.md).
 import { jobsNudge } from "./jobsNudge.js";
+import { shopSignIn } from "../accounts/shopSignIn.js";
 import { freeAddressTaken } from "../services/domains/freeAddress.js";
 import { accountRoutes, deletionRoutes } from "../accounts/routes.js";
 import { createAccountDeletion } from "../accounts/deleteAccount.js";
@@ -297,7 +298,10 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
 
   // Accounts, and the control room.
   const accountStores = firestoreAccountStores(platform);
-  const accounts = createAccounts({ accounts: stores.accounts, ...accountStores, registry, shopData, auditLog, email, settings, now });
+  // The switcher and the front door's way in open the admin already signed in, once the platform may sign for the shops'
+  // project (accounts/shopSignIn.js); until then the plain admin address, as before.
+  const accounts = createAccounts({ accounts: stores.accounts, ...accountStores, registry, shopData, auditLog, email, settings, now,
+    signedInUrl: shopSignIn({ identity: identityClient({ fetch, token, signRetries: 0 }), registry, log }) });
   const deletion = createAccountDeletion({
     accounts: stores.accounts, memberships: accountStores.memberships, registry, shopData, auditLog, signups: stores.signups,
     devices: firestoreDevices(platform), authUsers: platformAuthUsers({ fetch, token, projectId }), email, now,

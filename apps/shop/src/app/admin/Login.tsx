@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import { BookOpen, KeyRound } from "lucide-react";
+import { BookOpen, KeyRound, Mail } from "lucide-react";
 import { GoogleSignInButton } from "../components/brand/BrandLogo";
 import { adminApi } from "./api";
 import { PrimaryButton, SecondaryButton, TextField } from "./riso/components";
 import { BACKUP_USED_KEY, BackupCodeError, TwoStepNeeded, backupCodeLooksRight, codeLooksRight, twoStepWords } from "./adminTwoStep";
 import { loginErrorMessage } from "./loginError";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
-import { invitedEmail, loginWords } from "./loginWords";
+import { emailCodeLink, invitedEmail, loginWords } from "./loginWords";
+import { shopProfile } from "../../lib/shopProfile";
 
 interface LoginProps {
   onLogin: (token: string) => void;
@@ -20,6 +21,7 @@ function shopHref() {
 }
 
 export function Login({ onLogin }: LoginProps) {
+  const emailCode = emailCodeLink(shopProfile);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   // Google said yes and this person uses authenticator codes: the code step (plan 22.6).
@@ -31,7 +33,7 @@ export function Login({ onLogin }: LoginProps) {
   const [name, setName] = useState("");
   // What the shop sells, from the same public settings: nobody is signed in yet, so the admin's own words aren't known.
   const [sells, setSells] = useState<string | null>(null);
-  const say = loginWords(sells);
+  const say = loginWords(sells, !!emailCode);
   // Opened from a Team invite: name the account to use, and offer it first in Google's chooser.
   const [invite] = useState(() => invitedEmail(typeof window === "undefined" ? "" : window.location.search));
   useEffect(() => {
@@ -132,13 +134,21 @@ export function Login({ onLogin }: LoginProps) {
               <SecondaryButton type="button" onClick={() => { setPending(null); setError(""); }}>Use another Google account</SecondaryButton>
             </form>
           ) : (
-            <>
+            <div className="rp-stack" style={{ gap: 10 }}>
               {/* Google's own button (its branding rules fix the words, so the wait shows in the note below). */}
               <GoogleSignInButton onClick={handleGoogleLogin} disabled={loading} aria-busy={loading || undefined} style={{ width: "100%" }}>
                 Sign in with Google
               </GoogleSignInButton>
               {loading && <p className="rp-hint rp-login-note" role="status">Finish signing in in the Google window that opened.</p>}
-            </>
+              {/* An emailed code, for a person who signed up without Google (sign-up plan move 3): Colophon checks the
+                  code and sends them back here already signed in. Shown only when the shop knows Colophon's address. */}
+              {emailCode && (
+                <a className="rp-btn rp-btn-secondary rp-btn-lg" href={emailCode} style={{ width: "100%", justifyContent: "center" }} data-email-code>
+                  <Mail size={16} aria-hidden />
+                  Email me a sign-in code
+                </a>
+              )}
+            </div>
           )}
           {error && <p role="alert" className="rp-login-error"><span aria-hidden="true">⚠</span> {error}</p>}
           <div className="rp-login-foot">

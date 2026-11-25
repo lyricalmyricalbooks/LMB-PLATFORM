@@ -610,7 +610,14 @@ $("#sign-out")?.addEventListener("click", async () => {
 
 // Signed in (just now, or from an earlier visit): back to where the press left off. One press carries on; several get a
 // short picker; a first visit makes the press's setup record.
+// "Email me a sign-in code" on a shop's admin sign-in page comes here as ?open=<shop>: once signed in, the person goes
+// straight into that shop's admin as themselves (sign-up plan move 3). The account page's switcher checks they are on
+// its team; if they aren't, they land on their account page.
+const OPEN_SHOP = /^[a-z][a-z0-9-]{2,62}$/.test(new URLSearchParams(location.search).get("open") ?? "") ? new URLSearchParams(location.search).get("open") : "";
+if (OPEN_SHOP) $("#email-title").textContent = "Sign in to your shop";
+
 async function arrive() {
+  if (OPEN_SHOP) return goInside(OPEN_SHOP, ACCOUNT_PAGE);
   // "Start another shop" on the account page: a fresh press, once, then the address forgets the ask.
   if (new URLSearchParams(location.search).get("another") === "1") {
     const url = new URL(location.href);
@@ -624,11 +631,31 @@ async function arrive() {
   return carryOn((await api("POST", "/press", {})).press);
 }
 
+// Into the store's admin already signed in, as the person who just signed in here (sign-up plan move 3: one sign-in).
+// The account page's switcher makes the way in (accounts/shopSignIn.js); when it can't, the plain admin address.
+async function goInside(shopId, fallback) {
+  try {
+    if (shopId) {
+      const { url } = await api("POST", "/accounts/switch", { shopId });
+      if (url) return location.assign(url);
+    }
+  } catch { /* the plain address below */ }
+  location.assign(fallback || ACCOUNT_PAGE);
+}
+
+// "Go to my store" goes in signed in too; the link's own address stays for a new tab or a press that fails.
+$("#making-go").addEventListener("click", (event) => {
+  const href = event.currentTarget.getAttribute("href");
+  if (!href || event.metaKey || event.ctrlKey || event.shiftKey) return;
+  event.preventDefault();
+  goInside(press?.shopId, href);
+});
+
 function carryOn(chosen) {
   press = chosen;
   // An open store is run from its admin; one being made shows how far it has got.
   if (press.status === "open") {
-    location.assign(press.openUrl || ACCOUNT_PAGE);
+    goInside(press.shopId, press.openUrl);
     return;
   }
   if (press.status === "opening") {

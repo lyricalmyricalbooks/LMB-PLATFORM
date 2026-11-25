@@ -35,7 +35,7 @@ const EMAIL = /^[^\s@<>"',;/]+@[^\s@<>"',;/]+\.[^\s@<>"',;/]+$/;
 const hash = (token) => createHash("sha256").update(String(token)).digest("hex");
 const normal = (email) => String(email ?? "").trim().toLowerCase();
 
-export function createAccounts({ accounts, memberships, invites, registry, shopData, auditLog, email, settings, shopBackup = null, now = () => new Date(), token = () => randomBytes(32).toString("base64url") }) {
+export function createAccounts({ accounts, memberships, invites, registry, shopData, auditLog, email, settings, shopBackup = null, signedInUrl = null, now = () => new Date(), token = () => randomBytes(32).toString("base64url") }) {
   const at = () => now().toISOString();
 
   async function log(shopId, what, detail) {
@@ -129,7 +129,10 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       // An author has no place in the shop's admin, only in the stockroom.
       const url = role === "author" ? places.stockroomUrl : places.adminUrl ?? places.stockroomUrl;
       if (!url) throw new SignupError(409, "That shop isn't ready yet.");
-      return { shopId, role, url };
+      // Into the admin already signed in, as the same person (accounts/shopSignIn.js; sign-up plan move 3). Never for
+      // the stockroom, and the plain address whenever a sign-in from here can't or mustn't be made.
+      const signed = signedInUrl && url === places.adminUrl ? await signedInUrl(shopId, person.email, url) : null;
+      return { shopId, role, url: signed ?? url, signedIn: !!signed };
     },
 
     /** "Check my shop" (plan 14.3): the shop's checks in plain words, for its owner. Only looks; changes nothing. */

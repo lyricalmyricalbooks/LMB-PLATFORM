@@ -46,6 +46,14 @@ goes to `join/?another=1`, which makes a second empty press record once (`accoun
 sample shop, else the one that suits the kind of shop) as `look`/`lookStyle`, and the admin's first Get started step no
 longer asks the brand name or country (`apps/shop/docs/agent-notes/admin.md`).
 
+**No wait, one sign-in (25 November 2026, move 3).** Open my shop starts the shop maker at once
+(`createFrontDoor({ startMaking })`, `server/jobsNudge.js` on Cloud Run: the web door calls the private jobs server with an
+identity token; the deploy gives the web door the invoker role). The minute's sweep stays the safety net. "Go to my store"
+and `join/?open=<shopId>` (the admin's "Email me a sign-in code") go through the account switcher, which opens the admin
+already signed in (`accounts/shopSignIn.js`). That needs the platform to sign for the shops' project (Service Account
+Token Creator on its Firebase admin account and Firebase Authentication Admin, as support visits do); until then the
+switcher gives the plain admin address and nothing else changes.
+
 ## The server (`signup.js`, `api.js`)
 
 `createApi({ signup, verifyIdToken, settings, routes })` is the platform's one web door, hosted later as one function
