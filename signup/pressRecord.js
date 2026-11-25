@@ -9,7 +9,8 @@ export const PRESS_STATUSES = Object.freeze(["setup", "opening", "open", "expire
 // Only these come from the press. The staged import file and the timestamps are written by the platform.
 // `plan` is what the press wants to set up (shop, stockroom or both; billing's plan ids), asked first at the front door
 // and picked again at Open my shop (18.8). `look` is the website's theme and `adminLook` the admin's look, both chosen
-// in the welcome inside setup mode (18.6).
+// in the welcome inside setup mode (18.6). `lookStyle` is one of the starter's named styles (the shop's
+// studio/starterStyles.ts), picked on a sample shop's "Use this starter" (round three, 25 November 2026); "" is its own.
 // `moving` is the press's answer to Home's "Selling somewhere already?" card (code plan 23.0): "yes" (bringing a shop
 // over), "fresh" (starting fresh, which puts the card away) or "" (not answered yet).
 // `sellingToday` is the front door's "Where do you sell today?" (form.js QUESTION, one of its ids, or "" for skipped). It
@@ -23,10 +24,10 @@ export const PRESS_STATUSES = Object.freeze(["setup", "opening", "open", "expire
 // `design` is the shop website the press designed before its store was made (the designer at /design/studio, 10 November
 // 2026): Studio's whole design, kept as it is and handed to the new shop (setup/handover.js), whose admin puts it on. null
 // clears it. Only its size and shape are checked here: the shop's own designer owns what a design may hold.
-export const SETUP_FIELDS = Object.freeze(["plan", "pressName", "sells", "country", "look", "adminLook", "moving", "language", "cardProvider", "domainChoice", "freeName", "sellingToday", "alsoSells", "productGroups", "design"]);
+export const SETUP_FIELDS = Object.freeze(["plan", "pressName", "sells", "country", "look", "lookStyle", "adminLook", "moving", "language", "cardProvider", "domainChoice", "freeName", "sellingToday", "alsoSells", "productGroups", "design"]);
 /** The largest design kept, as JSON in UTF-8 bytes: well under a document's 1 MiB with the rest of the record. */
 export const MAX_DESIGN_BYTES = 400_000;
-const TEXT_LIMITS = Object.freeze({ plan: 9, pressName: 120, sells: 300, country: 2, look: 40, adminLook: 40, moving: 5, language: 2, cardProvider: 6, domainChoice: 4, freeName: 60, sellingToday: 20 });
+const TEXT_LIMITS = Object.freeze({ plan: 9, pressName: 120, sells: 300, country: 2, look: 40, lookStyle: 40, adminLook: 40, moving: 5, language: 2, cardProvider: 6, domainChoice: 4, freeName: 60, sellingToday: 20 });
 export const DOMAIN_CHOICES = Object.freeze(["", "own", "buy", "free"]);
 export const MOVING_CHOICES = Object.freeze(["", "yes", "fresh"]);
 // The language of the platform's emails (services/email/templatesFr.js): "" is automatic (French then English for a
@@ -55,7 +56,7 @@ export function newPressRecord({ pressId, ownerUid, email, now }) {
   if (!ownerUid || !email) throw new Error("A press needs an owner.");
   const at = now.toISOString();
   return { pressId, ownerUid, ownerEmail: email.toLowerCase(), status: "setup", plan: "", pressName: "", sells: "", country: "",
-    look: "", adminLook: "", design: null, moving: "", language: "", cardProvider: "", domainChoice: "", freeName: "", sellingToday: "", domain: "", domainSeller: "", domainEasy: false, stagedImportPath: "", stagedImport: null, pendingImportPath: "", shopId: "", shopStatus: "", shopMessage: "", openingSince: "", createdAt: at, lastSeenAt: at };
+    look: "", lookStyle: "", adminLook: "", design: null, moving: "", language: "", cardProvider: "", domainChoice: "", freeName: "", sellingToday: "", domain: "", domainSeller: "", domainEasy: false, stagedImportPath: "", stagedImport: null, pendingImportPath: "", shopId: "", shopStatus: "", shopMessage: "", openingSince: "", createdAt: at, lastSeenAt: at };
 }
 
 // Checks a change a press makes through the platform's door. Returns the fields to write, or a plain-words refusal.
@@ -88,7 +89,7 @@ export function setupChange(current, change) {
       }
     }
     const text = typeof value === "string" ? value.trim() : value;
-    if ((key === "look" || key === "adminLook") && text !== "" && !LOOK_ID.test(text)) {
+    if ((key === "look" || key === "lookStyle" || key === "adminLook") && text !== "" && !LOOK_ID.test(text)) {
       return { ok: false, message: "Pick a look from the choices." };
     }
     // One plan for every shop (10 November 2026): any known plan an older page sends is saved as "both".

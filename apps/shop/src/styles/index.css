@@ -143,6 +143,7 @@
   .fm-orbit { grid-template-columns: 1fr; padding: 90px 24px; gap: 65px; } .fm-orbit-ring { width: min(90vw, 500px); }
 }
 @media (max-width: 540px) {
-  .fm-po-title { font-size: clamp(57px, 19vw, 86px); } .fm-po-cue, .fm-po-caption span:last-child { display: none; }
-  .fm-bi-title { font-size: 24vw; } .fm-orbit-title { font-size: 16vw; } .fm-duo-detail p { display: none; } .fm-duo-detail { justify-content: flex-end; }
+  /* The longest word always fits the screen (--fit-chars comes from the section, about 0.84em a wide capital). */
+  .fm-po-title { font-size: min(clamp(57px, 19vw, 86px), calc((100vw - 48px) / (var(--fit-chars, 6) * 0.84))); } .fm-po-cue, .fm-po-caption span:last-child { display: none; }
+  .fm-bi-title { font-size: min(24vw, calc((100vw - 48px) / (var(--fit-chars, 4) * 0.84))); } .fm-orbit-title { font-size: 16vw; } .fm-duo-detail p { display: none; } .fm-duo-detail { justify-content: flex-end; }
 }

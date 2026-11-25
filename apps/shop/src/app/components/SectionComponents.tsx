@@ -955,6 +955,8 @@ function accentFontVars(s: any): { link: any; style: Record<string, string> } {
   return { link: <link rel="stylesheet" href={googleFontHref(f)} />, style: { "--accent-font": `'${f}', var(--heading-font, serif)` } };
 }
 const lines = (text: string) => String(text).split("\n").flatMap((l, i) => (i ? [<br key={i} />, l] : [l]));
+/** The longest word of a huge headline, so phone CSS can shrink the type until that word fits the screen (`--fit-chars`). */
+const fitChars = (text: unknown) => ({ "--fit-chars": Math.max(1, ...String(text ?? "").split(/\s+/).map(w => w.length)) }) as Record<string, number>;
 
 export function PhotoOpeningSection({ settings, enableAnimations }: any) {
   const shade = settings.shadeOpacity ?? 0.65;
@@ -965,7 +967,7 @@ export function PhotoOpeningSection({ settings, enableAnimations }: any) {
       <div className="fm-po-copy" data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           {settings.eyebrow && <p className="fm-po-eyebrow" data-theme-field="eyebrow">{settings.eyebrow}</p>}
-          <h1 className="fm-po-title" style={hStyle(settings)} data-theme-field="title">{lines(settings.title ?? fb("PhotoOpeningSection.title"))}</h1>
+          <h1 className="fm-po-title" style={{ ...fitChars(settings.title ?? fb("PhotoOpeningSection.title")), ...hStyle(settings) }} data-theme-field="title">{lines(settings.title ?? fb("PhotoOpeningSection.title"))}</h1>
           {settings.body && <p className="fm-po-body" style={bStyle(settings)} data-theme-field="body">{settings.body}</p>}
           {settings.ctaText && <a href={siteHref(settings.ctaUrl)} className="fm-po-link"><span data-theme-field="ctaText">{settings.ctaText}</span><ArrowIcon /></a>}
         </AnimationContainer>
@@ -985,7 +987,7 @@ export function BigIntroSection({ settings, enableAnimations }: any) {
         <p className="fm-kicker" data-theme-field="eyebrow">{settings.eyebrow}</p>
         <AnimationContainer enabled={enableAnimations}>
           <div className="fm-bi-row">
-            <h2 className="fm-bi-title" style={hStyle(settings)} data-theme-field="title">{lines(settings.title ?? fb("BigIntroSection.title"))}</h2>
+            <h2 className="fm-bi-title" style={{ ...fitChars(settings.title ?? fb("BigIntroSection.title")), ...hStyle(settings) }} data-theme-field="title">{lines(settings.title ?? fb("BigIntroSection.title"))}</h2>
             {settings.body && <p className="fm-bi-body" style={bStyle(settings)} data-theme-field="body">{settings.body}</p>}
           </div>
         </AnimationContainer>

@@ -1617,3 +1617,15 @@ with copy) and Remove (asks first). All through op `bookingHooks` (steps list, a
   in Aurel Sand", Start yours → /join/) is drawn outside the shop.
 - Found while building it: a logo drawn from the storefront's own settings fell back to "Your Press" because
   `resolveLogoDesign` dropped `copy`; it now carries the site name (`features/site/selectors.ts`).
+
+## Use this starter (25 November 2026, round three plan phase 1, https://claude.ai/artifact/RAGCAzCvap1KAaXtWr1Jnj)
+
+- A demo shop's bar links to `/join/?starter=<id>&style=<style>&name=<shown name>` (`demoShop/main.ts`). The front door
+  (`join/app.js` `STARTER_PICK`) keeps the pick for the tab (sessionStorage `colophon-starter`), shows it under the lede and
+  on the new-store card, and sends it with the answers as `look` + `lookStyle` (both id-shaped, `signup/pressRecord.js`).
+  A design made in the designer hides the starter line (the design wins).
+- Setup step 20 hands `lookStyle` over in `firstWeek/handover`; `chosenLook` returns `{ theme, style }` and
+  ChooseLookWelcome shows and applies `withStyle(look, style)`.
+- Phone fixes in the same change: huge headlines (`.fm-po-title`, `.fm-bi-title`) shrink until their longest word fits
+  (`--fit-chars` from SectionComponents `fitChars`); the compact header row has 16px on both sides; starter sample names
+  read by photo ("Example stoneware mug"); Guided start's unpicked pills have a fill and an outline.

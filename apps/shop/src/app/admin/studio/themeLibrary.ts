@@ -679,10 +679,10 @@ export const THEME_LIBRARY = [
     content: {
       starterPages: ["about", "shipping", "contact"],
       sampleProducts: [
-        { title: "Example product 1", maker: "Sample", price: 22, photo: "/starters/slow-season/book.jpg" },
-        { title: "Example product 2", maker: "Sample", price: 36, photo: "/starters/slow-season/mug.jpg" },
-        { title: "Example product 3", maker: "Sample", price: 18, photo: "/starters/slow-season/candle.jpg" },
-        { title: "Example product 4", maker: "Sample", price: 24, photo: "/starters/slow-season/throw.jpg" },
+        { title: "Example notebook", maker: "Sample", price: 22, photo: "/starters/slow-season/book.jpg" },
+        { title: "Example stoneware mug", maker: "Sample", price: 36, photo: "/starters/slow-season/mug.jpg" },
+        { title: "Example candle", maker: "Sample", price: 18, photo: "/starters/slow-season/candle.jpg" },
+        { title: "Example wool throw", maker: "Sample", price: 24, photo: "/starters/slow-season/throw.jpg" },
       ],
       sections: {
         heroPage: [
@@ -709,12 +709,12 @@ export const THEME_LIBRARY = [
     content: {
       starterPages: ["about", "shipping", "contact"],
       sampleProducts: [
-        { title: "Example product 1", maker: "Sample", price: 22, photo: "/starters/catalogue/book.jpg" },
-        { title: "Example product 2", maker: "Sample", price: 18, photo: "/starters/catalogue/candle.jpg" },
-        { title: "Example product 3", maker: "Sample", price: 36, photo: "/starters/catalogue/mug.jpg" },
-        { title: "Example product 4", maker: "Sample", price: 24, photo: "/starters/catalogue/throw.jpg" },
-        { title: "Example product 5", maker: "Sample", price: 34, photo: "/starters/catalogue/still-life.jpg" },
-        { title: "Example product 6", maker: "Sample", price: 28, photo: "/starters/catalogue/book.jpg" },
+        { title: "Example notebook", maker: "Sample", price: 22, photo: "/starters/catalogue/book.jpg" },
+        { title: "Example candle", maker: "Sample", price: 18, photo: "/starters/catalogue/candle.jpg" },
+        { title: "Example stoneware mug", maker: "Sample", price: 36, photo: "/starters/catalogue/mug.jpg" },
+        { title: "Example wool throw", maker: "Sample", price: 24, photo: "/starters/catalogue/throw.jpg" },
+        { title: "Example vase", maker: "Sample", price: 34, photo: "/starters/catalogue/still-life.jpg" },
+        { title: "Example hardcover", maker: "Sample", price: 28, photo: "/starters/catalogue/book.jpg" },
       ],
       sections: {
         heroPage: [
@@ -739,12 +739,12 @@ export const THEME_LIBRARY = [
     content: {
       starterPages: ["about", "shipping", "contact"],
       sampleProducts: [
-        { title: "Example product 1", maker: "Sample", price: 40, photo: "/starters/aurel/arc-bag.jpg" },
-        { title: "Example product 2", maker: "Sample", price: 25, photo: "/starters/aurel/wallet.jpg" },
-        { title: "Example product 3", maker: "Sample", price: 60, photo: "/starters/aurel/tote.jpg" },
-        { title: "Example product 4", maker: "Sample", price: 30, photo: "/starters/aurel/earrings.jpg" },
-        { title: "Example product 5", maker: "Sample", price: 20, photo: "/starters/aurel/silk.jpg" },
-        { title: "Example product 6", maker: "Sample", price: 35, photo: "/starters/aurel/belt.jpg" },
+        { title: "Example arc bag", maker: "Sample", price: 40, photo: "/starters/aurel/arc-bag.jpg" },
+        { title: "Example wallet", maker: "Sample", price: 25, photo: "/starters/aurel/wallet.jpg" },
+        { title: "Example tote", maker: "Sample", price: 60, photo: "/starters/aurel/tote.jpg" },
+        { title: "Example earrings", maker: "Sample", price: 30, photo: "/starters/aurel/earrings.jpg" },
+        { title: "Example silk scarf", maker: "Sample", price: 20, photo: "/starters/aurel/silk.jpg" },
+        { title: "Example belt", maker: "Sample", price: 35, photo: "/starters/aurel/belt.jpg" },
       ],
       sections: {
         heroPage: [

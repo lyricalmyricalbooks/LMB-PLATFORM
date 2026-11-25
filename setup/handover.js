@@ -4,7 +4,7 @@
 // the rest into the new shop's own database, where the shop's admin applies it with its own tools (the look picker and
 // Books › Import, apps/shop/src/app/admin/setupHandover.ts) the first time the owner opens it:
 //
-//   firstWeek/handover               { pressId, look, adminLook, design, file: { name, rows, at, parts } | null, at }
+//   firstWeek/handover               { pressId, look, lookStyle, adminLook, design, file: { name, rows, at, parts } | null, at }
 //
 // `design` is the whole website the press designed before its store was made (/design/studio), or null. The admin puts
 // it on the first time the owner opens it (apps/shop/src/app/admin/overview/SignupDesignStage.tsx).
@@ -66,7 +66,7 @@ export function handoverStep({ number = 20, presses = null, stagedFiles = null, 
       if (path && !stagedFiles) throw new Error(NOT_CONNECTED);
       const at = now().toISOString();
       const earlier = await shopData.get(shop.shopId, HANDOVER_DOC);
-      const handover = (file) => ({ pressId: press.pressId, look: press.look ?? "", adminLook: press.adminLook ?? "", design: press.design ?? null, file, at: earlier?.at ?? at });
+      const handover = (file) => ({ pressId: press.pressId, look: press.look ?? "", lookStyle: press.lookStyle ?? "", adminLook: press.adminLook ?? "", design: press.design ?? null, file, at: earlier?.at ?? at });
       // The looks first, so a file that fails part way never costs the press its look.
       let file = earlier?.file ?? null;
       await shopData.set(shop.shopId, HANDOVER_DOC, handover(file));

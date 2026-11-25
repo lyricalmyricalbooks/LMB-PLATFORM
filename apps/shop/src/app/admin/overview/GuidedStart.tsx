@@ -29,7 +29,10 @@ export function GuidedStart({ sets, sampleSet, onSampleSet, own, hasOwn, onOwn, 
 }) {
   const file = useRef<HTMLInputElement>(null);
   // A chosen option is a black pill, like every other on/off choice in the admin.
-  const pill = (on: boolean) => ({ "aria-checked": on, role: "radio", style: on ? { background: "var(--rp-text)", color: "var(--rp-surface)", borderColor: "var(--rp-text)" } : undefined });
+  // A choice not picked yet still reads as a button: a light fill and an outline on the sunken panel.
+  const pill = (on: boolean) => ({ "aria-checked": on, role: "radio", style: on
+    ? { background: "var(--rp-text)", color: "var(--rp-surface)", border: "1px solid var(--rp-text)" }
+    : { background: "var(--rp-surface)", color: "var(--rp-text)", border: "1px solid var(--rp-border)" } });
   const step = (n: number, title: string, hint: string, body: ReactNode) => (
     <li style={{ display: "grid", gridTemplateColumns: "32px minmax(0, 1fr)", gap: "4px 14px", alignItems: "start" }}>
       <span aria-hidden="true" style={{ display: "grid", placeItems: "center", width: 32, height: 32, borderRadius: 999, background: "var(--rp-text)", color: "var(--rp-surface)", fontWeight: 700, fontSize: 14 }}>{n}</span>

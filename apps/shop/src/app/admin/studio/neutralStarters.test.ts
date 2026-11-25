@@ -1,5 +1,5 @@
 // Neutral starter websites (24 November 2026, the owner's approved plan): a starter keeps its Figma look, but its words
-// describe what goes in each spot, its products are "Example product" samples and it never names its own brand, a
+// describe what goes in each spot, its products are "Example …" samples named by what they show and it never names its own brand, a
 // person or a made-up review. Add a starter to NEUTRAL once its words are rewritten .
 import { describe, expect, it } from "vitest";
 import { THEME_LIBRARY } from "./themeLibrary";
@@ -16,7 +16,7 @@ describe.each(NEUTRAL.map((id) => [id]))("starter %s is neutral", (id) => {
   it("has no made-up reviews or star ratings", () => expect(words).not.toMatch(/★|\breview/i));
   it("sells only example products", () => {
     for (const p of look.content.sampleProducts) {
-      expect(p.title).toMatch(/^Example product/);
+      expect(p.title).toMatch(/^Example [a-z]/); // named by what it shows ("Example stoneware mug"), never a real product name
       expect(p.maker).toBe("Sample");
     }
   });
