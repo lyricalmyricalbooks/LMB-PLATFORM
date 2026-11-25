@@ -166,10 +166,11 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
   {
     id: "starter-gallery",
     name: "Gallery",
-    description: "Big photos and few products: a full-photo opening, a quiet introduction, two products to a row and a wide photo.",
+    description: "Big photos and few products: a full-photo opening, a quiet introduction, a shoppable photo, two products to a row and a wide photo.",
     sections: [
       { type: "PhotoOpeningSection", settings: { eyebrow: "A short line about your shop", title: "Your headline\nin a few words.", body: "Say what you make and why.", ctaText: "See the collection", ctaUrl: "/collections/all" } },
       { type: "BigIntroSection", settings: { eyebrow: "About the shop", title: "Fewer things,\nchosen well", body: "Introduce your shop in a few lines." } },
+      { type: "ShoppablePhotoSection", settings: { title: "Shop the photo", body: "Tap a dot to see the product.", layout: "words-left", aspect: "portrait" } },
       { type: "ProductShowcaseGridSection", settings: { title: "A few things, shown large", columnsDesktop: 2, columnsMobile: 1 } },
       { type: "ImageBannerSection", settings: { title: "Your story, in one line", ctaText: "Read our story", ctaUrl: "/page/about" } },
     ],

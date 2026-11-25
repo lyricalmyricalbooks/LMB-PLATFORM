@@ -13,7 +13,7 @@ const KIND: Record<string, string> = {
   NewsletterSection: "form", ContactFormSection: "form", NewsletterPopupSection: "popup",
   FAQSection: "list", CollapsibleSection: "list", StaffNotesTableSection: "list",
   MarqueeSection: "strip", PromoStripSection: "strip", CountdownSection: "countdown", EphemeraRowSection: "strip",
-  GallerySection: "gallery", ImageCollageSection: "collage",
+  GallerySection: "gallery", ImageCollageSection: "collage", ShoppablePhotoSection: "hero", LookbookSection: "gallery",
   VideoSection: "video", MapSection: "map", BookTimeSection: "columns", ServiceMenuSection: "list", BookingTeamSection: "columns", BookCallSection: "hero", BookingHoursSection: "map", ClientReviewsSection: "columns",
   StickyAddToBagSection: "bar",
   CompositionSection: "layout", RowSection: "layout",

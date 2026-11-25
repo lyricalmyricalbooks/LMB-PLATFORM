@@ -52,6 +52,7 @@ import { applyLook, bringBack, ownEdits, resetToLook, starterUpdate, switchSumma
 import { importedThemeProblems } from "./themeCheck";
 import { ESSENTIALS, essentialCopyField, essentialStyleField } from "./essentials";
 import { StudioMakeItYours } from "./StudioMakeItYours";
+import { StudioSiteStyles } from "./StudioSiteStyles";
 import { nextFour, starterOf } from "./makeItYours";
 import { StudioOutline, blockLabel } from "./StudioOutline";
 import { StudioStructure } from "./StudioStructure";
@@ -549,6 +550,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   useEffect(() => { if (!brandKit) setBrandChoice(null); }, [brandKit]);
   // Make it yours (round three phase 3): the four steps Studio opens on after a new shop picks its starter (`#designer?yours=1`).
   const [makeIt, setMakeIt] = useState(initialLocation?.yours === true);
+  // Style › Site styles (round three phase 5): ready-made palettes and font pairings, opened from Essentials.
+  const [siteStylesOn, setSiteStyles] = useState(false);
   useEffect(() => {
     // Opened once from the link: a reload opens Studio as usual.
     if (initialLocation?.yours && typeof window !== "undefined" && /[?&]yours=1/.test(window.location.hash)) {
@@ -2352,6 +2355,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     design, sells: shopSells, hasOwnProducts: books.some((b: any) => b && !b.sample) || settings?.bookingsLive === true,
     phoneChecked: phoneSeen, published: Boolean(settings?.design || publishedNow),
   }), [design, shopSells, books, settings, phoneSeen, publishedNow]);
+  // It belongs to Essentials: another workspace shows its own panel, and coming back starts from the list.
+  const siteStyles = siteStylesOn && leftTab === "essentials";
+  useEffect(() => { if (leftTab !== "essentials") setSiteStyles(false); }, [leftTab]);
   const sidebarPanel = (
         <div className="studio-sidebar" aria-label="Editor panel" role="region">
           <div className="studio-panel-context">
@@ -2367,15 +2373,17 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               nameField={(() => { const hit = essentialCopyField("siteName"); return hit ? <StudioCopyField field={hit.field} design={design} settings={settings} aiWhere={hit.group} onChange={value => setCopy("siteName", value)} /> : null; })()}
               logoField={(() => { const hit = essentialStyleField("logoUrl"); return hit ? renderStyleField(hit.group, hit.field) : null; })()}
               nextFour={makeItNext} onGo={item => goSetup(item)} onClose={() => setMakeIt(false)} />}
+            {siteStyles && !brandKit && !makeIt && <StudioSiteStyles design={design} change={change} onClose={() => setSiteStyles(false)}
+              onOwnSchemes={() => { setSiteStyles(false); openTarget("style:schemes", "Colour schemes"); }} />}
             {/* A release changed the press's starter: one line at the top of the panel, with the way to Designs (starterVersions.ts). */}
-            {lookUpdate && leftTab !== "themes" && !lookUpdateSeen && !brandKit && !makeIt && <div className="studio-panel-notice" role="status" data-studio-look-update>
+            {lookUpdate && leftTab !== "themes" && !lookUpdateSeen && !brandKit && !makeIt && !siteStyles && <div className="studio-panel-notice" role="status" data-studio-look-update>
               <span>A new version of {lookUpdate.name} is ready. Your own changes stay on top.</span>
               <span className="studio-panel-notice-actions">
                 <button type="button" className="studio-text-button" onClick={() => { setLeftTab("themes"); setMobilePanel("outline"); setLookUpdateSeen(true); }}>See what's new</button>
                 <button type="button" className="studio-text-button" onClick={() => setLookUpdateSeen(true)}>Not now</button>
               </span>
             </div>}
-            <div hidden={brandKit || makeIt}>
+            <div hidden={brandKit || makeIt || siteStyles}>
             {leftTab === "sections" && <PreviewClickHint />}
             {leftTab === "essentials" && <div className="studio-essentials" data-studio-panel="essentials">
               {starterOf(design) && <section className="studio-essential studio-make-open" data-essential="make-it-yours">
@@ -2383,6 +2391,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 <p className="studio-hint">Four quick steps: name and logo, colours, fonts, pages and homepage.</p>
                 <button type="button" className={btn} data-open-make-it-yours onClick={() => { setMobilePanel("outline"); setMakeIt(true); }}>Open the four steps</button>
               </section>}
+              <section className="studio-essential studio-make-open" data-essential="site-styles">
+                <h3>Site styles</h3>
+                <p className="studio-hint">Ready-made colours and font pairings. One click tries one on every page.</p>
+                <button type="button" className={btn} data-open-site-styles onClick={() => { setMobilePanel("outline"); setSiteStyles(true); }}>Browse site styles</button>
+              </section>
               {cw(ESSENTIALS).map(step => (
                 <section key={step.id} className="studio-essential" data-essential={step.id} aria-labelledby={`essential-${step.id}`}>
                   <h3 id={`essential-${step.id}`}>{step.title}</h3>

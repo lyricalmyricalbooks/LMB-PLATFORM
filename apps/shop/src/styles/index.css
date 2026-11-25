@@ -147,3 +147,19 @@
   .fm-po-title { font-size: min(clamp(57px, 19vw, 86px), calc((100vw - 48px) / (var(--fit-chars, 6) * 0.84))); } .fm-po-cue, .fm-po-caption span:last-child { display: none; }
   .fm-bi-title { font-size: min(24vw, calc((100vw - 48px) / (var(--fit-chars, 4) * 0.84))); } .fm-orbit-title { font-size: 16vw; } .fm-duo-detail p { display: none; } .fm-duo-detail { justify-content: flex-end; }
 }
+
+/* Shoppable photo and Lookbook (round three, phase 5): on computers a dot's card sits beside the dot, on the side with
+   room; on phones it drops below the photo (the section's own classes). The dot pulses once to say it can be tapped. */
+@media (min-width: 768px) {
+  .fm-shop-dot-pop { top: var(--dot-y); transform: translateY(-50%); }
+  .fm-shop-dot-pop[data-side="right"] { left: calc(var(--dot-x) + 28px); }
+  .fm-shop-dot-pop[data-side="left"] { right: calc(100% - var(--dot-x) + 28px); }
+  /* In a lookbook the looks are narrow (and a slider clips anything outside it): the card sits under its photo. */
+  :is(.fm-lookbook-look, .fm-lookbook-slider) .fm-shop-dot-pop { position: relative; top: auto; left: auto; right: auto; transform: none; width: 100%; margin-top: 0.75rem; }
+}
+.fm-shop-dot:focus-visible { outline: 2px solid var(--btn-bg, currentColor); outline-offset: 2px; border-radius: 999px; }
+@media (prefers-reduced-motion: no-preference) {
+  .fm-shop-dot > span { animation: fm-dot-hello 1.6s ease-out 1; }
+}
+@keyframes fm-dot-hello { 0% { transform: scale(0.6); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
+.fm-lookbook-slider { scrollbar-width: thin; }

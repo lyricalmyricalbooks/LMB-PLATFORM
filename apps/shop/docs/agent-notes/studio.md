@@ -1019,3 +1019,25 @@ The preview takes most of the screen. Nothing was removed; each thing moved to w
   sees is the admin Home list (agreed with the sign-up flow thread).
 - Checks: "calmer Studio: slim top bar, path in the left panel, a four-stop tour that is remembered" and "calmer Studio on
   a phone: Sections slides up over the shop, which stays in sight".
+
+## Site styles, Shoppable photo and Lookbook (25 November 2026, round three phase 5)
+
+- **Style › Basics › Site styles** (`studio/siteStyles.ts` rules, `StudioSiteStyles.tsx` panel, opened by
+  `data-open-site-styles` in Essentials; state `siteStylesOn`, shown only while Essentials is the tab).
+  - Eight palettes (`SITE_PALETTES`, light first) built from `PALETTES`, each with its own **band** colour for the bright scheme.
+  - A palette writes the same keys Apply writes for a look's palette (`paletteKeys`, `readableExtras`, `secondaryColor` = band),
+    and the three starting schemes (`lookSchemes`) only while `hasOwnSchemes` is false. Owner-made schemes are never replaced;
+    the panel then shows a note and a link to Style › Colour schemes.
+  - Font pairings are `FONT_PAIRINGS` (Make it yours) through `applyFonts`. Each click is one `change()` named for Undo.
+- **ShoppablePhotoSection** and **LookbookSection** (`SectionComponents.tsx`, kind `products`, Commerce in the library).
+  - Dots are blocks in `items`. A Shoppable photo dot is `{ productSlug, x, y }`. A look is `{ imageUrl, imageAlt, caption,
+    productSlug, x, y, secondProductSlug, secondX, secondY }`. `x`/`y` are percent, clamped 4 to 96.
+  - A blank product means the shop's next product (`dotBook`), so a new section shows at once.
+  - Without a photo, a Shoppable photo shows the placeholder image in Studio only, and shoppers see nothing. A look with no
+    photo uses its product's photo, else the placeholder.
+  - A dot is a 44px disclosure button (`aria-expanded`) that opens `ShopDotCard`: photo, name, price and Add to bag. Products
+    with choices, example products and Coming soon products show View instead (`notForSale`). Escape closes the card.
+  - On computers the card sits beside the dot (`.fm-shop-dot-pop`, `data-side`). On phones, and in every lookbook, it sits
+    under the photo. All words are section fields with `fb()` fallbacks.
+  - The Gallery starter's home has a Shoppable photo. Browser checks: "Style › Site styles…", "Shoppable photo…",
+    "Lookbook…" (in Browse mode, since Edit mode clicks select).
