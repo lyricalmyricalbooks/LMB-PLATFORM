@@ -773,7 +773,7 @@ export const THEME_LIBRARY = [
   // websites, built only from Studio sections, each with its own sample shop from a licensed sample set
   // (public/samples). Shown to shops only once the platform owner turns them on in the control room.
   { id: "starter-gallery", name: "Gallery",
-    mood: "Big photos and few products: a full-photo opening, a quiet introduction, two products to a row and a wide closing photo, in a soft serif",
+    mood: "Big photos and few products: a full-photo opening, a quiet introduction, a shoppable photo, two products to a row and a wide closing photo, in a soft serif",
     palettePreset: "gallery", font: "Inter", buttonStyle: "solid", productCardStyle: "minimal", productHoverEffect: "zoom", imageAspectRatio: "4:5",
     productColumnsDesktop: 2, productColumnsMobile: 1, cardRadius: 0, productCTA: "Add to bag", catalogLayoutStyle: "modern", showCatalogControls: false, homeLayoutTemplate: "starter-gallery",
     content: {
@@ -788,6 +788,7 @@ export const THEME_LIBRARY = [
         heroPage: [
           { type: "PhotoOpeningSection", settings: { eyebrow: "A short line about your shop", title: "Your headline\nin a few words.", body: "Say what you make and why in a sentence or two.", ctaText: "See the collection", ctaUrl: "/collections/all", imageUrl: "/samples/home/opening.webp", imageAlt: "Your opening photo", captionLeft: "Your shop", captionRight: "A short caption" } },
           { type: "BigIntroSection", settings: { eyebrow: "About the shop", title: "Fewer things,\nchosen well", body: "Introduce your shop in a few lines: what you make, how you make it and who it's for." } },
+          { type: "ShoppablePhotoSection", settings: { title: "Shop the photo", body: "Put your products in a photo of them at home. Shoppers tap a dot to see each one.", layout: "words-left", aspect: "portrait", imageUrl: "/samples/home/story.webp", imageAlt: "Your products together at home", items: [{ productSlug: "", x: 34, y: 58 }, { productSlug: "", x: 64, y: 44 }] } },
           { type: "ProductShowcaseGridSection", settings: { overlayOpacity: 0, eyebrow: "The collection", title: "A few things, shown large", columnsDesktop: 2, columnsMobile: 1, imageAspectRatio: "4:5", showCategoryTag: false, showQuickAdd: false, grainOpacity: 0 } },
           { type: "ImageBannerSection", settings: { eyebrow: "Our story", title: "Your story, in one line", body: "A sentence about where your work comes from.", imageUrl: "/samples/home/banner.webp", imageAlt: "A wide photo of your work", height: "large", contentPosition: "bottom-left", textAlign: "left", overlayOpacity: 0.3, secondaryCtaText: "", ctaText: "Read our story", ctaUrl: "/page/about" } },
         ],
