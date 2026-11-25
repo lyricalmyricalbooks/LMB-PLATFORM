@@ -21,3 +21,7 @@ export const SAMPLE_PRESS_URL = "";
 // (code plan 18.6), with `?press=<id>`. Empty until that admin is served from the platform site; the front door then
 // ends on its own "Setting up" summary.
 export const SETUP_ADMIN_URL = "";
+
+// The live demo shops (site/build.js /demo/). Sign-up's "Your new store" shows the starter a new shop would start as,
+// live, with the brand name being typed (join/app.js); empty keeps it to the starter pictures in join/starters/.
+export const DEMO_URL = "/demo/";

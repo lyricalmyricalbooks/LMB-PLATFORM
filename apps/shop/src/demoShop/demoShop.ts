@@ -40,12 +40,21 @@ export function underBase<T>(value: T, base: string): T {
   return JSON.parse(JSON.stringify(value).replace(/"\/(starters|samples)\//g, `"${root}$1/`));
 }
 
+/**
+ * The shop name a demo shows: the visitor's own (sign-up's live preview passes the brand name being typed), else
+ * DEMO_NAME. Plain text only, one line, at most 60 characters.
+ */
+export function demoShopName(asked?: string | null): string {
+  const name = String(asked ?? "").replace(/[<>]/g, "").replace(/[\s\u0000-\u001f\u007f]+/g, " ").trim().slice(0, 60).trim();
+  return name || DEMO_NAME;
+}
+
 /** The design and sample products a demo shows, and its name ("Aurel Sand"). */
-export function demoDesign(choice: DemoChoice, base = "/"): { design: any; books: any[]; name: string; sells: string } {
+export function demoDesign(choice: DemoChoice, base = "/", shopName = DEMO_NAME): { design: any; books: any[]; name: string; sells: string } {
   const sells = DEMO_SELLS[choice.sells];
   const theme = withStyle(libraryLook(choice.starter), choice.style);
   const shop = starterForShop(theme, sells);
   const applied = applyStarter(defaultSettings().design, shop, getSectionMeta, wordsFor(sells), starterPhotos(sells, base));
-  const design = withStarterWords({ ...applied, copy: { ...(applied.copy || {}), siteName: DEMO_NAME } }, sells);
+  const design = withStarterWords({ ...applied, copy: { ...(applied.copy || {}), siteName: shopName } }, sells);
   return { design: underBase(design, base), books: underBase(sampleShopBooks(sells, choice.starter), base), name: styledName(theme), sells };
 }

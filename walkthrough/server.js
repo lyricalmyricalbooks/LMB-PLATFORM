@@ -82,8 +82,8 @@ export const SEED_WAITLIST = Object.freeze([
 
 const SEED_OWNER = Object.freeze({ uid: "uid-owner", email: "owner@example.com", email_verified: true, name: "Ada Owner" });
 
-const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon" };
-const SERVED = /\.(html|js|css|svg|png|ico)$/;
+const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp", ".ico": "image/x-icon" };
+const SERVED = /\.(html|js|css|svg|png|webp|ico)$/;
 
 const CARD_PAGE = (session, shop) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Add a card</title>
@@ -217,7 +217,9 @@ async function fileFor(folder, name) {
       body: text.toString("utf8")
         .replace(/export const PLATFORM_FIREBASE = Object\.freeze\(\{[\s\S]*?\}\);/, 'export const PLATFORM_FIREBASE = Object.freeze({ apiKey: "walkthrough", authDomain: "walkthrough.example", projectId: "demo-walkthrough" });')
         .replace(/export const FIREBASE_SDK = ".*";/, 'export const FIREBASE_SDK = "/walkthrough/firebase";')
-        .replace(/export const SETUP_ADMIN_URL = ".*";/, 'export const SETUP_ADMIN_URL = "/app/";'),
+        .replace(/export const SETUP_ADMIN_URL = ".*";/, 'export const SETUP_ADMIN_URL = "/app/";')
+        // The live demo shops aren't served here: sign-up's preview keeps to its starter pictures.
+        .replace(/export const DEMO_URL = ".*";/, 'export const DEMO_URL = "";'),
     };
   }
   if (key === "waitlist/config.js") {

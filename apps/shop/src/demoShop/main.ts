@@ -10,7 +10,7 @@
 //
 // The starter library (/demo/starters/ and /demo/starters/<id>, round three phase 2b) is served by the same page: it
 // draws itself (libraryPage.ts) and opens sample shops in frames, which leave out the sample bar (`frame=1`).
-import { demoDesign, demoChoice, DEMO_KEY, DEMO_NAME } from "./demoShop";
+import { demoDesign, demoChoice, demoShopName, DEMO_KEY } from "./demoShop";
 import { libraryRoute } from "./starterLibrary";
 
 const route = libraryRoute(location.pathname, import.meta.env.BASE_URL);
@@ -19,12 +19,17 @@ else await showShop();
 
 async function showShop() {
   const params = new URLSearchParams(location.search);
+  // Sign-up's live preview (join/, 25 November 2026) shows a starter inside "Your new store" with the brand name being
+  // typed: ?name= is that name and ?embed=1 leaves out the sample bar. An embedded demo never keeps its choice for the
+  // tab, so the visitor's own /demo/ visits aren't changed by it.
+  const embedded = params.get("embed") === "1";
+  const shopName = demoShopName(params.get("name"));
   let saved: Record<string, string> | null = null;
   try { saved = JSON.parse(sessionStorage.getItem(DEMO_KEY) || "null"); } catch { saved = null; }
   const choice = demoChoice({ starter: params.get("starter") || saved?.starter, style: params.get("style") || saved?.style, sells: params.get("sells") || saved?.sells });
-  try { sessionStorage.setItem(DEMO_KEY, JSON.stringify(choice)); } catch { /* the starter is still shown */ }
+  if (!embedded) try { sessionStorage.setItem(DEMO_KEY, JSON.stringify(choice)); } catch { /* the starter is still shown */ }
 
-  const { design, books, name, sells } = demoDesign(choice, import.meta.env.BASE_URL);
+  const { design, books, name, sells } = demoDesign(choice, import.meta.env.BASE_URL, shopName);
   document.title = `${name}: a sample shop`;
   const win = window as any;
   win.__studioPreviewDesign = design;
@@ -32,16 +37,16 @@ async function showShop() {
   // status is set, so the shop shows no "your live shop" banner: there is no Studio behind a demo.
   // The snapshot is the whole shop: nothing is read from a database (features/site/useSiteData.ts readSiteData).
   win.__studioPreviewOnly = true;
-  win.__studioPreviewState = { settings: { design, sells, info: { name: DEMO_NAME } }, books, pages: [] };
+  win.__studioPreviewState = { settings: { design, sells, info: { name: shopName } }, books, pages: [] };
 
   if (params.get("preview") !== "true") {
     const url = new URL(location.href);
-    for (const key of ["starter", "style", "sells", "frame"]) url.searchParams.delete(key);
+    for (const key of ["starter", "style", "sells", "frame", "name", "embed"]) url.searchParams.delete(key);
     url.searchParams.set("preview", "true");
     history.replaceState(null, "", url);
-}
-await import("../main");
-if (params.get("frame") !== "1" && window.top === window) showSampleBar(name, choice);
+  }
+  await import("../main");
+  if (!embedded && params.get("frame") !== "1" && window.top === window) showSampleBar(name, choice);
 }
 
 /**

@@ -1618,6 +1618,9 @@ with copy) and Remove (asks first). All through op `bookingHooks` (steps list, a
 - Found while building it: a logo drawn from the storefront's own settings fell back to "Your Press" because
   `resolveLogoDesign` dropped `copy`; it now carries the site name (`features/site/selectors.ts`).
 
+- 25 November 2026: `?name=` puts a shop name on the demo (`demoShopName`: one plain line, 60 characters, else "Your
+  shop") and `?embed=1` leaves out the sample bar and doesn't keep the choice for the tab. Sign-up's "Your new store"
+  tile (`join/`) shows the demo this way, scaled down, with the brand name being typed.
 ## Use this starter (25 November 2026, round three plan phase 1, https://claude.ai/artifact/RAGCAzCvap1KAaXtWr1Jnj)
 
 - A demo shop's bar links to `/join/?starter=<id>&style=<style>&name=<shown name>` (`demoShop/main.ts`). The front door

@@ -106,7 +106,12 @@ async function checkFrontDoor(browser, walk, log) {
       // Several kinds can be picked; the preview names the first and counts the rest.
       await page.click("#sells-choices label.choice:has(input[value=jewelry])");
       if ((await page.locator("#new-kind").textContent()) !== "Clothing and 1 more") throw new Error("Your new store doesn't count a second kind");
-      await page.click("#today-choices label.choice:has(input[value=online])");
+      // Six kinds show first; "Show N more" opens the rest.
+      if (await page.locator("#sells-choices label.choice:has(input[value=pets])").isVisible()) throw new Error("every kind shows before Show more");
+      await page.click("#sells-more");
+      await page.locator("#sells-choices label.choice:has(input[value=pets])").waitFor({ state: "visible", timeout: 5_000 });
+      // Sign out sits in the header once signed in.
+      if (!(await page.locator("header #sign-out").isVisible())) throw new Error("Sign out isn't in the header");
       await page.selectOption("#country", "CA");
       // Without the terms ticked, nothing is made.
       await page.click("#start-form button[type=submit]");
@@ -134,7 +139,7 @@ async function checkFrontDoor(browser, walk, log) {
         if (phone) await page.setViewportSize(phone);
       }
       const [saved] = await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`);
-      if (saved?.status !== "open" || saved?.plan !== "both" || saved?.pressName !== "Front Door Press" || saved?.sells !== "clothing" || saved?.sellingToday !== "online" || saved?.country !== "CA") throw new Error(`saved ${JSON.stringify(saved)}`);
+      if (saved?.status !== "open" || saved?.plan !== "both" || saved?.pressName !== "Front Door Press" || saved?.sells !== "clothing" || saved?.sellingToday || saved?.country !== "CA") throw new Error(`saved ${JSON.stringify(saved)}`);
       const row = await walk.world.stores.signups.get(saved.shopId);
       if (!row?.trialStartedAt || row?.plan !== "both") throw new Error(`the trial didn't start with both apps: ${JSON.stringify(row)}`);
     });

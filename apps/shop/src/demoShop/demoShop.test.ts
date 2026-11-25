@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { STARTER_SITES } from "../app/admin/lookGallery";
 import { stylesFor } from "../app/admin/studio/starterStyles";
 import { withShopStartFor } from "../app/admin/sells";
-import { DEMO_NAME, DEMO_SELLS, demoChoice, demoDesign, underBase } from "./demoShop";
+import { DEMO_NAME, DEMO_SELLS, demoChoice, demoDesign, demoShopName, underBase } from "./demoShop";
 
 describe("live demo shops", () => {
   it("falls back to the first starter, its own style and a clothing shop for an unknown answer", () => {
@@ -10,6 +10,15 @@ describe("live demo shops", () => {
     expect(demoChoice({ starter: "juniper-catalogue", style: "night", sells: "studio" })).toEqual({ starter: "juniper-catalogue", style: "night", sells: "studio" });
     // A style of another starter isn't this one's.
     expect(demoChoice({ starter: "aurel-editorial", style: "sage" }).style).toBe(stylesFor("aurel-editorial")[0].id);
+  });
+
+  it("shows the visitor's own shop name (sign-up's live preview), as one plain line", () => {
+    expect(demoShopName("  Moth   & Moon ")).toBe("Moth & Moon");
+    expect(demoShopName("<b>Bold</b>\nShop")).toBe("bBold/b Shop");
+    expect(demoShopName("x".repeat(80))).toHaveLength(60);
+    expect(demoShopName("")).toBe(DEMO_NAME);
+    expect(demoShopName(null)).toBe(DEMO_NAME);
+    expect(demoDesign({ starter: STARTER_SITES[0], style: "", sells: "clothing" }, "/demo/", "Moth & Moon").design.copy.siteName).toBe("Moth & Moon");
   });
 
   it("puts the demo's folder in front of the starter pictures", () => {
