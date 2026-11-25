@@ -1307,7 +1307,7 @@ const TODAY_SNOOZABLE = new Set(["shop", "payment", "move", "newsletter", "domai
 
 /** Snooze one Today line for a day, a week or a month: picked from a small menu, saved at once. */
 function needSnoozeMenu(need) {
-  const menu = el("select", { className: "rp-select", style: "width: auto" },
+  const menu = el("select", { className: "rp-select" },
     el("option", { value: "", textContent: "Snooze…", selected: true }),
     ...[[1, "for a day"], [7, "for a week"], [30, "for a month"]].map(([days, words]) => el("option", { value: String(days), textContent: words })));
   menu.setAttribute("aria-label", `Snooze: ${need.words}`);
@@ -2230,7 +2230,7 @@ async function loadEmergency() {
     parts.push(part("Releases",
       el("div", { className: "cr-row", style: "margin-top: 8px" }, state.releasesPaused ? pill("warning", "Paused") : pill("success", "Running"),
         el("span", { className: "rp-hint cr-grow", textContent: state.releasesPaused ? `Paused by ${state.releasesPaused.by}${state.releasesPaused.reason ? `: ${state.releasesPaused.reason}` : "."}` : "Releases go out to shops as normal." })),
-      state.releaseWindow ? el("p", { className: "rp-hint", textContent: state.releaseWindow.closedNow ? `Closed now: ${state.releaseWindow.reason}. A security fix can still go out.${state.releaseWindow.next ? ` Opens ${new Date(state.releaseWindow.next).toLocaleString()}.` : ""}` : `Open. Next closes ${state.releaseWindow.next ? new Date(state.releaseWindow.next).toLocaleString() : "later"} (weekends and the two weeks before Christmas).` }) : null,
+      state.releaseWindow ? el("p", { className: "rp-hint", textContent: state.releaseWindow.closedNow ? `Closed now: ${state.releaseWindow.reason}. A security fix can still go out.${state.releaseWindow.next ? ` Opens ${when(state.releaseWindow.next)}.` : ""}` : `Open. Next closes ${state.releaseWindow.next ? when(state.releaseWindow.next) : "later"} (weekends and the two weeks before Christmas).` }) : null,
       el("div", { className: "cr-actions" }, state.releasesPaused
         ? run("Resume releases", "/control/emergency/resume-releases", () => sure("Let releases go out again?", "Resume releases"), "Releases can go out again.", "primary")
         : run("Pause releases", "/control/emergency/pause-releases", () => sure("Stop every release? One already running stops before its next shop.", "Pause releases", true), "Releases are paused.", "danger"))));
@@ -2822,7 +2822,10 @@ function incomeChart(months, currency, wide = 720) {
         hover);
     }),
     last ? (() => {
-      const label = svg("text", { class: "cr-chart-label", x: x(last.i), y: y(last.incomeCents) - 14, "text-anchor": last.i === months.length - 1 ? "end" : "middle" });
+      // Under the point when the line comes down to it (above it the words would sit on the line), unless that meets the axis.
+      const before = points.at(-2);
+      const under = before && before.incomeCents > last.incomeCents && y(last.incomeCents) + 22 <= y(0) - 2;
+      const label = svg("text", { class: "cr-chart-label", x: x(last.i), y: y(last.incomeCents) + (under ? 22 : -14), "text-anchor": last.i === months.length - 1 ? "end" : "middle" });
       label.textContent = wholeMoney(last.incomeCents, currency);
       return label;
     })() : null);
@@ -2913,10 +2916,10 @@ async function loadFairMonths() {
       sold.length ? table({
         caption: `Fair till sales by month, ${plural(presses, "press", "presses")} with the stockroom`,
         columns: [
-          { header: "Month", lead: true, render: (m) => el("span", { className: "rp-mono", textContent: m.month }) },
+          { header: "Month", lead: true, render: (m) => monthWords(m.month, "long") },
           { header: "Sales", render: (m) => String(m.sales) },
           { header: "Copies", render: (m) => String(m.copies) },
-          { header: "Money", render: (m) => el("span", { className: "rp-mono", textContent: cad(m.amount) }) },
+          { header: "Money", render: (m) => cad(m.amount) },
           { header: "Presses selling", render: (m) => String(m.presses) },
         ],
         rows: [...months].reverse(),
@@ -3045,7 +3048,7 @@ async function loadLeaving() {
   const saves = $("#save-list");
   try {
     const answer = await api("GET", "/control/leaving");
-    const countList = (counts) => el("dl", { className: "cr-facts" }, ...answer.reasons.flatMap((r) => [el("dt", { textContent: r.label }), el("dd", { textContent: String(counts[r.id] ?? 0) })]));
+    const countList = (counts) => el("dl", { className: "cr-facts cr-counts" }, ...answer.reasons.flatMap((r) => [el("dt", { textContent: r.label }), el("dd", { textContent: String(counts[r.id] ?? 0) })]));
     const total = (counts) => Object.values(counts).reduce((sum, n) => sum + n, 0);
     target.replaceChildren(
       sheet({ title: "This month", tone: "neutral", pillWords: `${total(answer.thisMonth)} answer${total(answer.thisMonth) === 1 ? "" : "s"}`, body: [countList(answer.thisMonth), answer.stayedThisMonth ? el("p", { className: "rp-hint", textContent: `${answer.stayedThisMonth} answered, then kept their plan.` }) : null] }),
