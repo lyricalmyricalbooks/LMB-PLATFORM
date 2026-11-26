@@ -12,6 +12,8 @@ export const QUESTION = Object.freeze({
     Object.freeze({ id: "online", label: "Through another online shop" }),
     Object.freeze({ id: "shops", label: "Through bookshops and distributors" }),
     Object.freeze({ id: "spreadsheet", label: "I keep track in a spreadsheet" }),
+    // Julian, 26 November 2026: "always have the other option if it's not in the list".
+    Object.freeze({ id: "other", label: "Somewhere else" }),
   ]),
 });
 

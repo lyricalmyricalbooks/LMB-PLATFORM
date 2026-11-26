@@ -235,7 +235,8 @@ test("the page: email link or Google, one skippable question, no card asked, no 
   assert.match(page, /Skip this question/);
   assert.match(page, /No card needed/);
   assert.doesNotMatch(page + app, /card ?number|cvc|expiry|type="tel"/i);
-  assert.equal(QUESTION.options.length, 5);
+  assert.equal(QUESTION.options.length, 6);
+  assert.equal(QUESTION.options.at(-1).id, "other"); // always a way out of the list (Julian, 26 November 2026)
   const words = (page + app + readFileSync(new URL("./form.js", import.meta.url), "utf8")).toLowerCase();
   for (const rival of ["big cartel", "bigcartel", "shopify", "squarespace", "etsy", "wix", "woocommerce"]) assert.ok(!words.includes(rival), rival);
 });

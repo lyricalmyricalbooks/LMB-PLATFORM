@@ -23,8 +23,8 @@ import { wordsFor } from "../../shared/shopSells";
 import { bookable, hasHours, servicesOnly, type BookingsFacts } from "./servicesSetup";
 
 /** The sign-up answers (signup/form.js QUESTION.options). Anything else, or none, gets the general order. */
-export type SellingToday = "starting" | "fairs" | "online" | "shops" | "spreadsheet";
-export const SELLING_TODAY: readonly SellingToday[] = ["starting", "fairs", "online", "shops", "spreadsheet"];
+export type SellingToday = "starting" | "fairs" | "online" | "shops" | "spreadsheet" | "other";
+export const SELLING_TODAY: readonly SellingToday[] = ["starting", "fairs", "online", "shops", "spreadsheet", "other"];
 
 /** What the welcome (Choose your look, plan 6.3) recorded once it was done. */
 export interface WelcomeDone {
@@ -151,7 +151,7 @@ const WORDS: Record<StepId, StepWords> = {
 
 /** The first-book step for each answer. */
 const FIRST_BOOK: Record<SellingToday | "general", StepId> = {
-  starting: "add-books", fairs: "add-books", online: "bring-books", shops: "add-books", spreadsheet: "import-spreadsheet", general: "add-books",
+  starting: "add-books", fairs: "add-books", online: "bring-books", shops: "add-books", spreadsheet: "import-spreadsheet", other: "add-books", general: "add-books",
 };
 
 /** The steps in order, with their part ("books" stands for the answer's first-book step). Open your shop is last but for the move. */

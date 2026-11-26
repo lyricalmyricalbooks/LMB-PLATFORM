@@ -16,7 +16,7 @@ import {
 } from "./inventoryInsights";
 import {
   Checkbox, DataTable, Dialog, Drawer, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState,
-  PageActions, Pagination, PrimaryButton, SearchField, SecondaryButton, SelectField, StatusBadge,
+  PageActions, Pagination, PrimaryButton, SearchField, SecondaryButton, SelectField, StatusBadge, TextField,
   ToastProvider, useRisoToast, type BadgeTone, type Column,
 } from "./riso/components";
 import { MONEY_SIGN } from "./moneySign";
@@ -85,6 +85,9 @@ function InventoryPage({ onEditBook }: InventoryProps) {
   const [thresholdDraft, setThresholdDraft] = useState("5");
   const [showHidden, setShowHidden] = useState(false);
   const [reason, setReason] = useState<AdjustReason>("Count correction");
+  // Other asks what happened (Julian, 26 November 2026: "always have the other option"); it goes in the stock history.
+  const [reasonNote, setReasonNote] = useState("");
+  const noteFor = (why: AdjustReason) => (why === "Other" && reasonNote.trim() ? { note: reasonNote.trim().slice(0, 200) } : {});
   const [page, setPage] = useState(1);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<Set<string>>(new Set());
@@ -177,7 +180,7 @@ function InventoryPage({ onEditBook }: InventoryProps) {
       const preview = ch.kind === "delta" ? Math.max(0, r.stock + ch.delta) : ch.to;
       if (!(await confirmRestockEmails([{ row: r, from: r.stock, to: preview }]))) return null;
       confirmed = true;
-      const meta = { reason: why, title: r.title, edition: r.edition };
+      const meta = { reason: why, title: r.title, edition: r.edition, ...noteFor(why) };
       let res = await inventoryApi.adjustStock(r.bookId, r.variantId, ch, meta);
       if (!res.ok && res.reason === "conflict" && ch.kind === "set") {
         const go = await ask({
@@ -266,7 +269,7 @@ function InventoryPage({ onEditBook }: InventoryProps) {
       if (!(await confirmRestockEmails(items))) return;
       const out: Record<string, { ok: boolean; text: string }> = {};
       const settled = await Promise.allSettled(items.map(async ({ row, ch }) => {
-        const res = await inventoryApi.adjustStock(row.bookId, row.variantId, ch, { reason, title: row.title, edition: row.edition });
+        const res = await inventoryApi.adjustStock(row.bookId, row.variantId, ch, { reason, title: row.title, edition: row.edition, ...noteFor(reason) });
         if (res.ok) { applyLocal(row, res.to); out[row.id] = { ok: true, text: `${res.from} → ${res.to}` }; }
         else out[row.id] = { ok: false, text: res.reason === "conflict" ? `Changed to ${res.live} meanwhile — not saved` : "Not saved" };
         return res;
@@ -445,6 +448,10 @@ function InventoryPage({ onEditBook }: InventoryProps) {
         <SelectField label="Reason for changes" value={reason} onChange={(e) => setReason(e.target.value as AdjustReason)}>
           {ADJUST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
         </SelectField>
+        {reason === "Other" && (
+          <TextField label="What happened?" placeholder="e.g. Given away at a launch" maxLength={200} value={reasonNote}
+            data-reason-note="" onChange={(e) => setReasonNote(e.target.value)} />
+        )}
       </FilterBar>
       <div className="rp-card inv-list">
         {receiving && <p className="rp-hint inv-receive-help">+12 adds, -3 removes, =40 sets. Then Save all.</p>}
