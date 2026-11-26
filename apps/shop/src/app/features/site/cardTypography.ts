@@ -68,8 +68,89 @@ export function cardTypographyCss(design: any): string {
   if (d.cardFormatsColor) css += `${S} .fm-card-formats{color:${clean(d.cardFormatsColor)} !important;}`;
   if (d.cardRatingStarColor) css += `${S} .fm-card-rating-stars{color:${clean(d.cardRatingStarColor)} !important;}`;
 
+  css += cardDesignCss(d) + shopPageLayoutCss(d);
   return css;
 }
 
 /** Google Fonts the card controls may ask for (loaded by StorefrontThemeStyle). */
 export const cardFontNames = (d: any): string[] => [d?.cardTitleFont, d?.cardPriceFont].filter(Boolean).map(String);
+
+/**
+ * Product card designs (frame designs, 26 November 2026): the same card (photo, title, price) drawn five ways on every
+ * grid (home sections, the shop page, collections), so two starters never share a card. Empty is the card as it was.
+ *   - "framed":   each card is a tile with its own background and a thin line around it.
+ *   - "caption":  a large title in the heading font, the price underneath.
+ *   - "centred":  title and price centred under the photo, in small capitals.
+ *   - "numbered": each card carries its number in the grid (01, 02, 03…) above the title, like a catalogue.
+ * Owner sizes and colours (the !important rules above) still win over a design.
+ */
+export const CARD_DESIGNS = ["", "framed", "caption", "centred", "numbered"] as const;
+export type CardDesign = (typeof CARD_DESIGNS)[number];
+export const CARD_DESIGN_OPTIONS: { value: CardDesign; label: string }[] = [
+  { value: "", label: "Plain: photo, then title and price (default)" },
+  { value: "framed", label: "Framed tile: each card on its own panel" },
+  { value: "caption", label: "Big caption: large title, price underneath" },
+  { value: "centred", label: "Centred: small capitals under the photo" },
+  { value: "numbered", label: "Numbered: 01, 02, 03 above each title" },
+];
+export function cardDesign(d: any): CardDesign {
+  return (CARD_DESIGNS as readonly string[]).includes(d?.cardDesign) ? d.cardDesign : "";
+}
+
+export function cardDesignCss(d: any): string {
+  const S = "[data-fm-store]";
+  const meta = `${S} .fm-card :has(> .fm-card-title)`;
+  switch (cardDesign(d)) {
+    case "framed":
+      return `${S} .fm-card{padding:12px 12px 16px;background:var(--surface);border:1px solid rgba(var(--border-rgb), 0.5);}`;
+    case "caption":
+      return `${meta}{flex-direction:column;align-items:flex-start;gap:6px;}`
+        + `${S} .fm-card .fm-card-title{font-family:var(--heading-font, inherit);font-size:clamp(19px, 1.7vw, 28px);font-weight:400;line-height:1.08;letter-spacing:-.01em;text-transform:none;}`
+        + `${S} .fm-card .fm-card-price-wrap{align-items:flex-start;}`;
+    case "centred":
+      return `${meta}{flex-direction:column;align-items:center;text-align:center;gap:4px;}`
+        + `${S} .fm-card .fm-card-title{font-size:12px;letter-spacing:.16em;text-transform:uppercase;}`
+        + `${S} .fm-card .fm-card-price-wrap{align-items:center;}`;
+    case "numbered":
+      // Numbered in each section of the page: the counter starts again at every section (home sections, the shop grid).
+      return `${S} section{counter-reset:fm-card;}`
+        + `${S} .fm-card{counter-increment:fm-card;}`
+        + `${meta}{flex-direction:column;align-items:flex-start;gap:4px;}`
+        + `${S} .fm-card .fm-card-title::before{content:counter(fm-card, decimal-leading-zero);display:block;margin-bottom:6px;font-size:11px;letter-spacing:.14em;font-variant-numeric:tabular-nums;opacity:.6;}`;
+    default:
+      return "";
+  }
+}
+
+/**
+ * Shop page designs (frame designs, 26 November 2026): how the shop page and collections lay out their products.
+ *   - "":          the grid (default).
+ *   - "list":      an index: one product per row, a small photo beside the name and price, rows ruled like a catalogue.
+ *   - "staggered": the grid with every other column set lower, like a magazine spread (computers only).
+ */
+export const SHOP_PAGE_LAYOUTS = ["", "list", "staggered"] as const;
+export type ShopPageLayout = (typeof SHOP_PAGE_LAYOUTS)[number];
+export const SHOP_PAGE_LAYOUT_OPTIONS: { value: ShopPageLayout; label: string }[] = [
+  { value: "", label: "Grid (default)" },
+  { value: "list", label: "Index list: one product per row with a small photo" },
+  { value: "staggered", label: "Staggered grid: every other column set lower" },
+];
+export function shopPageLayout(d: any): ShopPageLayout {
+  return (SHOP_PAGE_LAYOUTS as readonly string[]).includes(d?.shopPageLayout) ? d.shopPageLayout : "";
+}
+
+export function shopPageLayoutCss(d: any): string {
+  const layout = shopPageLayout(d);
+  const G = `[data-fm-store] .fm-shop-grid[data-shop-layout="${layout}"]`;
+  if (layout === "list") {
+    return `${G}{grid-template-columns:minmax(0,1fr) !important;row-gap:0 !important;}`
+      + `${G}>.fm-card{padding:16px 0;border-top:1px solid rgba(var(--border-rgb), 0.45);transform:none !important;}`
+      + `${G}>.fm-card>a{display:grid;grid-template-columns:88px minmax(0,1fr);gap:20px;align-items:center;}`
+      + `@media (min-width:768px){${G}>.fm-card>a{grid-template-columns:120px minmax(0,1fr);gap:32px;}}`
+      + `${G} .fm-photo-frame{margin-bottom:0 !important;}`;
+  }
+  if (layout === "staggered") {
+    return `@media (min-width:1024px){${G}>.fm-card:nth-child(even){margin-top:64px;}}`;
+  }
+  return "";
+}

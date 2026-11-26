@@ -90,7 +90,7 @@ import { orderTabs } from "./pdpTabOrder";
 import { DescriptionText } from "./DescriptionText";
 import DescriptionFold from "./DescriptionFold.tsx";
 import { googleFontHref } from "./fonts";
-import { productPageCss, productPageFontNames, titleFitSize } from "./productPageStyle";
+import { productPageCss, productPageFontNames, productPageLayout, titleFitSize } from "./productPageStyle";
 import { schemeButtonColors } from "./colorSchemes";
 
 import { findProduct } from "./productRoutes";
@@ -1480,7 +1480,8 @@ export default function BookDetail() {
             </nav>
           )}
 
-          <div className={`mt-8 lg:mt-10 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] gap-10 xl:gap-14 items-start ${
+          {/* Style › Product page › Product page design (frame designs): empty is the boxed buy card. */}
+          <div data-pdp-layout={productPageLayout(tokenSource) || undefined} className={`fm-pdp-grid mt-8 lg:mt-10 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] gap-10 xl:gap-14 items-start ${
             productContentPosition === "left" ? "lg:[&>*:first-child]:order-2 lg:[&>*:last-child]:order-1" : ""
           }`}>
 
@@ -1489,7 +1490,7 @@ export default function BookDetail() {
               data-section="products"
               data-studio-target="style:productCard" data-studio-label="Product photos"
               onPointerEnter={warmGallery} onTouchStart={warmGallery} onFocus={warmGallery}
-              className="w-full min-w-0 mx-auto lg:mx-0 lg:justify-self-end"
+              className="fm-pdp-photos w-full min-w-0 mx-auto lg:mx-0 lg:justify-self-end"
               style={{ maxWidth: productImageMaxWidth + (showThumbRail && pdpThumbPosition === "side" ? thumbRailWidth : 0) }}
             >
               {productImageLayout === "slider" ? (
@@ -1765,7 +1766,7 @@ export default function BookDetail() {
             </div>
 
             {/* ── INFO COLUMN ── */}
-            <div data-section="products" className="flex flex-col gap-8 lg:sticky lg:top-[calc(var(--fm-header-offset,0px)+1.5rem)] w-full min-w-0">
+            <div data-section="products" className="fm-pdp-info flex flex-col gap-8 lg:sticky lg:top-[calc(var(--fm-header-offset,0px)+1.5rem)] w-full min-w-0">
               <div className="fm-pdp-card" data-studio-target="style:productCard|copy:Product page" data-studio-label="Buy card">
 
                 {(pdpRuledRows ? ruledSections(cardSections(buyBlocks)) : cardSections(buyBlocks)).map((section, index) => {

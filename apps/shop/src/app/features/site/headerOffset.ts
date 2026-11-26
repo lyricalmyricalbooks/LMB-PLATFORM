@@ -25,7 +25,9 @@ export function useHeaderOffset(ref: RefObject<HTMLElement | null>, layoutKey: s
     const root = document.documentElement;
     const measure = () => {
       const style = getComputedStyle(el);
-      root.style.setProperty(HEADER_OFFSET_VAR, `${stuckHeaderBottom(style.position, style.top, el.offsetHeight)}px`);
+      // The side menu (Header layout › Side menu) stands beside the page, so it covers nothing above it.
+      const beside = el.dataset.hdrLayout === "rail" && style.position === "fixed";
+      root.style.setProperty(HEADER_OFFSET_VAR, `${beside ? 0 : stuckHeaderBottom(style.position, style.top, el.offsetHeight)}px`);
     };
     measure();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);

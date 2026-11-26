@@ -13,7 +13,7 @@ import { regionProps } from "./storefrontRegions";
 import { GroupedFooterNavigation } from "../../components/GroupedFooterNavigation";
 import { FooterMenu } from "../../components/StoreMenu";
 import { wordmarkSecondaryStyle } from "../../components/LogoMark";
-import { footerLinksAlign, footerStyleCss } from "./footerStyle";
+import { footerDesign, footerDesignCss, footerLinksAlign, footerStyleCss, giantNameSize } from "./footerStyle";
 import { pageInFooter } from "./footerNavigation";
 import { elementScheme } from "./colorSchemes";
 import { BackToTop } from "./extras/footer-back-to-top/BackToTop.tsx";
@@ -55,16 +55,30 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
   const footerAbout: string = String((settings?.design?.copy?.footerAbout != null ? getCopy(settings?.design, "footerAbout") : shopCopyFallback(settings, "footerAbout") || getCopy(settings?.design, "footerAbout")) ?? "");
   const footerLocation: string = String(getCopy(d, "footerLocation") ?? "");
   const badges = d?.showPaymentBadges !== false ? resolveFooterBadges(d, settings) : [];
+  // Style › Footer & social links › Footer design (frame designs): empty draws the footer as it always has.
+  const design = footerDesign(d);
+  const giantName = shopName(d);
   return (
     <footer {...regionProps("footerPanel")} data-fm-footer=""
       data-studio-target="style:footer|style:catalogElements|copy:Footer" data-studio-label="Footer"
+      data-footer-design={design}
       className="border-t-2 border-white/30 bg-black/40"
       style={elementScheme(d, "footer") ? { backgroundColor: "var(--bg-color)", color: "var(--text-color)" } : d?.footerBg ? { backgroundColor: d.footerBg } : undefined}
     >
-      <style>{footerStyleCss(d)}</style>
+      <style>{footerStyleCss(d) + footerDesignCss(d)}</style>
       {/* One padded column: the top band, legal row and bottom bar share the same left/right edge, and the
           divider lines start and end exactly where the text does. */}
       <div style={{ maxWidth: contentMaxWidth(d) }} className="mx-auto px-6">
+      {/* Contact first: the shop's email and where to find it, large, before the links. */}
+      {design === "contact" && (
+        <div className="fm-footer-contact fm-footer-text text-white" data-two={d.showFooterLocation !== false && footerLocation.trim() ? "" : undefined} data-studio-target="copy:Footer|style:footer" data-studio-label="Footer contact">
+          <div className="min-w-0">
+            <p className="fm-footer-heading text-white/55 text-[9px] uppercase tracking-[0.3em]"><span data-studio-copy="footerLinkContact">{getCopy(d, "footerLinkContact")}</span></p>
+            <p className="fm-footer-contact-big"><a href={`mailto:${email}`}>{email.split("@")[0]}@<wbr />{email.split("@").slice(1).join("@")}</a></p>
+          </div>
+          {d.showFooterLocation !== false && footerLocation.trim() && <p className="fm-footer-contact-big"><span data-studio-copy="footerLocation">{footerLocation}</span></p>}
+        </div>
+      )}
       <div className={`fm-footer-main fm-footer-text grid grid-cols-1 ${!multiColumn ? "" : grouped ? groupedGrid : fourCol ? "md:grid-cols-4" : "md:grid-cols-3"} gap-10 md:gap-x-16 text-[11px] text-white/70`}>
         {/* Col 1: Brand */}
         <div {...regionProps("footerBrand")} className="fm-footer-brand space-y-4 min-w-0 max-w-sm" data-studio-target="copy:Footer|style:logo|style:catalogElements" data-studio-label="Footer brand">
@@ -163,6 +177,11 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
         {d.showFooterLegalHeading !== false && <span className="fm-footer-heading text-[9px] uppercase tracking-[0.3em] text-white/55" data-studio-copy="footerLegalHeading">{getCopy(d, "footerLegalHeading")}</span>}
         {policyKeys.map(k => <Link key={k} to={"/page/" + policySlug(k)} className="hover:text-white transition-colors">{policyTitle(d, k)}</Link>)}
       </div>}
+
+      {/* Big name: the shop's name set huge across the bottom (decoration: the name is already in the footer's links). */}
+      {design === "wordmark" && (
+        <p className="fm-footer-giant text-white" aria-hidden="true" data-studio-target="style:footer|style:logo" data-studio-label="Footer big name" style={{ fontSize: giantNameSize(giantName), fontFamily: wordmarkFontFamily }}>{giantName}</p>
+      )}
 
       {/* Bottom bar: copyright on the left; payment icons, social icons and the Admin link on the right. */}
       <div {...regionProps("footerBottom")} data-studio-target="copy:Footer|style:footer|style:catalogElements" data-studio-label="Footer bottom bar"

@@ -386,6 +386,7 @@ export function productPageCss(design: any): string {
   css += `${fill}[data-fill="wrap"] .fm-pdp-thumb{flex:1 1 ${share};max-width:100%;}`;
   css += `${fill}[data-last-row="left"] .fm-pdp-thumb,${fill}[data-last-row="center"] .fm-pdp-thumb{flex-grow:0;}`;
   css += `${fill}[data-last-row="center"]{justify-content:center;}`;
+  css += productPageLayoutCss(d);
   return css;
 }
 
@@ -411,3 +412,68 @@ export function phoneThumbsCss(d: any, thumbSize = 64, thumbGap = 10): string {
 /** Google Fonts the product-page controls may ask for. */
 export const productPageFontNames = (d: any): string[] =>
   [d?.pdpTitleFont, d?.pdpPriceFont, d?.pdpMetaFont, d?.pdpDescFont, d?.pdpDescHeadingFont].filter(Boolean).map(String);
+
+/**
+ * Product page designs (frame designs, 26 November 2026): the same parts (photos, buy card, details) laid out five
+ * ways, so two starters never share a product page. Empty (every existing shop) is the boxed buy card as it always was.
+ *   - "open":      big photos on the left, the details beside them with no box around them.
+ *   - "hero":      one wide photo across the page, the details centred underneath.
+ *   - "editorial": words first: a huge title and the details, then the photos below, like a magazine page.
+ *   - "split":     the screen halved: the photo fills one side, the details sit on a tinted panel on the other.
+ */
+export const PDP_LAYOUTS = ["", "open", "hero", "editorial", "split"] as const;
+export type PdpLayout = (typeof PDP_LAYOUTS)[number];
+export const PDP_LAYOUT_OPTIONS: { value: PdpLayout; label: string }[] = [
+  { value: "", label: "Buy card: photo beside a boxed buy card (default)" },
+  { value: "open", label: "Open: big photos, details beside them with no box" },
+  { value: "hero", label: "Wide photo: one photo across the page, details centred below" },
+  { value: "editorial", label: "Magazine: huge title and details first, photos below" },
+  { value: "split", label: "Half and half: photo on one side, details on a tinted panel" },
+];
+export function productPageLayout(d: any): PdpLayout {
+  return (PDP_LAYOUTS as readonly string[]).includes(d?.pdpLayout) ? d.pdpLayout : "";
+}
+
+/** Computers wide enough for the two-column product page (Tailwind's lg). */
+const PDP_WIDE = "(min-width:1024px)";
+
+export function productPageLayoutCss(d: any): string {
+  const layout = productPageLayout(d);
+  if (!layout) return "";
+  const L = `${S} [data-pdp-layout="${layout}"]`;
+  // Every design but the buy card drops the box: no outline, no offset shadow, no fill.
+  const open = `${L} .fm-pdp-card{background:transparent;border:0;box-shadow:none;border-radius:0;}`
+    + `${L} .fm-pdp-card-section{padding-left:0;padding-right:0;}`
+    + `${L} .fm-pdp-card-section:first-child{padding-top:0;}`
+    + `${L} .fm-pdp-frame,${L} .fm-pdp-caption{border:0;}`;
+  const centred = `${L} .fm-pdp-info{text-align:center;}${L} .fm-pdp-card-section{align-items:center;}`
+    + `${L} .fm-pdp-tagrow{justify-content:center;}`;
+  switch (layout) {
+    case "open":
+      return open + `${L} .fm-pdp-caption{padding-inline:0;}`
+        + `@media ${PDP_WIDE}{${L}.fm-pdp-grid{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) !important;gap:56px !important;}${L} .fm-pdp-photos{max-width:none !important;}}`;
+    case "hero":
+      return open + centred
+        + `@media ${PDP_WIDE}{${L}.fm-pdp-grid{grid-template-columns:minmax(0,1fr) !important;}`
+        + `${L} .fm-pdp-photos{max-width:none !important;justify-self:stretch !important;}`
+        + `${L} .fm-pdp-frame{aspect-ratio:16/9 !important;}`
+        + `${L} .fm-pdp-info{position:static !important;max-width:760px;margin-inline:auto;}}`;
+    case "editorial":
+      return open + `${L}.fm-pdp-grid{--pdp-title-auto:clamp(48px, 8vw, 128px);}`
+        + `${L} .fm-pdp-info{order:-1;}`
+        + `${L} .fm-pdp-card-section{border-top:1px solid rgba(var(--border-rgb), 0.45);padding-top:20px;padding-bottom:20px;}`
+        + `${L} .fm-pdp-card-section:first-child{border-top:0;}`
+        + `@media ${PDP_WIDE}{${L}.fm-pdp-grid{grid-template-columns:minmax(0,1fr) !important;}`
+        + `${L} .fm-pdp-info{position:static !important;max-width:980px;}`
+        + `${L} .fm-pdp-photos{max-width:980px !important;justify-self:start !important;}}`;
+    case "split":
+      return `${L} .fm-pdp-frame,${L} .fm-pdp-caption{border:0;}`
+        + `${L} .fm-pdp-card{border:0;box-shadow:none;border-radius:0;}`
+        + `@media ${PDP_WIDE}{${L}.fm-pdp-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;gap:0 !important;align-items:stretch !important;}`
+        + `${L} .fm-pdp-photos{max-width:none !important;}${L} .fm-pdp-frame{aspect-ratio:4/5 !important;}`
+        + `${L} .fm-pdp-card-section{padding-left:56px;padding-right:56px;}`
+        + `${L} .fm-pdp-card-section:first-child{padding-top:64px;}}`;
+    default:
+      return "";
+  }
+}

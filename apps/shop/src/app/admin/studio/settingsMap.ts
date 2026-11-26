@@ -164,7 +164,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Sticker pills", keys: ["navPillRadius", "navPillRotate", "navPillActivePalette"] },
   ],
   footer: [
-    { title: "Footer layout", keys: ["footerNavigationLayout", "footerLinksAlign", "footerBrandAlign", "footerBrandVAlign", "footerBrandCenterMobile", "showFooterBrandDivider", "footerColumns", "footerLayout", "footerBg"] },
+    { title: "Footer layout", keys: ["footerDesign", "footerNavigationLayout", "footerLinksAlign", "footerBrandAlign", "footerBrandVAlign", "footerBrandCenterMobile", "showFooterBrandDivider", "footerColumns", "footerLayout", "footerBg"] },
     { title: "Footer spacing", keys: ["footerPaddingY", "footerPaddingYMobile", "footerBarPaddingY", "footerColumnGap", "footerLinkGap"] },
     { title: "Footer text & lines", keys: ["footerTextSize", "footerTextColor", "footerHeadingColor", "footerLinkHoverColor", "showFooterDividers", "footerDividerColor"] },
     { title: "Footer accent", keys: ["showFooterAccentLine", "footerAccentLineWidth", "footerAccentColor", "footerGroupHeadingsAccent"] },
@@ -173,7 +173,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Social media icons", keys: ["showSocialInFooter", "footerSocialPlace", "footerSocialIconSize", "footerSocialBoxes", "footerSocialHoverColor"] },
   ],
   products: [
-    { title: "Grid & columns", keys: ["productCardStyle", "productColumnsDesktop", "productColumnsMobile", "catalogGridGap", "productHoverEffect", "showCardHoverPhoto", "showCardCreator", "showCardRating", "showCardFormats"] },
+    { title: "Grid & columns", keys: ["shopPageLayout", "cardDesign", "productCardStyle", "productColumnsDesktop", "productColumnsMobile", "catalogGridGap", "productHoverEffect", "showCardHoverPhoto", "showCardCreator", "showCardRating", "showCardFormats"] },
     { title: "Book photos", keys: ["imageAspectRatio", "photoOutline", "placeholderImageUrl"] },
     { title: "Title & price", keys: ["productTitleColor", "cardTitleSize", "cardTitleSizeMobile", "cardTitlePhoneMin", "cardTitleWeight", "cardTitleFont", "cardTitleTracking", "productPriceColor", "cardPriceSize", "cardPriceSizeMobile", "cardPriceStackPhone", "cardPriceWeight", "cardPriceFont", "cardPriceTagBg", "cardPriceOldColor", "catalogPriceStyle", "catalogCardRuleWidth", "showPriceOnHover", "showQuickAdd", "showQuickView", "showCardWishlist", "showWishlistShare"] },
     { title: "Author, formats & stars under the title", keys: ["cardCreatorColor", "cardCreatorSize", "cardFormatsColor", "cardRatingStarColor"] },
@@ -182,7 +182,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Card button & product-page extras", keys: ["productCTA", "showQtyStepper", "productDescriptionStyle", "productBorderRadius"] },
   ],
   productPage: [
-    { title: "Page layout", keys: ["productImageLayout", "productContentPosition", "productAlignment", "productDetailsLayout"] },
+    { title: "Page layout", keys: ["pdpLayout", "productImageLayout", "productContentPosition", "productAlignment", "productDetailsLayout"] },
     { title: "Photos", keys: ["productImageMaxWidth", "productImageAspect", "productImageFrameMode", "productImageAspectLandscape", "productPhotoOutline", "productImageFit", "productImageShadow", "productImageHoverScale", "showZoom", "showPdpMagnifier", "pdpMagnifierLevel", "showPhotoLightbox", "showProductVideos", "showAmbientGlow", "glowIntensity", "productImageGlowColor"] },
     { title: "Title & add-to-bag button", keys: ["productTitleSize", "productSubtitleWeight", "addToBagLabel", "productCtaWidth", "productCtaSize", "productCtaAnimation"] },
     { title: "Extras on the page", keys: ["showSpecs", "showPdpEditionDetails", "showPdpArtistLinks", "showSocialShare", "showPdpWishlist", "showBackInStock", "showComingSoonSignup", "pdpDescriptionFold", "pdpDescriptionFoldLines", "showPdpPickup", "showPdpArtistBio", "showPdpSizeGuide", "showPdpPolicyTab", "pdpTabOrder1", "pdpTabOrder2", "pdpTabOrder3", "pdpTabOrder4", "pdpTabOrder5", "showBundleWidget", "productBundleLayout", "showRelatedProducts", "relatedByArtist", "recentlyViewedCount", "lowStockProductThreshold"] },

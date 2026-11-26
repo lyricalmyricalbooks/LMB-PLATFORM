@@ -119,5 +119,7 @@ export function cartDrawerCss(design: any): string {
     `${S} .fm-bag-total-n{font-family:${titleFont};font-size:${totalSize}px;line-height:1;}`,
     `${S} .fm-bag-badges > *{border:1px solid var(--bag-rule);}`,
     `${S} .fm-bag-empty-icon{border:var(--bag-edge-w) solid var(--bag-edge);color:var(--bag-muted);}`,
+    // Whole screen (Slides in from › Whole screen): the bag covers the page and its rows sit in a centred column.
+    d.cartDrawerSide === "full" ? `.fm-bag[data-bag-full]>*:not(style):not(link){width:100%;max-width:760px;margin-inline:auto;}` : "",
   ].join("");
 }
