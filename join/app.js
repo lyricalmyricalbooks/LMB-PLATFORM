@@ -3,8 +3,8 @@
 // and stockroom). "Setting up your store…" follows the shop maker until the way into the store's admin is ready. New and returning presses come in the same way. Plain browser JavaScript with no
 // framework (docs/decisions.md); Firebase's own browser library is loaded from Google for sign-in only. Every check the
 // page makes, the server makes again (signup/frontDoor.js).
-import { API_BASE, DEMO_URL, FIREBASE_SDK, PLATFORM_FIREBASE, SETUP_ADMIN_URL } from "../signup/config.js";
-import { COUNTRIES, PRODUCT_GROUPS, SERVICE_SELLS, SHOP_TYPES, countryFromTimeZone, isEmail, sellsForGroups, shopTypeOf } from "../signup/form.js";
+import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE, SETUP_ADMIN_URL } from "../signup/config.js";
+import { COUNTRIES, SERVICE_SELLS, SHOP_TYPES, countryFromTimeZone, isEmail, shopTypeOf } from "../signup/form.js";
 import { ROW_WORDS, makingView } from "../signup/making.js";
 import { takeHandOff } from "../waitlist/frontPage.js";
 
@@ -225,12 +225,9 @@ if (STARTER_PICK) {
   $("#starter-pick-link").href = $("#new-starter-link").href;
   $("#starter-pick").hidden = false;
 }
-// The starter the tile shows is the one the new shop opens on (sign-up plan, move 2): picked on a sample shop, else the
-// one that suits the kind of shop, so Choose your look inside starts where "Your new store" left off.
-const starterChange = () => {
-  const { starter, style } = previewChoice();
-  return { look: starter, lookStyle: style };
-};
+// Only a starter picked on a sample shop travels with the answers. The look is otherwise chosen after the shop exists, in
+// its setup guide (25 November 2026, Julian), so nothing here picks one for the person.
+const starterChange = () => (STARTER_PICK ? { look: STARTER_PICK.look, lookStyle: STARTER_PICK.lookStyle } : {});
 
 // Bookshop or general shop (14 November 2026, Julian): the first question, so it's clear which one gets the book
 // features. A general shop then says what it sells. Both are saved as one sign-up answer (signup/form.js SHOP_TYPES).
@@ -261,33 +258,7 @@ function showTypes(withServices) {
     return tile;
   }));
 }
-// A product shop picks every kind of thing it sells (product types plan, change 12; form.js PRODUCT_GROUPS). Six of the
-// commonest show first and "Show N more" opens the rest (25 November 2026: sixteen chips made the step look like work).
-// The order on screen doesn't change the answer: `sells` follows the list's own order (form.js sellsForGroups).
-const COMMON_GROUPS = ["clothing", "jewelry", "art", "home", "beauty", "food"];
-const groupsShown = [...COMMON_GROUPS.map((id) => PRODUCT_GROUPS.options.find((o) => o.id === id)).filter(Boolean), ...PRODUCT_GROUPS.options.filter((o) => !COMMON_GROUPS.includes(o.id))];
-$("#sells-choices").replaceChildren(...groupsShown.map((o) => {
-  const label = choice(PRODUCT_GROUPS.id, o.id, o.label);
-  label.querySelector("input").type = "checkbox";
-  if (!COMMON_GROUPS.includes(o.id)) { label.classList.add("fd-extra"); label.hidden = true; }
-  return label;
-}));
-const moreGroups = $("#sells-more");
-moreGroups.textContent = `Show ${groupsShown.length - COMMON_GROUPS.length} more`;
-/** Opens the rest of the chips (once opened they stay open). */
-function showAllGroups() {
-  for (const label of $("#sells-choices").querySelectorAll(".fd-extra")) label.hidden = false;
-  moreGroups.hidden = true;
-  moreGroups.setAttribute("aria-expanded", "true");
-}
-moreGroups.addEventListener("click", () => {
-  showAllGroups();
-  $("#sells-choices .fd-extra input")?.focus();
-});
-/** The product groups ticked, in the list's order. */
-const pickedGroups = () => [...startForm.querySelectorAll(`input[name=${PRODUCT_GROUPS.id}]:checked`)].map((input) => input.value);
-/** A press saved before groups were asked: its one-word answer's group. */
-const GROUP_OF_SELLS = { clothing: "clothing", shoes: "shoes", jewelry: "jewelry", prints: "art", music: "music" };
+// What a product shop sells is asked after the shop exists (the look step's "What do you sell?"; Settings › What you sell).
 $("#does-choices").replaceChildren(...SERVICE_SELLS.map((o) => choice("does", o.id, o.label)));
 // A bookshop that signed up as zines or comics keeps that answer; a new bookshop is "books".
 let bookAnswer = "books";
@@ -300,20 +271,17 @@ const addressFor = (name) => `${(name.toLowerCase().normalize("NFKD").replace(/[
 const showName = () => {
   const name = startForm.pressName.value.trim();
   $("#new-name").textContent = name || "Your brand";
-  $("#new-address").textContent = addressFor(name);
+  $("#new-address").textContent = $("#form-address").textContent = addressFor(name);
 };
 const pickedValue = (name) => startForm.querySelector(`input[name=${name}]:checked`)?.value ?? "";
-/** The preview's shop line, and the "What do you sell?" chips only for a general shop. */
+/** The preview's shop line, and "What do you do?" only for a services shop. */
 const showKind = () => {
   const type = pickedValue("shopType");
-  const groups = pickedGroups().map((id) => PRODUCT_GROUPS.options.find((o) => o.id === id)).filter(Boolean);
   const does = SERVICE_SELLS.find((o) => o.id === pickedValue("does"));
-  $("#sells-group").hidden = type !== "general";
-  if (type !== "general") $("#sells-error").hidden = true;
   $("#does-group").hidden = type !== "services";
   if (type !== "services") $("#does-error").hidden = true;
   $("#new-kind").textContent = type === "books" ? "Bookshop"
-    : type === "general" ? (groups.length === 1 ? groups[0].label : groups.length > 1 ? `${groups[0].label} and ${groups.length - 1} more` : "Product shop")
+    : type === "general" ? "Product shop"
     : type === "services" ? (does && does.id !== "services" ? does.label : "Services") : "Your store";
   // A services shop's second side is its money, not a stockroom.
   $("#new-includes").textContent = type === "services" ? "Bookings, website and bookkeeping" : "Shop and stockroom";
@@ -344,75 +312,9 @@ function showCountry() {
     $("#new-founding").textContent = `${fee.foundingFeeText} a month`;
   }
 }
-// "Your new store" shows a real starter: the picture of its home page (join/starters/, taken from the live demo shop),
-// and on a wide screen, once a brand name is typed, the live demo shop itself with that name on it (DEMO_URL, the
-// demo's ?name=&embed=1). Which starter: the one picked on a sample shop (Use this starter), else the one that suits the
-// kind of shop. That starter is saved with the answers, so the new shop opens on it (sign-up plan, move 2).
-const STARTER_SHOTS = Object.freeze({
-  "aurel-editorial": { shot: "aurel", name: "Aurel", style: "cobalt" },
-  "juniper-slow-season": { shot: "slow-season", name: "Slow Season", style: "terracotta" },
-  "juniper-catalogue": { shot: "catalogue", name: "Catalogue", style: "acid" },
-});
-// Product groups the home-goods sample set suits better than the clothing one (apps/shop demoShop DEMO_SELLS).
-const HOME_GROUPS = ["home", "beauty", "food", "plants", "craft", "kids", "pets"];
-/** The starter, style and sample set the tile shows for the answers so far. */
-function previewChoice() {
-  const type = pickedValue("shopType");
-  const first = pickedGroups()[0];
-  const sells = type === "books" ? "books" : type === "services" ? "studio" : HOME_GROUPS.includes(first) ? "home" : "clothing";
-  const picked = STARTER_PICK && STARTER_SHOTS[STARTER_PICK.look] ? STARTER_PICK.look : "";
-  const starter = picked || (sells === "books" ? "juniper-catalogue" : sells === "home" || sells === "studio" ? "juniper-slow-season" : "aurel-editorial");
-  return { starter, style: (picked && STARTER_PICK.lookStyle) || STARTER_SHOTS[starter].style, sells };
-}
-const wideScreen = window.matchMedia("(min-width: 901px)");
-const shotBox = $("#new-shot");
-let liveTimer = 0;
-let liveSrc = "";
-function showPreview() {
-  const pick = previewChoice();
-  const shown = STARTER_SHOTS[pick.starter];
-  for (const img of shotBox.querySelectorAll("img")) img.hidden = img.dataset.shot !== shown.shot;
-  $("#new-look-name").textContent = shown.name;
-  const link = $("#new-look-link");
-  link.hidden = !DEMO_URL;
-  if (DEMO_URL) link.href = `${DEMO_URL}?${new URLSearchParams({ starter: pick.starter, style: pick.style, sells: pick.sells })}`;
-  // A picked starter or a saved design has its own line on the tile.
-  $("#new-look").hidden = !!STARTER_PICK || !!press?.design;
-  clearTimeout(liveTimer);
-  const name = startForm.pressName.value.trim();
-  const src = DEMO_URL && wideScreen.matches && name ? `${DEMO_URL}?${new URLSearchParams({ ...pick, name, embed: "1" })}` : "";
-  if (src !== liveSrc) delete shotBox.dataset.live;
-  if (src) liveTimer = setTimeout(() => goLive(src), 700);
-}
-/** Loads the live demo into the tile; it fades in over the picture once it has drawn. */
-function goLive(src) {
-  if (src === liveSrc) { shotBox.dataset.live = ""; return; }
-  liveSrc = src;
-  let frame = shotBox.querySelector("iframe");
-  if (!frame) {
-    frame = document.createElement("iframe");
-    frame.title = "Your shop in this starter";
-    frame.tabIndex = -1;
-    frame.setAttribute("aria-hidden", "true");
-    frame.setAttribute("inert", "");
-    // The shop runs inside, but can never move this page or open windows.
-    frame.setAttribute("sandbox", "allow-scripts allow-same-origin");
-    frame.addEventListener("load", () => {
-      const loaded = frame.dataset.src;
-      // The shop draws just after its page loads.
-      setTimeout(() => { if (loaded === liveSrc) shotBox.dataset.live = ""; }, 500);
-    });
-    shotBox.append(frame);
-  }
-  frame.dataset.src = src;
-  frame.src = src;
-}
-new ResizeObserver(() => shotBox.style.setProperty("--fd-scale", String(shotBox.clientWidth / 1280))).observe(shotBox);
-wideScreen.addEventListener("change", () => showPreview());
-showPreview();
-startForm.pressName.addEventListener("input", () => { showName(); showPreview(); });
+startForm.pressName.addEventListener("input", showName);
 startForm.addEventListener("change", (event) => {
-  if (["sells", "productGroups", "does", "shopType"].includes(event.target.name)) { showKind(); showPreview(); }
+  if (["does", "shopType"].includes(event.target.name)) showKind();
   if (event.target.name === "country") showCountry();
 });
 // An answer given clears its own error line.
@@ -431,12 +333,8 @@ function fillAnswers() {
   showTypes(plans?.servicesOpen === true || type === "services");
   if (type === "books") bookAnswer = press.sells;
   for (const input of startForm.querySelectorAll("input[name=shopType]")) input.checked = input.value === type;
-  const savedGroups = Array.isArray(press.productGroups) && press.productGroups.length ? press.productGroups : [GROUP_OF_SELLS[press.sells]].filter(Boolean);
-  for (const input of startForm.querySelectorAll(`input[name=${PRODUCT_GROUPS.id}]`)) input.checked = type === "general" && savedGroups.includes(input.value);
   for (const input of startForm.querySelectorAll("input[name=does]")) input.checked = type === "services" && input.value === press.sells;
   showKind();
-  // A saved pick from the longer list opens it, so the answer is never hidden.
-  if (startForm.querySelector(".fd-extra input:checked")) showAllGroups();
   // Not answered yet: start from the country the computer's clock is set to, when we can tell and serve it.
   startForm.country.value = press.country in COUNTRIES ? press.country : countryFromTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
   showName();
@@ -451,7 +349,6 @@ function fillAnswers() {
   // A design made in the designer wins over a starter picked on a sample shop, so only one of the two shows.
   $("#new-starter").hidden = !STARTER_PICK || !!press.design;
   designed.querySelector("a").href = designerUrl();
-  showPreview();
 }
 
 /** The designer that runs before the store exists (built from apps/shop, served at /design/). */
@@ -464,7 +361,6 @@ function checkAnswers(answers, { terms = true } = {}) {
   const problems = {
     pressName: answers.pressName ? "" : "Enter your brand's name.",
     shopType: answers.shopType ? "" : "Pick the kind of shop.",
-    sells: answers.shopType !== "general" || answers.sells ? "" : "Pick at least one kind of thing you sell.",
     does: answers.shopType !== "services" || answers.sells ? "" : "Pick what you do.",
     country: answers.country ? "" : "Choose where your brand is based.",
     terms: !terms || answers.termsAccepted ? "" : "Tick the box to agree to the terms.",
@@ -475,29 +371,18 @@ function checkAnswers(answers, { terms = true } = {}) {
     line.hidden = !words;
   }
   const first = Object.entries(problems).find(([, words]) => words)?.[0];
-  if (first) startForm.querySelector(first === "terms" ? "[name=termsAccepted]" : first === "sells" ? "input[name=productGroups]" : `[name=${first}]`)?.focus();
+  if (first) startForm.querySelector(first === "terms" ? "[name=termsAccepted]" : `[name=${first}]`)?.focus();
   return !first;
 }
 
-// `shopType` is the page's own; the server gets `sells`: the bookshop answer, the product shop's tile or the services shop's.
+// `shopType` is the page's own; the server gets `sells`: the bookshop answer, the services shop's, or "other" for a
+// product shop (what it sells is asked after the shop exists). A product shop that already saved its kinds keeps them.
 const readAnswers = () => {
   const shopType = pickedValue("shopType");
-  const productGroups = shopType === "general" ? pickedGroups() : [];
-  const sells = shopType === "books" ? bookAnswer : shopType === "general" ? sellsForGroups(productGroups) : shopType === "services" ? pickedValue("does") : "";
-  return { pressName: startForm.pressName.value.trim(), shopType, sells, productGroups, country: startForm.country.value, termsAccepted: startForm.termsAccepted.checked };
+  const keptKinds = shopType === "general" && shopTypeOf(press?.sells) === "general" && press.sells !== "other";
+  const sells = shopType === "books" ? bookAnswer : shopType === "general" ? (keptKinds ? press.sells : "other") : shopType === "services" ? pickedValue("does") : "";
+  return { pressName: startForm.pressName.value.trim(), shopType, sells, country: startForm.country.value, termsAccepted: startForm.termsAccepted.checked };
 };
-
-// Design my shop first: the answers are saved (no store is made, no terms needed yet), then the real designer opens
-// with a sample shop. Its Done comes back here, and Start my free trial makes the store with that design on.
-$("#design-first").addEventListener("click", () => {
-  const answers = readAnswers();
-  if (!checkAnswers(answers, { terms: false })) return;
-  busy(startForm, $("#start-error"), async () => {
-    const { termsAccepted: _terms, shopType: _type, ...change } = answers;
-    press = (await api("POST", "/press/setup", { pressId: press.pressId, plan: TRIAL_PLAN, ...starterChange(), ...change })).press;
-    location.assign(designerUrl());
-  });
-});
 
 startForm.addEventListener("submit", (event) => {
   event.preventDefault();

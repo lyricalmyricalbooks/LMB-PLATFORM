@@ -217,9 +217,7 @@ async function fileFor(folder, name) {
       body: text.toString("utf8")
         .replace(/export const PLATFORM_FIREBASE = Object\.freeze\(\{[\s\S]*?\}\);/, 'export const PLATFORM_FIREBASE = Object.freeze({ apiKey: "walkthrough", authDomain: "walkthrough.example", projectId: "demo-walkthrough" });')
         .replace(/export const FIREBASE_SDK = ".*";/, 'export const FIREBASE_SDK = "/walkthrough/firebase";')
-        .replace(/export const SETUP_ADMIN_URL = ".*";/, 'export const SETUP_ADMIN_URL = "/app/";')
-        // The live demo shops aren't served here: sign-up's preview keeps to its starter pictures.
-        .replace(/export const DEMO_URL = ".*";/, 'export const DEMO_URL = "";'),
+        .replace(/export const SETUP_ADMIN_URL = ".*";/, 'export const SETUP_ADMIN_URL = "/app/";'),
     };
   }
   if (key === "waitlist/config.js") {
