@@ -1951,7 +1951,10 @@ await check("the bag's own background wins over the checkout background", deskto
   await page.getByRole("button", { name: "Show Cart drawer (shopping bag) on the page" }).click();
   const frame = page.frames().find(f => /preview=true/.test(f.url()));
   await frame.waitForSelector(".fm-bag", { timeout: 10000 });
-  await openStyleCategory(page, "Cart drawer (shopping bag)");
+  // Show on page opens the bag's own panel once the preview lists it (StudioEditor showOnPage), which can land after
+  // the bag is drawn: wait for that panel, then use its Style tab, so the panel never switches under the check.
+  await page.getByRole("button", { name: "Back to the page" }).first().waitFor({ timeout: 10000 });
+  await page.getByRole("tab", { name: "Style", exact: true }).first().click();
   await openStyleField(page, "cartDrawerBg");
   await styleControl(page, "cartDrawerBg", "input:not([type=color])").fill("#ff0000");
   await frame.waitForFunction(() => getComputedStyle(document.querySelector(".fm-bag")).backgroundColor === "rgb(255, 0, 0)", undefined, { timeout: 10000 });
