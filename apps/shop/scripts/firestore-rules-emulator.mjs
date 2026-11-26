@@ -350,6 +350,12 @@ await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-
   await check("Something else words over 80 characters refused", assertFails(setDoc(doc(admin, "firstWeek/start"), { otherSells: "x".repeat(81) }, { merge: true })));
   await check("Something else words must be words", assertFails(setDoc(doc(admin, "firstWeek/start"), { otherService: 5 }, { merge: true })));
   await check("this shop's owner can't write another shop's own words", assertFails(setDoc(doc(signedIn("admin", { email: "owner@example.com", email_verified: true }, { shop: "s2" }), "firstWeek/start"), { otherSells: "Surfboards" }, { merge: true })));
+  const typeChange = { at: "2026-11-26T12:00:00.000Z", from: "products", to: "both", before: { sells: "clothing", sellsProducts: false, leadSide: "services" }, website: "follow" };
+  await check("admin keeps a change of type for Switch back", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { typeChange }, { merge: true })));
+  await check("admin marks a change of type undone", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { typeChange: { ...typeChange, undoneAt: "2026-11-27T12:00:00.000Z" } }, { merge: true })));
+  await check("a change of type to an unknown type refused", assertFails(setDoc(doc(admin, "firstWeek/start"), { typeChange: { ...typeChange, to: "bank" } }, { merge: true })));
+  await check("a change of type with extra keys refused", assertFails(setDoc(doc(admin, "firstWeek/start"), { typeChange: { ...typeChange, before: { ...typeChange.before, plan: "both" } } }, { merge: true })));
+  await check("this shop's owner can't write another shop's change of type", assertFails(setDoc(doc(signedIn("admin", { email: "owner@example.com", email_verified: true }, { shop: "s2" }), "firstWeek/start"), { typeChange }, { merge: true })));
   await check("kinds of things that aren't a list refused", assertFails(setDoc(doc(admin, "firstWeek/start"), { productGroups: "home" }, { merge: true })));
   await check("this shop's owner can't change another shop's kinds of things", assertFails(setDoc(doc(signedIn("admin", { email: "owner@example.com", email_verified: true }, { shop: "s2" }), "firstWeek/start"), { productGroups: ["pets"] }, { merge: true })));
   await check("a product shop can't switch to services before Bookings is on", assertFails(setDoc(doc(admin, "firstWeek/start"), { sells: "hair" }, { merge: true })));

@@ -38,6 +38,8 @@
 //   POST /api/billing/add-on                   { shopId, addOn: "bank-feed", on } -> { addOns }: the bank feed add-on
 //                                  (given `bankFeed`, services/bankfeed); off disconnects the shop's banks first
 //   The download, when the door is given `exports` (the shop admin's door; the account page has its own button):
+//   POST /api/billing/open-bookings            { shopId } -> { on, changed }: a product shop becoming a services shop
+//                                  (or both) turns Bookings on (given `openBookings`; bookingsBeta.js ownerOpen)
 //   POST /api/billing/download                 { shopId } -> { emailedTo, expiresAt }: a copy of everything, the
 //                                  closed app's records included while they're kept (services/export forOwner: once a day)
 //
@@ -76,7 +78,7 @@ export function textsLine({ texts, cents, currency }, settings) {
   return { count: texts, cents: amount, text: moneyWords(amount, currency === "USD" ? "USD" : "CAD", settings) };
 }
 
-export function billingCalls({ billing, paymentWay = null, settings, exports = null, bankFeed = null, meters = null, texts = null, closing = null }) {
+export function billingCalls({ billing, paymentWay = null, settings, exports = null, bankFeed = null, meters = null, texts = null, closing = null, openBookings = null }) {
   // The card and the billing details are the paying account's (one Stripe customer for every shop it pays for), so only
   // that person changes them: a co-owner's card would otherwise pay the account holder's other shops too.
   const payerOnly = (run) => async (shopId, body, context) => {
@@ -158,6 +160,11 @@ export function billingCalls({ billing, paymentWay = null, settings, exports = n
     // A page of bills, newest first; `after` (the last page's) reads older ones.
     invoices: { run: async (shopId, { after }) => (billing.invoicePage ? billing.invoicePage(shopId, { after: typeof after === "string" ? after : null }) : { invoices: await billing.invoices(shopId), more: false, after: null }) },
   };
+  if (openBookings) {
+    // A product shop changing its type to Services or Products and services (shop types plan, part 3): Bookings turns
+    // on for it (control-room/bookingsBeta.js ownerOpen), only while services shops are open or for a test shop.
+    calls["open-bookings"] = { run: async (shopId, _body, context) => openBookings(shopId, context?.claims?.email ?? context?.payer?.email ?? "") };
+  }
   if (paymentWay) {
     calls["payment-way"] = { run: async (shopId) => { const status = await paymentWay.status(shopId); return { view: paymentWayView(status, settings), status }; } };
     calls["payment-way/switch"] = {

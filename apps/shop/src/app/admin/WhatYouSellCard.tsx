@@ -6,10 +6,12 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { currentSells } from "./sells";
-import { hasPublisherTools, sellsServices } from "../../shared/shopSells";
+import { hasPublisherTools } from "../../shared/shopSells";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { SELLS_CHANGED_EVENT, SELLS_PRODUCTS_CHANGED_EVENT } from "./shopWords";
-import { SectionCard, TextField, Toggle, useConfirm } from "./riso/components";
+import { SecondaryButton, SectionCard, TextField, Toggle, useConfirm } from "./riso/components";
+import { ChangeShopTypeDialog } from "./ChangeShopTypeDialog";
+import { switchBackOf, switchBackUntil, switchBackWrite, typeName } from "./shopTypeChange";
 import { FormField } from "./riso/FormKit";
 import { BookOpen, Check, X } from "lucide-react";
 import { TYPE_GROUPS, sellsGroups, typeById, type TypeGroupId } from "../../shared/productTypes";
@@ -18,6 +20,7 @@ import { LEAD_SIDE_CHANGED_EVENT, leadSideOf, shopKindOf } from "./servicesSetup
 import { OTHER_LABEL, OTHER_MAX, OTHER_SERVICE, goodsSellsFor, otherWords } from "./offerStage";
 import type { FirstWeekDoc } from "./firstWeek";
 import { removeOwnType, useOwnTypes } from "./ownTypes";
+import { SERVICE_CHOICES } from "./serviceChoices";
 
 /** The kinds of things you sell (product types plan, change 12): tap a group on or off; "What is it?" offers its types first. */
 export function ProductGroupsPicker({ sells, other = "", onOther }: {
@@ -126,37 +129,11 @@ export const SELLS_CHOICES: { id: string; label: string }[] = [
   { id: "other", label: "Something else" },
 ];
 
-/** What a services shop does (sign-up's "What do you do?"). Offered only in a shop that is already a services shop. */
-export const SERVICE_CHOICES: { id: string; label: string }[] = [
-  { id: "hair", label: "Hair and beauty" },
-  { id: "wellness", label: "Health and wellness" },
-  { id: "lessons", label: "Lessons and tutoring" },
-  { id: "fitness", label: "Fitness and classes" },
-  { id: "studio", label: "Studio and creative" },
-  { id: "services", label: "Other services" },
-];
+export { SERVICE_CHOICES } from "./serviceChoices";
 
 /** The choices this shop is offered: a services shop picks what it does; every other shop what it sells. */
 export function sellsChoicesFor(servicesShop: boolean): { id: string; label: string }[] {
   return servicesShop ? SERVICE_CHOICES : SELLS_CHOICES;
-}
-
-/**
- * The choices in groups. A shop may change kind (products ⇄ services) only when it is a services shop already or the
- * platform has turned Bookings on for it (the rules check the same), so only then are both groups offered.
- */
-export function sellsGroupsFor(servicesShop: boolean, canSwitch: boolean): { label: string; choices: { id: string; label: string }[] }[] {
-  if (!canSwitch) return [{ label: "", choices: sellsChoicesFor(servicesShop) }];
-  return [{ label: "Services", choices: SERVICE_CHOICES }, { label: "Products", choices: SELLS_CHOICES }];
-}
-
-/** The question a switch of kind asks first, or null when the kind stays the same. */
-export function kindSwitchQuestion(from: string | null | undefined, to: string): { title: string; message: string; confirmLabel: string } | null {
-  const was = sellsServices(from || null), now = sellsServices(to);
-  if (was === now) return null;
-  return now
-    ? { title: "Switch to a services shop?", message: "Your menu changes to Calendar, Clients and Money. Your products and orders stay, and come back with Sell products too.", confirmLabel: "Switch to services" }
-    : { title: "Switch to a product shop?", message: "Your menu changes to Orders, Products and Settings. Your bookings, services and clients stay.", confirmLabel: "Switch to products" };
 }
 
 /** What Settings says about the stockroom's words: it is using the saved answer, or it will switch when next opened. */
@@ -182,6 +159,7 @@ export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
   const [justSaved, setJustSaved] = useState(false);
   const [heard, setHeard] = useState<string | null>(null);
   const [ask, confirmNode] = useConfirm();
+  const [changing, setChanging] = useState(false);
   useEffect(() => {
     let live = true;
     Promise.resolve().then(() => adminApi.getFirstWeek()).then((d) => { if (live) setDoc(d ?? null); }).catch(() => { if (live) setDoc(null); });
@@ -219,7 +197,12 @@ export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
     const sells = on ? "books" : goodsSellsFor(groups.filter((g) => g !== "books"));
     await save("books", { sells }, on ? "Book tools are on: authors, ISBNs and royalties." : "Book tools are off.");
   };
-  const setSellsProducts = (on: boolean) => save("products", { sellsProducts: on }, on ? "Products, stock and shipping are back in your menu." : "Your menu is back to bookings and clients.");
+  const undo = switchBackOf(doc);
+  const switchBack = async () => {
+    if (!undo) return;
+    if (!(await ask({ title: `Switch back to ${typeName(undo.from).toLowerCase()}?`, message: "Your menu and words go back to how they were. Nothing is deleted.", confirmLabel: "Switch back" }))) return;
+    await save("undo", switchBackWrite(undo, new Date().toISOString()), `You're ${undo.from === "products" ? "a product shop" : typeName(undo.from).toLowerCase()} again.`);
+  };
 
   const groupNames = [...TYPE_GROUPS.filter((g) => groups.includes(g.id)).map((g) => g.name.toLowerCase()), ...(otherWords(doc?.otherSells) ? [otherWords(doc?.otherSells).toLowerCase()] : [])];
   const summary = type === "services"
@@ -230,6 +213,11 @@ export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
       <span className="rp-hint" style={{ margin: 0 }}>Your shop is</span>
       <strong style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-0.01em" }}>{TYPE_NAME[type]}</strong>
       {summary && <span className="rp-hint" style={{ margin: 0, textTransform: "none" }}>{summary.charAt(0).toUpperCase() + summary.slice(1)}</span>}
+      <span style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+        <SecondaryButton size="sm" data-change-type-open disabled={!!busy} onClick={() => setChanging(true)}>Change type</SecondaryButton>
+        {undo && <SecondaryButton size="sm" data-switch-back disabled={!!busy} onClick={() => { void switchBack(); }}>{`Switch back to ${typeName(undo.from).toLowerCase()}`}</SecondaryButton>}
+      </span>
+      {undo && <span className="rp-hint" data-switch-back-until style={{ margin: 0, textTransform: "none" }}>{`Switch back is here until ${switchBackUntil(undo).toLocaleDateString(undefined, { day: "numeric", month: "long" })}.`}</span>}
     </div>
   );
   const pill = (on: boolean, label: string, onClick: () => void, data: Record<string, string>) => (
@@ -259,13 +247,6 @@ export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
         <span className="rp-fk-hint">That side leads your menu. Both stay in.</span>
       </section>
     )}
-    {type !== "products" && (
-      <label style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer" }}>
-        <input type="checkbox" checked={type === "both"} disabled={!!busy} onChange={(e) => { void setSellsProducts(e.target.checked); }} style={{ marginTop: 3 }} />
-        <span><strong style={{ display: "block", fontWeight: 600 }}>Sell products too</strong>
-          <span className="rp-hint">Adds the Products, stock and shipping pages, for aftercare or merchandise. Gift cards work either way.</span></span>
-      </label>
-    )}
     {type !== "services" && <ProductGroupsPicker sells={saved} other={otherWords(doc?.otherSells)} onOther={(words) => save("other", { otherSells: words }, words ? "Saved." : "Something else is off.")} />}
     {showBookTools && (
       <div data-book-tools style={{ display: "flex", gap: 16, alignItems: "center", justifyContent: "space-between", padding: "14px 16px", border: "1px solid var(--rp-border)", borderRadius: "var(--rp-radius-lg)" }}>
@@ -279,6 +260,7 @@ export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
     {type !== "services" && <OwnTypesList />}
     {stockroomWordsNote(saved, heard, justSaved) && <p className="rp-hint" role="status" style={{ margin: 0 }}>{stockroomWordsNote(saved, heard, justSaved)}</p>}
     {confirmNode}
+    {changing && <ChangeShopTypeDialog doc={doc} onClose={() => setChanging(false)} onChanged={(next) => { setDoc(next); setJustSaved(!!next.sells); }} />}
   </>);
   return bare
     ? <div data-what-you-offer style={{ display: "grid", gap: 20 }}>{body}</div>

@@ -1914,7 +1914,24 @@ if (new URLSearchParams(location.search).get("variants")) {
       ...(new URLSearchParams(location.search).get("offerDone") ? { offer: { at: "2026-11-26T10:00:00.000Z" }, welcome: { at: "2026-11-26T10:00:00.000Z" } } : {}) };
     const api = adminApi as any;
     api.getFirstWeek = async () => JSON.parse(JSON.stringify(week));
-    api.updateFirstWeek = async (change: any) => { Object.assign(week, change); };
+    // Change your type (shop types plan, part 3): sample counts and bookings; turning services on and cancels are recorded.
+    const calls: any[] = [];
+    api.updateFirstWeek = async (change: any) => { calls.push(["updateFirstWeek", change]); Object.assign(week, change); };
+    (window as any).__adminFixture.calls = calls;
+    (window as any).__adminFixture.firstWeek = week;
+    const { shopTypeData } = await import("../app/admin/shopTypeApi");
+    const soon = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString();
+    const upcoming: any[] = offer === "products" ? [] : [
+      { id: "b1", status: "confirmed", start: soon(2), name: "Sam Example", payment: "card", priceMinor: 6000, paid: true, currency: "CAD" },
+      { id: "b2", status: "requested", start: soon(5), name: "Ari Example", payment: "atShop", priceMinor: 4000, currency: "CAD" },
+    ];
+    shopTypeData.counts = async () => ({ products: offer === "services" ? 2 : 24, orders: offer === "services" ? 0 : 61, services: offer === "products" ? 0 : 5, upcoming: upcoming.length, clients: offer === "products" ? 0 : 38 });
+    shopTypeData.upcoming = async () => upcoming;
+    let bookingsOn = offer !== "products";
+    shopTypeData.bookingsOn = async () => bookingsOn;
+    shopTypeData.openBookings = async () => { calls.push(["openBookings"]); bookingsOn = true; };
+    shopTypeData.cancelOne = async (b: any) => { calls.push(["cancelOne", b.id]); };
+    if (new URLSearchParams(location.search).get("changed")) week.typeChange = { at: soon(-3), from: "products", to: offer, before: { sells: "clothing", sellsProducts: false, leadSide: "services" }, website: "follow" };
   }
 }
 
