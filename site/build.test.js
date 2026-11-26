@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MOUNTS } from "../walkthrough/server.js";
-import { buildSite, drawAhead, DRAWN_AHEAD, firebaseJson, liveConfig, neededFiles, outsideFolder, referencesIn, SITE_MOUNTS } from "./build.js";
+import { buildSite, drawAhead, DRAWN_AHEAD, firebaseJson, liveConfig, neededFiles, outsideFolder, outsideFolders, referencesIn, SITE_MOUNTS } from "./build.js";
 
 test("the live site publishes every page the walkthrough has, at the same address", () => {
   for (const [address, folder] of Object.entries(MOUNTS)) {
@@ -69,12 +69,31 @@ test("the designer before a store exists: Studio at /design/studio, its shop pag
   assert.deepEqual(firebaseJson({ api: false, app: true }).hosting.headers[0].source, "**");
 });
 
+test("each starter's page can show its sample shop in a frame: /demo/ is framed by the platform itself only", () => {
+  // 26 November 2026: the computer and phone frames on /demo/starters/<id> were blank, because /demo/ had "never framed".
+  const json = firebaseJson({ api: false, app: true, designer: true, demo: true });
+  const [everywhere, framed] = json.hosting.headers;
+  const value = (set, key) => set.headers.find((h) => h.key === key)?.value;
+  assert.equal(value(everywhere, "X-Frame-Options"), "DENY");
+  assert.match(value(everywhere, "Content-Security-Policy"), /frame-ancestors 'none'/);
+  assert.equal(value(framed, "X-Frame-Options"), "SAMEORIGIN");
+  assert.match(value(framed, "Content-Security-Policy"), /frame-ancestors 'self'/);
+  const outside = new RegExp(everywhere.regex), inside = new RegExp(framed.regex);
+  for (const path of ["/", "/d", "/de", "/dem", "/demos", "/demox/a", "/des", "/designs", "/designer", "/deb", "/app/", "/control/", "/join/"]) {
+    assert.ok(outside.test(path) && !inside.test(path), path);
+  }
+  for (const path of ["/demo", "/demo/", "/demo/starters/starter-larder", "/demo/products/x", "/design", "/design/studio"]) {
+    assert.ok(inside.test(path) && !outside.test(path), path);
+  }
+  assert.equal(everywhere.regex, outsideFolders(["design", "demo"]));
+});
+
 test("the live demo shops: every address under /demo/ is the one demo page, its built files kept", () => {
   const json = firebaseJson({ api: false, app: true, designer: true, demo: true });
   assert.equal(json.hosting.rewrites.find((r) => r.source === "/demo/**")?.destination, "/demo/demo.html");
   assert.ok(json.hosting.headers.some((h) => h.source === "/demo/assets/**" && h.headers[0].value.includes("immutable")));
-  // A demo page is never framed (it isn't the designer's folder).
-  assert.ok(new RegExp(json.hosting.headers[0].regex).test("/demo/products/example"));
+  // A demo page may be framed by the platform's own starter pages only (see the starter-frames test above).
+  assert.ok(new RegExp(json.hosting.headers[1].regex).test("/demo/products/example"));
   // Without a built demo nothing changes.
   assert.equal(firebaseJson({ api: false, app: true }).hosting.rewrites.some((r) => r.source === "/demo/**"), false);
 });

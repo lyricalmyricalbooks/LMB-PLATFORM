@@ -91,15 +91,26 @@ export const DESIGNER_HEADERS = Object.freeze(HEADERS.map((h) => (
     : h.key === "Content-Security-Policy" ? { ...h, value: h.value.replace("frame-ancestors 'none'", "frame-ancestors 'self'") } : h)));
 
 /**
- * A Hosting regex (RE2: no look-ahead) matching every address outside /<folder>/ and /<folder> itself: the root, a
- * proper start of the name, a path that leaves the name at some letter, or a longer first segment (/designs).
+ * A Hosting regex (RE2: no look-ahead) matching every address outside /<folder>/ and /<folder> itself, for each of the
+ * folders: the root, a first segment that is a proper start of a name, one that leaves every name at some letter, or a
+ * longer first segment (/designs). Built by walking the names letter by letter, so names sharing a start (design, demo)
+ * stay apart.
  */
-export function outsideFolder(folder) {
-  const alternatives = [`/(${[...folder].map((_, i) => folder.slice(0, i)).join("|")})`];
-  for (let i = 0; i < folder.length; i++) alternatives.push(`/${folder.slice(0, i)}[^${folder[i]}].*`);
-  alternatives.push(`/${folder}[^/].*`);
-  return `^(${alternatives.join("|")})$`;
+export function outsideFolders(folders) {
+  const esc = (t) => t.replace(/[.*+?^${}()|[\]\\/-]/g, "\\$&");
+  const walk = (prefix) => {
+    const isName = folders.includes(prefix);
+    const next = [...new Set(folders.filter((f) => f.length > prefix.length && f.startsWith(prefix)).map((f) => f[prefix.length]))];
+    const stop = [...next, ...(isName ? ["/"] : [])];
+    return [
+      ...(isName ? [] : [esc(prefix)]),
+      `${esc(prefix)}[^${stop.map(esc).join("")}].*`,
+      ...next.flatMap((c) => walk(prefix + c)),
+    ];
+  };
+  return `^/(${walk("").join("|")})$`;
 }
+export const outsideFolder = (folder) => outsideFolders([folder]);
 
 /** Relative references a file makes: html src/href, js import/export from, import(), css url(). */
 export function referencesIn(text, kind) {
@@ -184,6 +195,7 @@ export function firebaseJson({ api, app, designer = false, demo = false }) {
     // Every address inside a sample shop (its product and collection pages) is the one demo page.
     ...(demo ? [{ source: "/demo/**", destination: "/demo/demo.html" }] : []),
   ];
+  const framed = [...(designer ? ["design"] : []), ...(demo ? ["demo"] : [])];
   return {
     firestore: { rules: "firestore.rules" },
     hosting: {
@@ -191,9 +203,11 @@ export function firebaseJson({ api, app, designer = false, demo = false }) {
       ignore: ["**/.*", "**/node_modules/**"],
       rewrites,
       headers: [
-        // Everything but the designer can never be framed; the designer frames its own shop pages (DESIGNER_HEADERS).
-        designer ? { regex: outsideFolder("design"), headers: HEADERS } : { source: "**", headers: HEADERS },
-        ...(designer ? [{ regex: "^/design(/.*)?$", headers: DESIGNER_HEADERS }] : []),
+        // Everything but the designer and the sample shops can never be framed. Those two may be framed by the platform's
+        // own pages and nobody else's (DESIGNER_HEADERS): Studio frames its shop pages, and each starter's page
+        // (/demo/starters/<id>) shows its sample shop in a computer and a phone frame.
+        framed.length ? { regex: outsideFolders(framed), headers: HEADERS } : { source: "**", headers: HEADERS },
+        ...(framed.length ? [{ regex: `^/(${framed.join("|")})(/.*)?$`, headers: DESIGNER_HEADERS }] : []),
         // Pages and their scripts change with every release: always check for a new copy. Setup mode's built files carry
         // their own content hash, so they can be kept.
         { source: "**/*.@(html|js|css)", headers: [{ key: "Cache-Control", value: "no-cache" }] },
