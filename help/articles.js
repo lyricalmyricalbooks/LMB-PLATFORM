@@ -64,6 +64,19 @@ export const ARTICLES = Object.freeze([
     ],
   },
   {
+    id: "change-shop-type",
+    topic: "Your account",
+    question: "How do I change what kind of shop I am?",
+    answer: [
+      "Your shop is a Product shop, Services (people book a time with you), or Products and services. To change it, open Settings › Your shop and press Change type under What you offer.",
+      "Pick the new type and answer the one question it needs, such as what people book. The next step shows what stays, what's added to your menu and what's hidden. Nothing is deleted: products, orders, services, bookings and clients all stay.",
+      "Then choose how your website changes. Keep your design and its matching version goes into your website's draft, so you can look it over before you publish. Your own design always stays as it is.",
+      "Leaving services? Upcoming bookings stay unless you tick the box to cancel them, which refunds each person in full and emails them.",
+      "Changed your mind? Switch back is right there under What you offer for 30 days, and puts your type and website back.",
+    ],
+    where: ["Settings › Your shop"],
+  },
+  {
     id: "booking-calendar", side: "services",
     topic: "Selling",
     question: "How do I use the bookings calendar?",

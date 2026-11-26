@@ -160,10 +160,16 @@ export async function seedRoom(world) {
   for (const [code, isActive] of [["FAIRFRIEND", true], ["SPRING24", false]]) await world.shopData.set("kestrel", `discounts/${code}`, { code, type: "percentage", value: 10, isActive, description: "Brought over from your old shop" });
   // Its move stopped part-way ten days ago (pages and old links still to do), so Today flags it.
   const tenDaysAgo = new Date(world.clock.ms() - 10 * 86_400_000).toISOString();
+  const daysAgoIso = (days) => new Date(world.clock.ms() - days * 86_400_000).toISOString();
   await world.shopData.set("kestrel", "firstWeek/start", { bring: { from: "online" }, done: { "move-customers": tenDaysAgo, "move-giftcards": tenDaysAgo, "move-orders": tenDaysAgo } });
   // The shop's own stalled-move email went to Kit three days later (apps/shop moveReminder).
   await world.shopData.set("kestrel", "systemStatus/moveReminder", { forLastMoved: tenDaysAgo, sentAt: new Date(world.clock.ms() - 3 * 86_400_000).toISOString() });
   await world.shopData.set("kestrel", "systemStatus/photoImport", { copiedTotal: 57, pending: 3, failed: {}, lastRunAt: at });
+
+  // Changes of type (shop types plan part 5): Driftwood started taking bookings for print workshops a week ago and kept
+  // it; Lantern tried Services for a day and switched back. Shops › Shop types lists both.
+  await world.shopData.set("driftwood", "firstWeek/start", { sells: "lessons", sellsProducts: true, leadSide: "products", typeChange: { at: daysAgoIso(7), from: "products", to: "both", website: "follow", before: { sells: "art", sellsProducts: false, leadSide: "services" } } });
+  await world.shopData.set("lantern-zines", "firstWeek/start", { sells: "books", sellsProducts: false, typeChange: { at: daysAgoIso(3), from: "products", to: "services", website: "later", before: { sells: "books", sellsProducts: false, leadSide: "services" }, undoneAt: daysAgoIso(2) } });
 
   // Drifting away: Lantern sold five zines five weeks ago and none since, and Lou last signed in 40 days ago; Kestrel
   // sells every week and Kit signed in yesterday. The daily watch scores both from that and emails Lantern.

@@ -234,6 +234,7 @@ async function load() {
     await loadCosts();
     await loadUsage();
     await loadSetup();
+    await loadShopTypes();
     await loadBookingsBeta();
     await loadWaysBeta();
   } catch (failure) {
@@ -3984,6 +3985,39 @@ function waysBetaSection(shop) {
   show();
   return slot;
 }
+
+// Shops › Shop types (control-room/shopTypes.js `overview`): live shops by type, and every change an owner made in
+// Settings › What you offer › Change type, newest first.
+async function loadShopTypes() {
+  try {
+    const view = await api("GET", "/control/shop-types");
+    const t = view.totals;
+    const figure = (label, value, foot) => el("div", { className: "rp-card rp-metric" },
+      el("div", { className: "rp-metric-label", textContent: label }), el("div", { className: "rp-metric-value", textContent: String(value) }), el("div", { className: "rp-metric-foot", textContent: foot }));
+    fill($("#shop-types-numbers"),
+      figure("Product shops", t.products, `${t.books} sell${t.books === 1 ? "s" : ""} books`),
+      figure("Services", t.services, "take bookings only"),
+      figure("Products and services", t.both, "sell and take bookings"),
+      figure("Changed type", t.changed, t.switchedBack ? `${t.switchedBack} switched back` : t.unread ? `${plural(t.unread, "shop")} couldn't be read` : "since changing opened"));
+    $("#shop-types-changes").replaceChildren(view.changes.length ? table({
+      caption: "Every change of type, newest first",
+      rows: view.changes,
+      open: (row) => {
+        const shop = allShops.find((s) => s.shopId === row.shopId);
+        if (shop) openShop(shop);
+      },
+      columns: [
+        { header: "Shop", lead: true, render: (c) => el("div", {}, el("p", { className: "cr-title", textContent: c.pressName }), meta(c.testShop ? "test shop" : null)) },
+        { header: "Change", render: (c) => c.line },
+        { header: "When", render: (c) => el("span", { className: "rp-mono", textContent: c.at.slice(0, 10) }) },
+        { header: "Now", render: (c) => (c.undoneAt ? pill("neutral", "Switched back") : pill("success", "Kept")) },
+      ],
+    }) : emptyState("No shop has changed its type yet."));
+  } catch (failure) {
+    $("#shop-types-changes").replaceChildren(emptyState(failure.message));
+  }
+}
+$("#shop-types-refresh").addEventListener("click", loadShopTypes);
 
 // Shops › Ways to sell (beta) (control-room/waysBeta.js `overview`): how many shops have each way, and which.
 async function loadWaysBeta() {
