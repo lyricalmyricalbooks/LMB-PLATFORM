@@ -1173,3 +1173,18 @@ the shared `public/samples/` sets, which stay for looks without a sample shop an
 files were copies of Slow Season's and are gone. The rail header now wraps a long shop name (`RAIL_HEADER_CSS`), found
 with "Hollis & Pine Joinery". Pictures on Choose your website were regenerated with `scripts/starter-thumbs.mjs`
 (`CHROMIUM_PATH` set to the container's Chromium).
+
+## Starter phone header and photo first (26 November 2026, plan "Starters vs Shopify and Squarespace", step 4)
+
+Style › Header layout › "Phone navigation style" has a third choice, "Menu button beside the name (one row)"
+(`mobileNavStyle: "icon"`). Phones then draw `PhoneHeaderMenu` (MobileStorefrontNav's `everywhere` menu, `md:hidden`) at the
+start of the header row in both `ShopHeader` and `PageHeader`; `MobileStorefrontNav` itself draws nothing below the row, and
+the links-below row is hidden on phones. `phoneMenuInHeader` decides it from `{ ...design, ...design.storefront }`, the same
+merge the menu uses, so the two never disagree. Seven starters use it (Catalogue and Gallery are Minimal, already a Menu
+button). Default stays "tabs".
+Long names: the logo link and its wrapper can shrink on phones (`min-w-0`), the compact phone header lets `.fm-logo` wrap
+between words (`flex-wrap` for the two-part wordmark), and a centred logo sits in an `auto minmax(0,1fr) auto` grid on
+phones (computers keep `1fr auto 1fr`). Found with Stillwater Ceramics, Northline Supply and Atelier Ondine.
+SplitOpeningSection has "Photo first on phones" (`phonePhotoFirst`, off by default, `.fm-split-photo-first` in
+`styles/index.css`); the five starters that open with it turn it on. Releases: Slow Season, Aurel, Salon, Workshop and
+Commission 4, Warehouse and Larder 6.

@@ -23,8 +23,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 1, date: "2026-11-24", note: "The first version, in Terracotta, Sage and Night." },
       { version: 2, date: "2026-11-26", note: "A new frame: product pages open out across the page, a caption line under each product and a one-line footer." },
       { version: 3, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
+      { version: 4, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links." },
     ],
-    looks: { terracotta: "1s8npye", sage: "186l7h5", night: "88tm31" },
+    looks: { terracotta: "1csf16d", sage: "1gh4o14", night: "5lgdwc" },
   },
   "juniper-catalogue": {
     releases: [
@@ -38,8 +39,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 1, date: "2026-11-24", note: "The first version, in Cobalt, Sand and Night." },
       { version: 2, date: "2026-11-26", note: "A new frame: links in a row under your name, a staggered shop page, your name huge across the footer and a bag that fills the screen." },
       { version: 3, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
+      { version: 4, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links, and the opening photo comes first." },
     ],
-    looks: { cobalt: "14tm56e", sand: "fusx76", night: "1qle2x6" },
+    looks: { cobalt: "13f4hfp", sand: "1bzesm9", night: "g44vyx" },
   },
   "starter-gallery": {
     releases: [
@@ -58,8 +60,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 3, date: "2026-11-26", note: "A redesign: a search bar in the header, a huge headline beside one photo, the page running wider, a moving band and a bright story band." },
       { version: 4, date: "2026-11-26", note: "Tidier on phones: categories two to a row and your promises one under another. The headline fits beside the photo on smaller screens." },
       { version: 5, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
+      { version: 6, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links, and the opening photo comes first." },
     ],
-    looks: { signal: "1r0krfk", cobalt: "ngul7b", night: "1n16sgq" },
+    looks: { signal: "1dtv0bz", cobalt: "1pfkhgm", night: "1r9lmy1" },
   },
   "starter-larder": {
     releases: [
@@ -68,32 +71,36 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 3, date: "2026-11-26", note: "A redesign: a golden card beside a rounded photo, round photo links, rounded shelf cards, a dark gift band and your story." },
       { version: 4, date: "2026-11-26", note: "Tidier on phones: round photo links three to a row." },
       { version: 5, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
+      { version: 6, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links, and the opening photo comes first." },
     ],
-    looks: { harvest: "3n7ofp", olive: "1jhxbdd", night: "14fxvwy" },
+    looks: { harvest: "dsovyc", olive: "6mj8ps", night: "50gmzl" },
   },
   "starter-salon": {
     releases: [
       { version: 1, date: "2026-11-25", note: "The first version, in Blush, Sage and Night." },
       { version: 2, date: "2026-11-26", note: "A new frame: a side menu on computers, a big photo on product pages, a centred footer, new type and a blush background." },
       { version: 3, date: "2026-11-26", note: "A redesign: light words over a full photo, a wider price list, your space on a soft band and open times on a dark band." },
+      { version: 4, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links." },
     ],
-    looks: { blush: "ywxb1h", sage: "1npmds2", night: "1u79fip" },
+    looks: { blush: "kshmms", sage: "hr2a29", night: "112eadc" },
   },
   "starter-workshop": {
     releases: [
       { version: 1, date: "2026-11-25", note: "The first version, in Sunny, Mint and Night." },
       { version: 2, date: "2026-11-26", note: "A new frame: half-and-half product pages, centred product names, a list shop page, your name huge in the footer, new type and a sunny background." },
       { version: 3, date: "2026-11-26", note: "A redesign: what every class includes on a sunny band, and a dark newsletter band. On phones the promises sit one under another." },
+      { version: 4, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links." },
     ],
-    looks: { sunny: "158ym2", mint: "1rj76ra", night: "1gmivo4" },
+    looks: { sunny: "1ql9w3t", mint: "v8o6f9", night: "khavab" },
   },
   "starter-commission": {
     releases: [
       { version: 1, date: "2026-11-25", note: "The first version, in Walnut, Chalk and Night." },
       { version: 2, date: "2026-11-26", note: "A new frame: a side menu on computers, open product pages, numbered work, a staggered shop page, a one-line footer and new type." },
       { version: 3, date: "2026-11-26", note: "A redesign: a big serif headline beside a tall photo, recent work in three, how it works on a dark band, four pieces and the enquiry form on a warm band. On phones the steps sit one under another." },
+      { version: 4, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links, and the opening photo comes first." },
     ],
-    looks: { walnut: "qq10jg", chalk: "1eiva9h", night: "4zfioj" },
+    looks: { walnut: "ef2i0b", chalk: "shsilg", night: "y7tl4y" },
   },
 };
 

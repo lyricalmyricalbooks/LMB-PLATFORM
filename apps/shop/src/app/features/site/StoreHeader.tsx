@@ -12,7 +12,7 @@ import { layerDesign } from "./designModel";
 import { catalogHeaderMaxWidth, contentMaxWidth, navLineProps, navLinkStyle, ownNavLinkStyle, pillRadius, useNavBelow, useNavFit } from "./headerNav";
 import { PHONE_MAX } from "./breakpoints";
 import { isLiveBook } from "./liveBook";
-import { MobileStorefrontNav } from "./MobileStorefrontNav";
+import { MobileStorefrontNav, PhoneHeaderMenu, phoneMenuInHeader } from "./MobileStorefrontNav";
 import { NavDropdown, selectInPlace, type NavDropdownEntry } from "./NavDropdown";
 import { headerLayout, MARKET_HEADER_CSS, RAIL_HEADER_CSS } from "./headerLayout";
 import { bookingsLinkShown, useBookingsLive } from "./bookingsLive";
@@ -470,6 +470,8 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
   const minimal = layout === "minimal";
   // The side menu keeps its links beside the logo (they run down the rail on computers).
   const market = layout === "market";
+  // Style › Header layout › "Phone navigation style" › menu button: one row on phones (menu, name, search, bag).
+  const phoneMenu = !minimal && phoneMenuInHeader({ ...design, ...design?.storefront });
   const navBelow = useNavBelow(centered || market ? { ...storefront, navPlacement: "below" } : layout === "rail" ? { ...storefront, navPlacement: "inline" } : storefront, rowRef, navRef);
   const navFit = useNavFit(storefront, navRef, navBelow);
   const line = navLineProps(storefront, navBelow, navFit);
@@ -511,12 +513,13 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
         style={{ backgroundColor: headerBg, color: headerColor }}
       >
         <div ref={rowRef} className="fm-hdr-row mx-auto flex flex-nowrap items-center justify-between gap-4 px-6 py-4" style={{ maxWidth, color: headerColor }}>
-          <div className={`flex min-w-0 flex-1 items-center gap-8 md:gap-12${centered ? " justify-center order-2" : ""}`}>
+          <div className={`flex min-w-0 flex-1 items-center ${phoneMenu ? "gap-3" : "gap-8"} md:gap-12${centered ? " justify-center order-2" : ""}`}>
             {/* The link's name comes from the logo itself (its alt text, or the words of a text logo), so what a screen
                 reader says matches what shoppers see (accessibility check, plan 8.8). */}
             {minimal && <MobileStorefrontNav design={design} pages={pages} onSearch={onSearch} everywhere />}
-            <Link to="/" state={HOME_LINK_STATE} data-hdr-fixed className="flex shrink-0 items-center">
-              <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={scheme ? { ...storefront, logoColor: undefined } : storefront} /></span>
+            {phoneMenu && <PhoneHeaderMenu design={design} pages={pages} onSearch={onSearch} />}
+            <Link to="/" state={HOME_LINK_STATE} data-hdr-fixed className="flex min-w-0 items-center md:shrink-0">
+              <span className="min-w-0" data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={scheme ? { ...storefront, logoColor: undefined } : storefront} /></span>
             </Link>
             {!navBelow && !minimal && navBar}
           </div>
@@ -549,7 +552,7 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
           </div>
         </div>
         {navBelow && !minimal && (
-          <div style={{ color: headerColor }}>
+          <div className={phoneMenu ? "max-md:hidden" : undefined} style={{ color: headerColor }}>
             <div className={`mx-auto px-6${centered ? " flex justify-center" : ""}`} style={{ maxWidth }}>{navBar}</div>
           </div>
         )}
@@ -590,6 +593,8 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   // Links split around a centred logo sit inline beside it (each half is short), unless the owner picked "below".
   const splitInline = !centered && sf?.navAroundLogo === true && shop.logoPosition === "center" && (sf?.navPlacement || "auto") === "auto";
   const market = layout === "market";
+  // Style › Header layout › "Phone navigation style" › menu button: one row on phones (menu, name, search, bag).
+  const phoneMenu = !minimal && phoneMenuInHeader({ ...design, ...design?.storefront });
   const navBelow = useNavBelow(centered || market ? { ...sf, navPlacement: "below" } : splitInline || layout === "rail" ? { ...sf, navPlacement: "inline" } : sf, headerRowRef, navRef);
   // The side menu always starts with the logo at the top of the rail; the search bar keeps it on the left.
   const logoPosition = centered ? "center" : layout === "rail" || market ? "left" : shop.logoPosition;
@@ -662,8 +667,8 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   // Style › Navigation › "Links in the middle": a left logo, the links centred between it and the icons (Slow Season).
   const linksMiddle = sf?.navCentred === true && logoPosition === "left" && !minimal;
   const logo = (
-    <Link to="/" state={HOME_LINK_STATE} style={{ color: headerTextColor }} data-hdr-fixed className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center">
-      <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={headerScheme ? { ...shop.logoDesign, logoColor: undefined } : shop.logoDesign} /></span>
+    <Link to="/" state={HOME_LINK_STATE} style={{ color: headerTextColor }} data-hdr-fixed className="min-w-0 md:shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center">
+      <span className="min-w-0" data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={headerScheme ? { ...shop.logoDesign, logoColor: undefined } : shop.logoDesign} /></span>
     </Link>
   );
   // An empty bag shows Style › Header › "Empty-bag amount": a number is shown as a price, anything else as typed.
@@ -761,14 +766,17 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
             <div style={{ borderTop: `${headerRuleWidth}px solid ${(!headerScheme && sf?.borderColor) || headerBorderColor || "#B1B1AA"}` }} />
           </div>
         ) : (
-          <div ref={headerRowRef} className={`fm-hdr-row mx-auto px-6 py-4 items-center gap-4 ${around ? "grid grid-cols-[1fr_auto_1fr] md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]" : logoPosition === "center" || linksMiddle ? "grid grid-cols-[1fr_auto_1fr]" : "flex flex-nowrap justify-between"}`} style={{ maxWidth }}>
-            <div className={`flex min-w-0 items-center gap-8 md:gap-12 flex-1 ${logoPosition === "center" ? "" : "flex-initial"}`}>
+          <div ref={headerRowRef} className={`fm-hdr-row mx-auto px-6 py-4 items-center gap-4 ${around ? "grid grid-cols-[auto_minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]" : logoPosition === "center" ? "grid grid-cols-[auto_minmax(0,1fr)_auto] md:grid-cols-[1fr_auto_1fr]" : linksMiddle ? "grid grid-cols-[1fr_auto_1fr]" : "flex flex-nowrap justify-between"}`} style={{ maxWidth }}>
+            <div className={`flex min-w-0 items-center ${phoneMenu ? "gap-3" : "gap-8"} md:gap-12 flex-1 ${logoPosition === "center" ? "" : "flex-initial"}`}>
               {minimal && <MobileStorefrontNav design={design} pages={pages || []} onSearch={onSearch} showThemeToggle={!design?.hideThemeToggle} everywhere />}
+              {phoneMenu && <PhoneHeaderMenu design={design} pages={pages || []} onSearch={onSearch} showThemeToggle={!design?.hideThemeToggle} />}
               {logoPosition === "left" && logo}
               {around ? barOf(around.left, navRef) : !navBelow && !minimal && !linksMiddle && navBar}
             </div>
             {linksMiddle && <div className="flex min-w-0 justify-center">{!navBelow && navBar}</div>}
-            {logoPosition === "center" && <div className={`${around ? "" : "flex-1 "}flex justify-center`}>{logo}</div>}
+            {/* On phones the middle column takes the room left between the menu and the icons, so a long name wraps there
+                instead of running under them; computers keep the logo exactly centred. */}
+            {logoPosition === "center" && <div className={`${around ? "" : "flex-1 "}flex min-w-0 justify-center text-center`}>{logo}</div>}
             {market && <HeaderSearchBox design={design} copyDesign={design} onSearch={onSearch} />}
             <div data-hdr-fixed data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart" className={`flex shrink-0 flex-nowrap gap-2 sm:gap-6 md:gap-8 items-center flex-1 justify-end ${logoPosition === "right" ? "flex-initial" : ""}`}>
               {logoPosition === "right" && logo}
@@ -818,7 +826,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
           </div>
         )}
         {!isReferenceCatalog && navBelow && !minimal && (
-          <div className="border-t" style={{ borderColor: headerBorderColor }}>
+          <div className={`border-t${phoneMenu ? " max-md:hidden" : ""}`} style={{ borderColor: headerBorderColor }}>
             <div className={`mx-auto px-6${centered ? " flex justify-center" : ""}`} style={{ maxWidth }}>{navBar}</div>
           </div>
         )}

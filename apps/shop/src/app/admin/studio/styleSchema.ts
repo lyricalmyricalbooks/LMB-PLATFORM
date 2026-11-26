@@ -339,7 +339,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "navStyle", label: "Nav link style", kind: "select", options: [{ value: "default", label: "Plain" }, { value: "stickers", label: "Sticker pills" }] },
       { key: "showMobileNavigation", label: "Show phone navigation", kind: "toggle", defaultValue: true },
       { key: "phoneCompactHeader", label: "Compact header on phones (thin announcement line, one-line logo, search & bag)", kind: "toggle", defaultValue: true },
-      { key: "mobileNavStyle", label: "Phone navigation style", kind: "select", options: [{ value: "tabs", label: "Tabs across the top" }, { value: "menu", label: "Drop-down menu" }], defaultValue: "tabs" },
+      { key: "mobileNavStyle", label: "Phone navigation style", kind: "select", options: [{ value: "tabs", label: "Tabs across the top" }, { value: "menu", label: "Drop-down menu" }, { value: "icon", label: "Menu button beside the name (one row)" }], defaultValue: "tabs" },
       { key: "mobileNavTabSize", label: "Phone tab text size", kind: "range", min: 11, max: 22, step: 1, suffix: "px", defaultValue: 14 },
       { key: "showSocialInMobileMenu", label: "Social media icons in the phone navigation (your accounts from Settings › Your shop › Social media)", kind: "toggle", defaultValue: true },
       { key: "showStoreChromeOnUtilityPages", label: "Show the shop header & footer on wishlist, account, order tracking and missing pages", kind: "toggle", defaultValue: true },

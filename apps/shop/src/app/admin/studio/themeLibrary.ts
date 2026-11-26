@@ -703,7 +703,7 @@ export const THEME_LIBRARY = [
       },
       productBlocks: [{ type: "tag" }, { type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
-    global: { themeStyle: "slowseason", logoPosition: "left", navCentred: true, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 13, navLinkSpacing: 0, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "modern", pdpLayout: "open", cardDesign: "caption", footerDesign: "line", announcementScrolling: false, backgroundColor: "#f9f7f0", textColor: "#151613", primaryColor: "#bd5238", secondaryColor: "#f2eddf", surfaceColor: "#ede9de",
+    global: { themeStyle: "slowseason", mobileNavStyle: "icon", logoPosition: "left", navCentred: true, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 13, navLinkSpacing: 0, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "modern", pdpLayout: "open", cardDesign: "caption", footerDesign: "line", announcementScrolling: false, backgroundColor: "#f9f7f0", textColor: "#151613", primaryColor: "#bd5238", secondaryColor: "#f2eddf", surfaceColor: "#ede9de",
       mutedTextColor: "#55564f", borderColor: "#d6d3ca", headingFont: "Syne", bodyFont: "DM Sans", headingWeight: 600, lineHeight: 1.6,
       buttonColor: "#151613", buttonTextColor: "#f9f7f0", buttonHoverBgColor: "#bd5238", buttonHoverTextColor: "#ffffff", buttonRadius: 0, buttonUppercase: true,
       headerBg: "#f9f7f0", headerColor: "#151613", footerBg: "#151613", footerTextColor: "#f9f7f0", footerHeadingColor: "#f9f7f0",
@@ -726,7 +726,7 @@ export const THEME_LIBRARY = [
       ],
       sections: {
         heroPage: [
-          { type: "SplitOpeningSection", settings: { eyebrow: "Catalogue No. 14 \u00b7 Winter", title: "Small things,", accentWord: "well made.", body: "A numbered collection of paper, clay and cloth from small studios. Every piece is in stock and ships within two days.", imageUrl: "/starters/catalogue/opening.jpg", imageAlt: "A clay vase and a field journal on a table", layout: "image-right", ctaText: "Enter the collection", ctaUrl: "/collections/all", captionText: "Clay vase, coiled by hand\nNo. 005" } },
+          { type: "SplitOpeningSection", settings: { phonePhotoFirst: true, eyebrow: "Catalogue No. 14 \u00b7 Winter", title: "Small things,", accentWord: "well made.", body: "A numbered collection of paper, clay and cloth from small studios. Every piece is in stock and ships within two days.", imageUrl: "/starters/catalogue/opening.jpg", imageAlt: "A clay vase and a field journal on a table", layout: "image-right", ctaText: "Enter the collection", ctaUrl: "/collections/all", captionText: "Clay vase, coiled by hand\nNo. 005" } },
           { type: "MarqueeSection", settings: { text: "Ships in two days \u25cf Wrapped by hand \u25cf Free returns for 30 days", separator: "\u25cf", still: true, colorSchemeId: "scheme-inverse", fontSize: 10, speed: 40, uppercase: true, bold: false, letterSpacing: 0.14 } },
           { type: "ProductShowcaseGridSection", settings: { overlayOpacity: 0, eyebrow: "The collection", title: "Everything in the shop", columnsDesktop: 3, columnsMobile: 2, imageAspectRatio: "1:1", showCategoryTag: false, showQuickAdd: true, grainOpacity: 0 } },
         ],
@@ -757,7 +757,7 @@ export const THEME_LIBRARY = [
       ],
       sections: {
         heroPage: [
-          { type: "SplitOpeningSection", settings: { eyebrow: "Autumn \u2014 The Arc collection", title: "Carried well,", accentWord: "made to last.", body: "Leather bags and small goods, cut and stitched by hand in our Montr\u00e9al studio and repaired for life.", imageUrl: "/starters/aurel/arc-bag.jpg", imageAlt: "The Arc shoulder bag in cobalt leather", layout: "image-right", ctaText: "Explore the collection", ctaUrl: "/collections/all", captionNumber: "01", captionText: "Arc shoulder bag\nCobalt leather \u00b7 $240", plusUrl: "/collections/all", plusLabel: "View the featured product" } },
+          { type: "SplitOpeningSection", settings: { phonePhotoFirst: true, eyebrow: "Autumn \u2014 The Arc collection", title: "Carried well,", accentWord: "made to last.", body: "Leather bags and small goods, cut and stitched by hand in our Montr\u00e9al studio and repaired for life.", imageUrl: "/starters/aurel/arc-bag.jpg", imageAlt: "The Arc shoulder bag in cobalt leather", layout: "image-right", ctaText: "Explore the collection", ctaUrl: "/collections/all", captionNumber: "01", captionText: "Arc shoulder bag\nCobalt leather \u00b7 $240", plusUrl: "/collections/all", plusLabel: "View the featured product" } },
           { type: "MarqueeSection", settings: { text: "Free shipping over $150 \u2726 Made in Montr\u00e9al \u2726 Repairs for life", separator: "\u2726", still: true, fontSize: 10, speed: 40, uppercase: true, bold: false, letterSpacing: 0.12 } },
           { type: "ProductShowcaseGridSection", settings: { overlayOpacity: 0, eyebrow: "The Arc collection", title: "Bags and small goods", columnsDesktop: 3, columnsMobile: 2, imageAspectRatio: "4:5", showCategoryTag: false, showQuickAdd: true, grainOpacity: 0 } },
           { type: "ImageWithTextSection", settings: { eyebrow: "The atelier", title: "Four benches, one street", body: "Ondine started cutting bags at her kitchen table in 2014. Today four of us make every piece at the studio on Rue Bernard, and we still repair each one for free.", imageUrl: "/starters/aurel/atelier.jpg", imageAlt: "Leather and tools on a workbench in the studio", layout: "image-left" } },
@@ -766,7 +766,7 @@ export const THEME_LIBRARY = [
       },
       productBlocks: [{ type: "tag" }, { type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
-    global: { themeStyle: "aurel", logoPosition: "center", navAroundLogo: true, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "centered", shopPageLayout: "staggered", footerDesign: "wordmark", cartDrawerSide: "full", announcementScrolling: false, backgroundColor: "#f2eee6", textColor: "#0f1826", primaryColor: "#183dce", secondaryColor: "#e4ddd1", surfaceColor: "#e4ddd1",
+    global: { themeStyle: "aurel", mobileNavStyle: "icon", logoPosition: "center", navAroundLogo: true, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "centered", shopPageLayout: "staggered", footerDesign: "wordmark", cartDrawerSide: "full", announcementScrolling: false, backgroundColor: "#f2eee6", textColor: "#0f1826", primaryColor: "#183dce", secondaryColor: "#e4ddd1", surfaceColor: "#e4ddd1",
       mutedTextColor: "#4c5661", borderColor: "#c9c3b8", headingFont: "Cormorant Garamond", bodyFont: "Manrope", headingWeight: 500, lineHeight: 1.6,
       buttonColor: "#0f1826", buttonTextColor: "#f2eee6", buttonHoverBgColor: "#183dce", buttonHoverTextColor: "#ffffff", buttonRadius: 0, buttonUppercase: true,
       headerBg: "#f2eee6", headerColor: "#0f1826", footerBg: "#0f1826", footerTextColor: "#f2eee6", footerHeadingColor: "#f2eee6",
@@ -828,7 +828,7 @@ export const THEME_LIBRARY = [
       ],
       sections: {
         heroPage: [
-          { type: "SplitOpeningSection", settings: { eyebrow: "New knits every Thursday", title: "Knitwear for the long cold", body: "Over 200 sweaters, cardigans and tees, in stock and sent out the same day.", accentWord: "", ctaText: "Shop the new things", ctaUrl: "/collections/all", imageUrl: "/starters/warehouse/opening.jpg", imageAlt: "A model in a chunky knit sweater", layout: "image-right", titleSizePx: 88, titleSizePxMobile: 52 } },
+          { type: "SplitOpeningSection", settings: { phonePhotoFirst: true, eyebrow: "New knits every Thursday", title: "Knitwear for the long cold", body: "Over 200 sweaters, cardigans and tees, in stock and sent out the same day.", accentWord: "", ctaText: "Shop the new things", ctaUrl: "/collections/all", imageUrl: "/starters/warehouse/opening.jpg", imageAlt: "A model in a chunky knit sweater", layout: "image-right", titleSizePx: 88, titleSizePxMobile: 52 } },
           { type: "CollectionListSection", settings: { title: "Shop by category", columns: 4, align: "left", containerWidth: "full", mobileColumns: 2 } },
           { type: "MarqueeSection", settings: { text: "New in every Thursday ✳ Free returns ✳ Sent out the same day", separator: "✳", still: false, fontSize: 36, speed: 30, uppercase: true, bold: true, letterSpacing: 0, background: "#111111", color: "#ffe14a" } },
           { type: "ProductShowcaseGridSection", settings: { overlayOpacity: 0, eyebrow: "", title: "New this week", productLimit: 8, columnsDesktop: 4, columnsMobile: 2, imageAspectRatio: "4:5", showCategoryTag: true, showQuickAdd: true, showFormatLine: false, grainOpacity: 0, tagBg: "#ffe14a", tagText: "#111111", containerWidth: "full" } },
@@ -843,7 +843,7 @@ export const THEME_LIBRARY = [
       },
       productBlocks: [{ type: "tag" }, { type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
-    global: { themeStyle: "warehouse", logoPosition: "left", navCentred: false, navLinkTransform: "uppercase", navLinkSize: 12, hideCurrencySelector: true, hideThemeToggle: true, headerLayout: "market", navPlacement: "below", contentWidthMode: "margins", contentSideMargin: 2, pdpLayout: "split", cardDesign: "framed", cartDrawerSide: "left", announcementScrolling: false,
+    global: { themeStyle: "warehouse", mobileNavStyle: "icon", logoPosition: "left", navCentred: false, navLinkTransform: "uppercase", navLinkSize: 12, hideCurrencySelector: true, hideThemeToggle: true, headerLayout: "market", navPlacement: "below", contentWidthMode: "margins", contentSideMargin: 2, pdpLayout: "split", cardDesign: "framed", cartDrawerSide: "left", announcementScrolling: false,
       backgroundColor: "#f4f4f1", textColor: "#111111", primaryColor: "#d63f12", secondaryColor: "#ffe14a", surfaceColor: "#e7e7e2", mutedTextColor: "#4f4f4a", borderColor: "#c9c9c2",
       headingFont: "Archivo Black", bodyFont: "Archivo", headingWeight: 400, lineHeight: 1.5,
       buttonColor: "#111111", buttonTextColor: "#f4f4f1", buttonHoverBgColor: "#d63f12", buttonHoverTextColor: "#ffffff", buttonRadius: 0, buttonUppercase: true,
@@ -870,7 +870,7 @@ export const THEME_LIBRARY = [
       ],
       sections: {
         heroPage: [
-          { type: "SplitOpeningSection", settings: { eyebrow: "Bakery and pantry \u00b7 since 2016", title: "Bread worth getting up for.", accentWord: "", body: "Sourdough baked at 4 am, coffee roasted on Mondays and a pantry of good things, delivered across the city.", ctaText: "Shop the shelf", ctaUrl: "/collections/all", imageUrl: "/starters/larder/opening.jpg", imageAlt: "Fresh sourdough loaves on a wooden board", layout: "image-right", titleSizePx: 76, titleSizePxMobile: 44, colorSchemeId: "scheme-accent", cornerRadius: "xl", outerGap: 32 } },
+          { type: "SplitOpeningSection", settings: { phonePhotoFirst: true, eyebrow: "Bakery and pantry \u00b7 since 2016", title: "Bread worth getting up for.", accentWord: "", body: "Sourdough baked at 4 am, coffee roasted on Mondays and a pantry of good things, delivered across the city.", ctaText: "Shop the shelf", ctaUrl: "/collections/all", imageUrl: "/starters/larder/opening.jpg", imageAlt: "Fresh sourdough loaves on a wooden board", layout: "image-right", titleSizePx: 76, titleSizePxMobile: 44, colorSchemeId: "scheme-accent", cornerRadius: "xl", outerGap: 32 } },
           { type: "MulticolumnSection", settings: { title: "", columns: 6, align: "center", containerWidth: "full", mobileColumns: 3, items: [
             { title: "New in", body: "", imageUrl: "/starters/larder/sourdough.jpg" },
             { title: "Best sellers", body: "", imageUrl: "/starters/larder/jam.jpg" },
@@ -892,7 +892,7 @@ export const THEME_LIBRARY = [
       },
       productBlocks: [{ type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
-    global: { themeStyle: "larder", logoPosition: "center", navAroundLogo: true, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "centered", pdpLayout: "editorial", cardDesign: "framed", footerDesign: "contact", announcementScrolling: false,
+    global: { themeStyle: "larder", mobileNavStyle: "icon", logoPosition: "center", navAroundLogo: true, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "centered", pdpLayout: "editorial", cardDesign: "framed", footerDesign: "contact", announcementScrolling: false,
       backgroundColor: "#fbf5ea", textColor: "#2b1d14", primaryColor: "#a8401f", secondaryColor: "#f0c96b", surfaceColor: "#f1e6d2", mutedTextColor: "#5f4d40", borderColor: "#dfcfb6",
       headingFont: "DM Serif Display", bodyFont: "DM Sans", headingWeight: 400, lineHeight: 1.6,
       buttonColor: "#a8401f", buttonTextColor: "#ffffff", buttonHoverBgColor: "#2b1d14", buttonHoverTextColor: "#fbf5ea", buttonRadius: 999, buttonUppercase: false,
@@ -918,7 +918,7 @@ export const THEME_LIBRARY = [
       },
       productBlocks: [{ type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
-    global: { themeStyle: "salon", logoPosition: "center", navAroundLogo: true, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "rail", pdpLayout: "hero", cardDesign: "caption", footerDesign: "centred", cartDrawerSide: "full", announcementScrolling: false,
+    global: { themeStyle: "salon", mobileNavStyle: "icon", logoPosition: "center", navAroundLogo: true, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "rail", pdpLayout: "hero", cardDesign: "caption", footerDesign: "centred", cartDrawerSide: "full", announcementScrolling: false,
       backgroundColor: "#f7e8e3", textColor: "#2a2422", primaryColor: "#874a3e", secondaryColor: "#eadcd3", surfaceColor: "#ece2da", mutedTextColor: "#5e5450", borderColor: "#d8cbc2",
       headingFont: "Playfair Display", bodyFont: "Nunito", headingWeight: 500, lineHeight: 1.6,
       buttonColor: "#2a2422", buttonTextColor: "#f7e8e3", buttonHoverBgColor: "#874a3e", buttonHoverTextColor: "#ffffff", buttonRadius: 999, buttonUppercase: false,
@@ -959,7 +959,7 @@ export const THEME_LIBRARY = [
       },
       productBlocks: [{ type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
-    global: { themeStyle: "workshop", logoPosition: "left", navCentred: false, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 15, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "modern", pdpLayout: "split", cardDesign: "centred", shopPageLayout: "list", footerDesign: "wordmark", cartDrawerSide: "full", announcementScrolling: false,
+    global: { themeStyle: "workshop", mobileNavStyle: "icon", logoPosition: "left", navCentred: false, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 15, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "modern", pdpLayout: "split", cardDesign: "centred", shopPageLayout: "list", footerDesign: "wordmark", cartDrawerSide: "full", announcementScrolling: false,
       backgroundColor: "#fff1c7", textColor: "#1d1b2e", primaryColor: "#d2471c", secondaryColor: "#ffd166", surfaceColor: "#fbeedb", mutedTextColor: "#4d4a5c", borderColor: "#eadcc6",
       headingFont: "Fredoka", bodyFont: "Work Sans", headingWeight: 700, lineHeight: 1.6,
       buttonColor: "#1d1b2e", buttonTextColor: "#fff1c7", buttonHoverBgColor: "#d2471c", buttonHoverTextColor: "#ffffff", buttonRadius: 999, buttonUppercase: false,
@@ -982,7 +982,7 @@ export const THEME_LIBRARY = [
       ],
       sections: {
         heroPage: [
-          { type: "SplitOpeningSection", settings: { eyebrow: "Furniture made to order", title: "Built for your room, by hand.", accentWord: "", body: "Chairs, tables and shelves in solid oak and walnut, made to your measurements in our workshop in about eight weeks.", ctaText: "Start an enquiry", ctaUrl: "/page/contact", imageUrl: "/starters/commission/opening.jpg", imageAlt: "An oak chair in the workshop", layout: "image-right", titleSizePx: 72, titleSizePxMobile: 40 } },
+          { type: "SplitOpeningSection", settings: { phonePhotoFirst: true, eyebrow: "Furniture made to order", title: "Built for your room, by hand.", accentWord: "", body: "Chairs, tables and shelves in solid oak and walnut, made to your measurements in our workshop in about eight weeks.", ctaText: "Start an enquiry", ctaUrl: "/page/contact", imageUrl: "/starters/commission/opening.jpg", imageAlt: "An oak chair in the workshop", layout: "image-right", titleSizePx: 72, titleSizePxMobile: 40 } },
           { type: "GallerySection", settings: { title: "Recent work", subtitle: "A few pieces from this year, each made for one home.", columns: 3, align: "left", items: [
             { imageUrl: "/starters/commission/round-table.jpg", alt: "A round oak dining table" },
             { imageUrl: "/starters/commission/side-table.jpg", alt: "A walnut side table on a turned base" },
@@ -1005,7 +1005,7 @@ export const THEME_LIBRARY = [
       },
       productBlocks: [{ type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
-    global: { themeStyle: "commission", logoPosition: "left", navCentred: true, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 14, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "rail", pdpLayout: "open", cardDesign: "numbered", shopPageLayout: "staggered", footerDesign: "line", cartDrawerSide: "left", announcementScrolling: false,
+    global: { themeStyle: "commission", mobileNavStyle: "icon", logoPosition: "left", navCentred: true, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 14, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "rail", pdpLayout: "open", cardDesign: "numbered", shopPageLayout: "staggered", footerDesign: "line", cartDrawerSide: "left", announcementScrolling: false,
       backgroundColor: "#f3efe8", textColor: "#1f1a14", primaryColor: "#7a4b2a", secondaryColor: "#d9cbb6", surfaceColor: "#e7e0d4", mutedTextColor: "#564d43", borderColor: "#cdc2b1",
       headingFont: "Libre Baskerville", bodyFont: "Inter", headingWeight: 400, lineHeight: 1.6,
       buttonColor: "#1f1a14", buttonTextColor: "#f3efe8", buttonHoverBgColor: "#7a4b2a", buttonHoverTextColor: "#ffffff", buttonRadius: 0, buttonUppercase: false,

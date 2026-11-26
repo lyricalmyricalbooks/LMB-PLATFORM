@@ -4,7 +4,7 @@ import { CurrencyProvider } from "../../CurrencyContext";
 import { StaticRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 vi.mock("./useSiteData", () => ({ useLiveDesign: () => ({}) }));
-const { MobileStorefrontNav } = await import("./MobileStorefrontNav");
+const { MobileStorefrontNav, PhoneHeaderMenu, phoneMenuInHeader } = await import("./MobileStorefrontNav");
 const { NotFoundContent } = await import("./NotFoundPage");
 const render = (element: any) => renderToStaticMarkup(h(StaticRouter, { location: "/" }, h(CurrencyProvider, null, element)));
 
@@ -25,6 +25,18 @@ describe("storefront recovery", () => {
     expect(html).not.toContain("/wishlist");
     expect(html).not.toContain("/account");
     expect(html).not.toContain("Select currency");
+  });
+  it("puts the phone menu button in the header row when Studio picks the menu button", () => {
+    const design = { mobileNavStyle: "icon", categories: [{ id: "p", name: "Books" }] };
+    expect(phoneMenuInHeader(design)).toBe(true);
+    expect(phoneMenuInHeader({ ...design, showMobileNavigation: false })).toBe(false);
+    expect(phoneMenuInHeader({})).toBe(false);
+    // Nothing is drawn below the header row: the header holds the button.
+    expect(render(h(MobileStorefrontNav, { design, pages: [], onSearch: () => {} }))).toBe("");
+    const html = render(h(PhoneHeaderMenu, { design, pages: [], onSearch: () => {} }));
+    expect(html).toContain("md:hidden");
+    expect(html).toContain("<details");
+    expect(html).toContain("/collections/books");
   });
   it("shows phone navigation as tabs across the top by default", () => {
     const html = render(h(MobileStorefrontNav, {design:{categories:[{id:"p",name:"Books"},{id:"c",name:"Zines",parentId:"p"}]},pages:[{id:"a",slug:"about",title:"About",status:"published"}],onSearch:()=>{}}));
