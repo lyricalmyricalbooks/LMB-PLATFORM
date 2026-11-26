@@ -57,6 +57,8 @@ export function cartDrawerCss(design: any): string {
   const titleCase = d.cartDrawerTitleCase === "none" ? "none" : "uppercase";
   const metaFont = font(has(d.cartDrawerMetaFont) ? d.cartDrawerMetaFont : "DM Mono");
   const metaSize = num(d, "cartDrawerMetaSize", 11, 8, 14);
+  // Style › Bag › Small labels case: "As typed" reads like a sentence (the calmer starters); the default stays spaced capitals.
+  const metaPlain = d.cartDrawerMetaCase === "none";
   const thumbW = num(d, "cartDrawerThumbWidth", 72, 48, 128);
   const thumbOutline = d.cartDrawerThumbOutline ?? true;
   const itemSize = num(d, "cartDrawerItemTitleSize", 14, 10, 20);
@@ -79,7 +81,7 @@ export function cartDrawerCss(design: any): string {
   return [
     `${S}{background:${bg};color:${fg};border-${edgeSide}:${edgeW} solid ${edge};box-shadow:${shadowDir}px 0 0 ${shadow};--bag-pad:${pad}px;--bag-rule:${rule};--bag-muted:${muted};--bag-surface:${surface};--bag-edge:${edge};--bag-edge-w:${edgeW};}`,
     `${S} .fm-bag-pad{padding-left:var(--bag-pad);padding-right:var(--bag-pad);}`,
-    `${S} .fm-bag-meta{font-family:${metaFont};font-size:${metaSize}px;letter-spacing:.12em;text-transform:uppercase;color:var(--bag-muted);}`,
+    `${S} .fm-bag-meta{font-family:${metaFont};font-size:${metaSize}px;letter-spacing:${metaPlain ? ".01em" : ".12em"};text-transform:${metaPlain ? "none" : "uppercase"};color:var(--bag-muted);}`,
     `${S} .fm-bag-rule{border-color:var(--bag-rule);}`,
     `${S} .fm-bag-title{font-family:${titleFont};font-size:${titleSize}px;line-height:.95;text-transform:${titleCase};letter-spacing:.01em;margin:0;}`,
     `${S} .fm-bag-close{border:var(--bag-edge-w) solid var(--bag-edge);background:transparent;color:inherit;}`,

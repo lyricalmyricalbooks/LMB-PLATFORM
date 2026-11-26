@@ -1269,3 +1269,30 @@ Squarespace demos). Step 1 fixed what was broken:
 - The Market-style looks' catalog button colour rule skips `.fm-active`, so a picked filter chip reads (it was ink on ink).
 - Product starters: intro line, chips without counts or pages, Filter button; Aurel "Bags & leather", Commission
   "Furniture" headings.
+
+## Starter bag: free-shipping bar, estimate behind a link (26 November 2026, plan "Starters on par", step 5)
+
+- `cartDrawerShippingPreviewLayout`: `open` (default, unchanged) or `link`. `CartShippingPreview` shows one
+  "Estimate shipping" link (`cartEstimateOpen`) until clicked, then the form with focus on the country box. The choice is
+  read on every render (Studio follows live); a shopper with a remembered destination sees the form at once. Baseline
+  `none`: the live design turns the shipping preview off.
+- `cartDrawerMetaCase`: `uppercase` (default) or `none` (small labels as typed, no wide letter spacing).
+- `readShippingProfiles` uses `__studioPreviewState.shippingProfiles` when a preview brings them (no read). The demo shops
+  pass `demoShipping(books)`: free over about twice the median sample price, rounded, so the free-shipping bar shows.
+- Bag word defaults are sentence case now (`cartTitle`, `cartCheckoutButton`, `cartUpsellAdd`, `cartEmptyPicksAdd`); the
+  CSS still capitalises them where the look asks.
+- All nine starters: body-font small labels as typed (Warehouse keeps capitals), 26px heading, no item numbers, 1px
+  lines, no offset shadows, no photo outlines, no per-item price, estimate behind the link, no trust badges; Larder,
+  Salon and Workshop use the soft pill quantity buttons.
+
+## Starter product pages, finished (26 November 2026, plan "Starters on par", step 6)
+
+- `productDetailsLayoutPhone`: `same` (default) or `accordions`. When the layout is Tabs, `BookDetail` switches to the
+  accordion markup under `PHONE_MAX` (the same `matchMedia` state the phone thumbnails use, now also watched for this).
+  Baseline `none`: the live design uses Accordions.
+- `starterSampleBooks` gives `sizeChart` from the starter's `content.sizeGuide` to products with a Size option
+  (Warehouse), and Warehouse turns `showPdpSizeGuide` on.
+- All starters: `pdpStickyBar` (phones only by default) and fold-open details on phones. `relatedHeading` "You may also
+  like" is a starter word for every shop that doesn't sell books (`sells.ts` `WRITTEN`).
+- `bundleAdd` default is sentence case ("Add both to bag").
+

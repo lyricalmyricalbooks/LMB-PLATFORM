@@ -99,3 +99,16 @@ function demoProducts(choice: DemoChoice, sells: string): any[] {
   if (choice.kind !== "both" || own.length) return own;
   return sampleShopBooks("other");
 }
+
+/**
+ * The sample shipping rule a demo's bag reads (plan "Starters on par", step 5): free shipping over about twice a typical
+ * sample product, rounded, so one item shows how far away free shipping is and two usually reach it. A shop with nothing
+ * to ship has no rule, so its bag shows no bar.
+ */
+export function demoShipping(books: any[]): any[] {
+  const prices = books.map((b: any) => Number(b.retailPrice ?? b.price) || 0).filter((p) => p > 0).sort((a, b) => a - b);
+  if (!prices.length) return [];
+  const typical = prices[Math.floor(prices.length / 2)];
+  const step = typical >= 100 ? 100 : typical >= 25 ? 25 : 5;
+  return [{ id: "demo-shipping", name: "Standard shipping", freeShippingOver: Math.ceil((typical * 2) / step) * step }];
+}

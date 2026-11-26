@@ -57,6 +57,9 @@ const sampleSlug = (title: string) => title.toLowerCase().normalize("NFKD").repl
  */
 export function starterSampleBooks(preset: any): any[] {
   const list: StarterSampleProduct[] = preset?.content?.sampleProducts || [];
+  // A starter that sells clothes brings one size guide (plan "Starters on par", step 6), shown on every product that
+  // comes in sizes, as a finished shop's product editor would have it.
+  const sizeGuide = typeof preset?.content?.sizeGuide === "string" ? preset.content.sizeGuide : "";
   return list.map((p, i) => {
     const options = (p.options || []).filter((o) => o.values.length > 0);
     const variants = optionCombinations(options).map((picks, v) => ({
@@ -68,6 +71,7 @@ export function starterSampleBooks(preset: any): any[] {
       categories: [p.category || "Featured"], photos: [p.photo, ...(p.morePhotos || [])].map((url, n) => ({ id: n ? `s${i + 1}-${n + 1}` : `s${i + 1}`, url, alt: p.title })),
       description: p.description || "A sample product. Your own products take its place once you add them.",
       ...(options.length ? { options, variants } : {}),
+      ...(sizeGuide && options.some((o) => /^size$/i.test(o.name)) ? { sizeChart: sizeGuide } : {}),
       createdAt: new Date(Date.UTC(2026, 10, 20 - i)).toISOString(), sample: true,
     };
   });

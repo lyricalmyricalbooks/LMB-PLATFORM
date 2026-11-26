@@ -182,7 +182,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Card button & product-page extras", keys: ["productCTA", "showQtyStepper", "productDescriptionStyle", "productBorderRadius"] },
   ],
   productPage: [
-    { title: "Page layout", keys: ["pdpLayout", "productImageLayout", "productContentPosition", "productAlignment", "productDetailsLayout"] },
+    { title: "Page layout", keys: ["pdpLayout", "productImageLayout", "productContentPosition", "productAlignment", "productDetailsLayout", "productDetailsLayoutPhone"] },
     { title: "Photos", keys: ["productImageMaxWidth", "productImageAspect", "productImageFrameMode", "productImageAspectLandscape", "productPhotoOutline", "productImageFit", "productImageShadow", "productImageHoverScale", "showZoom", "showPdpMagnifier", "pdpMagnifierLevel", "showPhotoLightbox", "showProductVideos", "showAmbientGlow", "glowIntensity", "productImageGlowColor"] },
     { title: "Title & add-to-bag button", keys: ["productTitleSize", "productSubtitleWeight", "addToBagLabel", "productCtaWidth", "productCtaSize", "productCtaAnimation"] },
     { title: "Extras on the page", keys: ["showSpecs", "showPdpEditionDetails", "showPdpArtistLinks", "showSocialShare", "showPdpWishlist", "showBackInStock", "showComingSoonSignup", "pdpDescriptionFold", "pdpDescriptionFoldLines", "showPdpPickup", "showPdpArtistBio", "showPdpSizeGuide", "showPdpPolicyTab", "pdpTabOrder1", "pdpTabOrder2", "pdpTabOrder3", "pdpTabOrder4", "pdpTabOrder5", "showBundleWidget", "productBundleLayout", "showRelatedProducts", "relatedByArtist", "recentlyViewedCount", "lowStockProductThreshold"] },
@@ -208,11 +208,11 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Size & position", keys: ["cartDrawerSide", "cartDrawerWidth", "cartDrawerPadding"] },
     { title: "After adding a book", keys: ["cartAddAction", "cartAddNoticeSeconds"] },
     { title: "Colours & outline", keys: ["cartDrawerBg", "cartDrawerText", "cartDrawerMuted", "cartDrawerSurface", "cartDrawerBorder", "cartDrawerEdgeColor", "cartDrawerEdgeWidth", "cartDrawerShadowColor", "cartDrawerShadowOffset", "cartDrawerBackdropColor", "cartDrawerBackdropBlur"] },
-    { title: "Heading & fonts", keys: ["cartDrawerTitleFont", "cartDrawerTitleSize", "cartDrawerTitleCase", "cartDrawerMetaFont", "cartDrawerMetaSize", "cartDrawerShowCount"] },
+    { title: "Heading & fonts", keys: ["cartDrawerTitleFont", "cartDrawerTitleSize", "cartDrawerTitleCase", "cartDrawerMetaFont", "cartDrawerMetaSize", "cartDrawerMetaCase", "cartDrawerShowCount"] },
     { title: "Free-shipping bar", keys: ["showFreeShipBar", "cartDrawerProgressColor", "cartDrawerProgressTrack", "cartDrawerProgressHeight"] },
     { title: "Book rows", keys: ["cartDrawerShowItemNumbers", "cartDrawerShowThumbs", "cartDrawerThumbWidth", "cartDrawerThumbOutline", "cartDrawerGrayscaleThumbs", "cartDrawerItemTitleSize", "cartDrawerShowUnitPrice", "cartDrawerShowLineTotal", "cartDrawerShowPreorder", "cartDrawerShowLineOptions", "cartDrawerQtyStyle", "cartDrawerRemoveStyle", "cartDrawerShowSaveForLater", "cartDrawerShowSavings"] },
     { title: "Suggestion card", keys: ["cartDrawerShowUpsell", "cartDrawerUpsellShadow"] },
-    { title: "Total & checkout button", keys: ["cartDrawerShowSummary", "cartDrawerShowShippingPreview", "cartDrawerShowDiscountCode", "cartDrawerShowOrderNote", "cartDrawerShowShipBy", "cartDrawerTotalSize", "showCartTrustBadges", "cartDrawerShowSecureBadge", "cartDrawerShowTrackedBadge", "cartDrawerShowReturnsBadge", "cartDrawerCheckoutBg", "cartDrawerCheckoutText", "cartDrawerCheckoutHeight", "cartDrawerCheckoutShadow", "cartDrawerShowCheckoutArrow", "cartDrawerShowTermsCheckbox", "cartDrawerShowDeliveryNote"] },
+    { title: "Total & checkout button", keys: ["cartDrawerShowSummary", "cartDrawerShowShippingPreview", "cartDrawerShippingPreviewLayout", "cartDrawerShowDiscountCode", "cartDrawerShowOrderNote", "cartDrawerShowShipBy", "cartDrawerTotalSize", "showCartTrustBadges", "cartDrawerShowSecureBadge", "cartDrawerShowTrackedBadge", "cartDrawerShowReturnsBadge", "cartDrawerCheckoutBg", "cartDrawerCheckoutText", "cartDrawerCheckoutHeight", "cartDrawerCheckoutShadow", "cartDrawerShowCheckoutArrow", "cartDrawerShowTermsCheckbox", "cartDrawerShowDeliveryNote"] },
     { title: "Empty bag", keys: ["cartDrawerShowEmptyIcon", "cartDrawerShowEmptyButton", "cartDrawerEmptyLink", "cartDrawerEmptyPicks", "cartDrawerEmptyPicksCount"] },
   ],
   checkout: [
