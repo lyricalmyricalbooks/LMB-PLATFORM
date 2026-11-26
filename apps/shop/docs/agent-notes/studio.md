@@ -1057,3 +1057,22 @@ The preview takes most of the screen. Nothing was removed; each thing moved to w
   centred banner, Salon words on a colour band, Workshop giant headline + photo mosaic, Commission dark band. Keep a new
   starter's opening different from all of these.
 - A service whose lowest price is 0 shows Free, never "From $0.00".
+
+## Frame designs (26 November 2026, frame designs plan)
+
+Starters used to differ only in their home page: every one shared the header, product page, product card, shop page,
+footer and bag. Each of those parts now has named designs, each a Studio choice whose empty value keeps today's look:
+- Header & announcement bar › Header layout: adds **rail** (side menu on computers, `RAIL_HEADER_CSS` in `headerLayout.ts`;
+  phones draw it like modern; `headerOffset.ts` returns 0 for it).
+- Footer layout › Footer design (`footerDesign`, `footerStyle.ts`): wordmark (the name huge, `giantNameSize`), line,
+  centred, contact (email and address large first).
+- Product page › Page layout › Product page design (`pdpLayout`, `productPageStyle.ts`): open, hero, editorial, split.
+  CSS keys on `[data-pdp-layout]` on BookDetail's grid (`.fm-pdp-grid/.fm-pdp-photos/.fm-pdp-info`).
+- Products › Grid & columns › Card design (`cardDesign`: framed, caption, centred, numbered; numbered counts per
+  `section`) and Shop page layout (`shopPageLayout`: list, staggered, on MainSite's `.fm-shop-grid`), both in `cardTypography.ts`.
+- Bag › Slides in from: **full** (rises from the bottom and fills the screen, `data-bag-full`).
+
+Each starter sets its own mix in its `global` (themeLibrary.ts), with its own heading typeface and background.
+`starterFrames.test.ts` fails when two starters share more than two of the eight parts (header, product page, cards,
+shop page, footer, bag, type, background), share a heading typeface, or a starter keeps the default frame. A new
+starter picks a mix no other has (see `add-a-starter.md`).

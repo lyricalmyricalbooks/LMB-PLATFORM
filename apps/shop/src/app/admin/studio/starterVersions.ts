@@ -19,43 +19,68 @@ export type StarterVersions = {
 
 export const STARTER_VERSIONS: Record<string, StarterVersions> = {
   "juniper-slow-season": {
-    releases: [{ version: 1, date: "2026-11-24", note: "The first version, in Terracotta, Sage and Night." }],
-    looks: { terracotta: "12cxxy7", sage: "19tuzg2", night: "ho5qw6" },
+    releases: [
+      { version: 1, date: "2026-11-24", note: "The first version, in Terracotta, Sage and Night." },
+      { version: 2, date: "2026-11-26", note: "A new frame: product pages open out across the page, a caption line under each product and a one-line footer." },
+    ],
+    looks: { terracotta: "jc620e", sage: "ag8gip", night: "12gkm51" },
   },
   "juniper-catalogue": {
-    releases: [{ version: 1, date: "2026-11-24", note: "The first version, in Acid, Blueprint and Night." }],
-    looks: { acid: "kjugmm", blueprint: "jc2v3a", night: "11me1vt" },
+    releases: [
+      { version: 1, date: "2026-11-24", note: "The first version, in Acid, Blueprint and Night." },
+      { version: 2, date: "2026-11-26", note: "A new frame: links behind a Menu button, numbered products, a list shop page, the title first on product pages and your email large in the footer, on cool grey paper." },
+    ],
+    looks: { acid: "gdf8mj", blueprint: "1inuvnu", night: "qjngtp" },
   },
   "aurel-editorial": {
-    releases: [{ version: 1, date: "2026-11-24", note: "The first version, in Cobalt, Sand and Night." }],
-    looks: { cobalt: "1e53ebw", sand: "1jgi7m0", night: "1itwz40" },
+    releases: [
+      { version: 1, date: "2026-11-24", note: "The first version, in Cobalt, Sand and Night." },
+      { version: 2, date: "2026-11-26", note: "A new frame: links in a row under your name, a staggered shop page, your name huge across the footer and a bag that fills the screen." },
+    ],
+    looks: { cobalt: "15c8s0r", sand: "1w6iyrb", night: "179sjxr" },
   },
   "starter-gallery": {
     releases: [
       { version: 1, date: "2026-11-25", note: "The first version, in Linen, Stone and Night." },
       { version: 2, date: "2026-11-26", note: "Your name now sits in the middle of the header, above a photo that fills the screen." },
+      { version: 3, date: "2026-11-26", note: "A new frame: links behind a Menu button, a big photo on top of each product page, centred product names, a staggered shop page and a centred footer." },
     ],
-    looks: { linen: "1x1ro7z", stone: "1yhk7nt", night: "1334736" },
+    looks: { linen: "uxwjhf", stone: "8232jx", night: "ai06py" },
   },
   "starter-warehouse": {
-    releases: [{ version: 1, date: "2026-11-25", note: "The first version, in Signal, Cobalt and Night." }],
-    looks: { signal: "1d5vrl", cobalt: "twfkp4", night: "17vz93f" },
+    releases: [
+      { version: 1, date: "2026-11-25", note: "The first version, in Signal, Cobalt and Night." },
+      { version: 2, date: "2026-11-26", note: "A new frame: a big masthead header, half-and-half product pages, framed products and a bag that opens from the left." },
+    ],
+    looks: { signal: "18xloh2", cobalt: "wjdjul", night: "1ehsfsw" },
   },
   "starter-larder": {
-    releases: [{ version: 1, date: "2026-11-25", note: "The first version, in Harvest, Olive and Night." }],
-    looks: { harvest: "fouwec", olive: "184v4kg", night: "1pey3xd" },
+    releases: [
+      { version: 1, date: "2026-11-25", note: "The first version, in Harvest, Olive and Night." },
+      { version: 2, date: "2026-11-26", note: "A new frame: links in a row under your name, the title first on product pages, framed products and your email large in the footer." },
+    ],
+    looks: { harvest: "1mw54g8", olive: "gih6xw", night: "1nn8r8l" },
   },
   "starter-salon": {
-    releases: [{ version: 1, date: "2026-11-25", note: "The first version, in Blush, Sage and Night." }],
-    looks: { blush: "2vsywz", sage: "1qe0ixp", night: "81pqk" },
+    releases: [
+      { version: 1, date: "2026-11-25", note: "The first version, in Blush, Sage and Night." },
+      { version: 2, date: "2026-11-26", note: "A new frame: a side menu on computers, a big photo on product pages, a centred footer, new type and a blush background." },
+    ],
+    looks: { blush: "ywxb1h", sage: "1npmds2", night: "1u79fip" },
   },
   "starter-workshop": {
-    releases: [{ version: 1, date: "2026-11-25", note: "The first version, in Sunny, Mint and Night." }],
-    looks: { sunny: "sztiw6", mint: "xuzb8y", night: "2rdqgg" },
+    releases: [
+      { version: 1, date: "2026-11-25", note: "The first version, in Sunny, Mint and Night." },
+      { version: 2, date: "2026-11-26", note: "A new frame: half-and-half product pages, centred product names, a list shop page, your name huge in the footer, new type and a sunny background." },
+    ],
+    looks: { sunny: "158ym2", mint: "1rj76ra", night: "1gmivo4" },
   },
   "starter-commission": {
-    releases: [{ version: 1, date: "2026-11-25", note: "The first version, in Walnut, Chalk and Night." }],
-    looks: { walnut: "1vv80ze", chalk: "w4fysz", night: "13451kh" },
+    releases: [
+      { version: 1, date: "2026-11-25", note: "The first version, in Walnut, Chalk and Night." },
+      { version: 2, date: "2026-11-26", note: "A new frame: a side menu on computers, open product pages, numbered work, a staggered shop page, a one-line footer and new type." },
+    ],
+    looks: { walnut: "qq10jg", chalk: "1eiva9h", night: "4zfioj" },
   },
 };
 

@@ -77,3 +77,8 @@ Aurel Night). Shops see them as swatches on the starter's card in Studio › The
   - a services shop (`&sells=hair`)
 - Fix every difference, then show the owner the real screenshots.
 - Once the owner says yes, open Control room › Shops › Setting up › Starter websites, tick Show (and Mark New) and save.
+
+## Pick its own frame (26 November 2026)
+Give the new starter's `global` a header layout, product page design, card design, shop page layout, footer design and
+bag side that, with its heading typeface and background, share at most two parts with any other starter.
+`starterFrames.test.ts` checks it; see Frame designs in `studio.md`.

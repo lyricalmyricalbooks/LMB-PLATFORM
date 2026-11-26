@@ -78,7 +78,7 @@ export const STARTER_STYLES: Record<string, StarterStyle[]> = {
       } },
   ],
   "juniper-catalogue": [
-    { id: "acid", name: "Acid", swatches: ["#f2f0e8", "#161815", "#d8ff43"], feels: ["bold"] },
+    { id: "acid", name: "Acid", swatches: ["#e7e8e2", "#161815", "#d8ff43"], feels: ["bold"] },
     { id: "blueprint", name: "Blueprint", swatches: ["#eef1f6", "#10182b", "#2a4fd6"], feels: ["classic", "calm"],
       global: { ...palette({ bg: "#eef1f6", text: "#10182b", accent: "#2a4fd6", second: "#9fe3ff", surface: "#dde3ee", muted: "#4d566a",
         border: "#b3bccc", button: "#10182b", buttonText: "#eef1f6", hover: "#9fe3ff", hoverText: "#10182b", footer: "#10182b",
@@ -121,7 +121,7 @@ export const STARTER_STYLES: Record<string, StarterStyle[]> = {
       sections: { NewsletterSection: { colorSchemeId: "scheme-default" } } },
   ],
   "starter-salon": [
-    { id: "blush", name: "Blush", swatches: ["#f6f1ec", "#2a2422", "#9b5a4e"], feels: ["calm", "classic"] },
+    { id: "blush", name: "Blush", swatches: ["#f7e8e3", "#2a2422", "#874a3e"], feels: ["calm", "classic"] },
     { id: "sage", name: "Sage", swatches: ["#eff2ec", "#1f2620", "#56705a"], feels: ["calm"],
       global: { ...palette({ bg: "#eff2ec", text: "#1f2620", accent: "#56705a", second: "#dbe3d6", surface: "#e1e7dc", muted: "#4f5850", border: "#c8d1c3", button: "#1f2620", buttonText: "#eff2ec", hover: "#56705a", hoverText: "#ffffff", footer: "#1f2620", footerText: "#eff2ec", footerHeading: "#dbe3d6", checkout: "#56705a" }),
         navLinkActiveColor: "#56705a" } },
@@ -130,7 +130,7 @@ export const STARTER_STYLES: Record<string, StarterStyle[]> = {
         navLinkActiveColor: "#f1eaf0" } },
   ],
   "starter-workshop": [
-    { id: "sunny", name: "Sunny", swatches: ["#fff8ee", "#1d1b2e", "#d2471c"], feels: ["bold"] },
+    { id: "sunny", name: "Sunny", swatches: ["#fff1c7", "#1d1b2e", "#d2471c"], feels: ["bold"] },
     { id: "mint", name: "Mint", swatches: ["#f0f7f2", "#13241c", "#1f7a52"], feels: ["calm", "classic"],
       global: { ...palette({ bg: "#f0f7f2", text: "#13241c", accent: "#1f7a52", second: "#ffd166", surface: "#e0eee5", muted: "#44564c", border: "#c6dccd", button: "#13241c", buttonText: "#f0f7f2", hover: "#1f7a52", hoverText: "#ffffff", footer: "#13241c", footerText: "#f0f7f2", footerHeading: "#ffd166", checkout: "#1f7a52" }),
         navLinkActiveColor: "#1f7a52" } },
