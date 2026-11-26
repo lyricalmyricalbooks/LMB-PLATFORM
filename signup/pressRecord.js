@@ -24,7 +24,8 @@ export const PRESS_STATUSES = Object.freeze(["setup", "opening", "open", "expire
 // `design` is the shop website the press designed before its store was made (the designer at /design/studio, 10 November
 // 2026): Studio's whole design, kept as it is and handed to the new shop (setup/handover.js), whose admin puts it on. null
 // clears it. Only its size and shape are checked here: the shop's own designer owns what a design may hold.
-export const SETUP_FIELDS = Object.freeze(["plan", "pressName", "sells", "country", "look", "lookStyle", "adminLook", "moving", "language", "cardProvider", "domainChoice", "freeName", "sellingToday", "alsoSells", "productGroups", "design"]);
+// `sellsProducts` is the sign-up's Both (form.js SHOP_TYPES): true for a services shop that sells products too.
+export const SETUP_FIELDS = Object.freeze(["plan", "pressName", "sells", "country", "look", "lookStyle", "adminLook", "moving", "language", "cardProvider", "domainChoice", "freeName", "sellingToday", "alsoSells", "productGroups", "sellsProducts", "design"]);
 /** The largest design kept, as JSON in UTF-8 bytes: well under a document's 1 MiB with the rest of the record. */
 export const MAX_DESIGN_BYTES = 400_000;
 const TEXT_LIMITS = Object.freeze({ plan: 9, pressName: 120, sells: 300, country: 2, look: 40, lookStyle: 40, adminLook: 40, moving: 5, language: 2, cardProvider: 6, domainChoice: 4, freeName: 60, sellingToday: 20 });
@@ -75,6 +76,12 @@ export function setupChange(current, change) {
       // "Anything else you'll sell?" (form.js ALSO_SELLS): any of its six picks, or none.
       if (!Array.isArray(value) || value.length > ALSO_SELLS.options.length || cleanAlsoSells(value).length !== value.length) return { ok: false, message: "Pick from the choices." };
       fields.alsoSells = cleanAlsoSells(value);
+      continue;
+    }
+    if (key === "sellsProducts") {
+      // Both (form.js SHOP_TYPES): a yes or no.
+      if (typeof value !== "boolean") return { ok: false, message: "Pick one of the choices." };
+      fields.sellsProducts = value;
       continue;
     }
     if (key === "productGroups") {

@@ -53,7 +53,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
   });
 
   it("a new shop sees the welcome first, with the press's name, suggestions and every look", async () => {
-    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "zines", plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
+    api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, sellingToday: "starting", publishes: "zines", plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
     expect(text()).toContain("Welcome to Moth Press. Choose your look");
     expect(text()).not.toContain("Set up your shop");
@@ -66,7 +66,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
   });
 
   it("choosing applies the look to the draft once, records it, and then shows the guide", async () => {
-    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "books", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
+    api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, sellingToday: "starting", publishes: "books", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
     await act(async () => { button("See every look")!.click(); });
     await act(async () => { button("Use this look")!.click(); });
@@ -83,14 +83,14 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
   });
 
   it("offers no admin look to pick: the admin has one look", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
+    api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
     expect(document.querySelector("[role=radiogroup][aria-label='Admin look']")).toBeNull();
     expect(text()).not.toContain("Your admin");
   });
 
   it("the guided start's shortlist puts the starter in the draft in the style that fits the feel", async () => {
-    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "clothing", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
+    api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, sellingToday: "starting", publishes: "clothing", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
     await act(async () => { (document.querySelector("[data-guided-feel='bold']") as HTMLButtonElement).click(); });
     const names = [...document.querySelectorAll("ul[aria-label='Your shortlist'] > li > div > div > strong")].map(n => n.textContent);
@@ -105,7 +105,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
   });
 
   it("Skip takes the first suggestion and says so", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
+    api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
     await act(async () => { button("Skip for now")!.click(); });
     await settleChoice();
@@ -113,7 +113,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
   });
 
   it("a failed save keeps the welcome up with a plain message", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
+    api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     store.saveDraft.mockRejectedValueOnce(new Error("offline"));
     await mount({});
     await act(async () => { button("Use this look")!.click(); });
@@ -339,7 +339,7 @@ describe("Get started, step 2: bring your shop with you (plan 17.3)", () => {
   });
 
   it("a shop part-way through the older order (details and products done) is shown the look next", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then" } });
+    api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, plan: "both", details: { at: "then" }, bring: { at: "then" } });
     await mount({});
     await waitFor(() => /Choose your look/.test(text()));
     expect(text()).not.toContain("Where do you sell now?");
@@ -348,7 +348,7 @@ describe("Get started, step 2: bring your shop with you (plan 17.3)", () => {
 
 describe("Choose your look as the list's first open step, with the press's first book (plan 17.8, move 4)", () => {
   it("the look is the step to do now, after the account and the name, and its previews show the first book's photo", async () => {
-    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "books", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
+    api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, sellingToday: "starting", publishes: "books", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({ books: [{ id: "b1", title: "Salt", photos: [{ url: "https://cdn.example/salt.jpg" }] }] });
     expect(document.querySelector("[data-row=look][aria-current=step]")).not.toBeNull();
     expect(document.querySelector("[data-row=account]")?.getAttribute("data-state")).toBe("done");
@@ -376,7 +376,7 @@ describe("What the press set up before its shop existed (code plan 18.9)", () =>
   const kept = { pressId: "press-moth", look: "press-riso", adminLook: "paper", at: "then", file: { name: "my zines.csv", rows: 1, at: "2026-11-03T09:00:00.000Z", parts: 2 } };
 
   it("the bring step offers the file kept in setup, and opens it in the importer's preview", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", ...LOOKED });
+    api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, plan: "both", ...LOOKED });
     api.getSetupHandover.mockResolvedValue(kept);
     api.getSetupHandoverFile.mockResolvedValue("Title,Price,Stock\nMoth Zine,8,20\n");
     await mount({ waitForWelcome: false });
@@ -392,7 +392,7 @@ describe("What the press set up before its shop existed (code plan 18.9)", () =>
   });
 
   it("a kept file that can't be read back says so, and the other ways stay open", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", ...LOOKED });
+    api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, plan: "both", ...LOOKED });
     api.getSetupHandover.mockResolvedValue(kept);
     api.getSetupHandoverFile.mockRejectedValueOnce(new Error("offline"));
     await mount({ waitForWelcome: false });
@@ -404,7 +404,7 @@ describe("What the press set up before its shop existed (code plan 18.9)", () =>
   });
 
   it("starting fresh past the file from setup is a choice: it is not offered again", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", ...LOOKED });
+    api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, plan: "both", ...LOOKED });
     api.getSetupHandover.mockResolvedValue(kept);
     await mount({ waitForWelcome: false });
     await act(async () => { button("Start fresh")!.click(); });
@@ -426,7 +426,7 @@ describe("What the press set up before its shop existed (code plan 18.9)", () =>
   });
 
   it("a shop whose hand-over can't be read still runs its steps as usual", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", ...LOOKED });
+    api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, plan: "both", ...LOOKED });
     api.getSetupHandover.mockRejectedValueOnce(new Error("offline"));
     await mount({ waitForWelcome: false });
     expect(text()).toContain("Where do you sell now?");
@@ -434,7 +434,7 @@ describe("What the press set up before its shop existed (code plan 18.9)", () =>
   });
 
   it("the look step opens on the look chosen in setup, and every look is one tap away", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true } });
+    api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true } });
     api.getSetupHandover.mockResolvedValue(kept);
     await mount({ waitForWelcome: false });
     await waitFor(() => /look you chose/.test(text()));
@@ -463,7 +463,7 @@ describe("The first order (sign-up to open shop plan, move 5)", () => {
   });
 
   it("stays away for a practice order and once put away", async () => {
-    api.getFirstWeek.mockResolvedValue({ ...OLD_SHOP, done: { firstOrder: "then" } });
+    api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, ...OLD_SHOP, done: { firstOrder: "then" } });
     await mount({ orders: [order] });
     expect(document.querySelector("[data-first-order]")).toBeNull();
     act(() => root?.unmount()); root = null;
@@ -475,11 +475,49 @@ describe("The first order (sign-up to open shop plan, move 5)", () => {
 
 describe("A shop that is already open (sign-up plan, move 5 follow-up)", () => {
   it("shows the setup guide, not 'N steps to open', and gives the top bar no run count", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", sellingToday: "starting", publishes: "other" });
+    api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, plan: "both", sellingToday: "starting", publishes: "other" });
     await mount({ settings: { info: { name: "Test Goods" }, design: { showUnderConstruction: false } }, waitForWelcome: false });
     expect(document.querySelector("[data-open-list]")).toBeNull();
     expect(text()).not.toMatch(/steps? to open/);
     const { getRunLeft } = await import("./firstStep");
     expect(getRunLeft()).toBeNull();
+  });
+});
+
+describe("What you offer, Get started's first step (shop types plan, part 1)", () => {
+  it("a new product shop says what it sells first; ticking books turns the book tools on, in one save", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both", sellingToday: "starting", publishes: "other", country: "CA" });
+    await mount({ waitForWelcome: false });
+    expect(document.querySelector("[data-offer-stage]")).not.toBeNull();
+    expect(text()).toContain("Tell us what you offer");
+    act(() => button("Continue")!.click());
+    await flush();
+    expect(text()).toContain("Pick at least one kind of thing you sell.");
+    expect(api.updateFirstWeek).not.toHaveBeenCalled();
+    act(() => (document.querySelector("[data-offer-group=art]") as HTMLButtonElement).click());
+    act(() => (document.querySelector("[data-offer-books] input") as HTMLInputElement).click());
+    await act(async () => { button("Continue")!.click(); });
+    await flush();
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ sells: "books", productGroups: ["art", "books"], offer: { at: expect.any(String) } });
+    expect(document.querySelector("[data-offer-stage]")).toBeNull();
+    expect(text()).toContain("Told us what you offer");
+  });
+
+  it("a shop doing both says what people book and what most customers come for", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both", publishes: "hair", sellsProducts: true });
+    await mount({ waitForWelcome: false });
+    expect(text()).toContain("What do people book?");
+    expect(text()).toContain("What do most customers come for?");
+    act(() => (document.querySelector("[data-offer-group=beauty]") as HTMLButtonElement).click());
+    act(() => (document.querySelector("[data-offer-lead=products]") as HTMLButtonElement).click());
+    await act(async () => { button("Continue")!.click(); });
+    await flush();
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ sells: "hair", leadSide: "products", productGroups: ["beauty"], offer: { at: expect.any(String) } });
+  });
+
+  it("a shop past its look before this step existed never sees it", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both", publishes: "other", welcome: { theme: "x", at: "then", firstRun: true } });
+    await mount({ waitForWelcome: false });
+    expect(document.querySelector("[data-offer-stage]")).toBeNull();
   });
 });

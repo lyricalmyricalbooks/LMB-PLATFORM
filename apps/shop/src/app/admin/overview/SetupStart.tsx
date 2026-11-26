@@ -34,6 +34,11 @@ import { SignupDesignStage } from "./SignupDesignStage";
 import { KeptFileCard } from "./KeptFileCard";
 import { ServicesStage } from "./ServicesStage";
 import { servicesOnly, type BookingsFacts } from "../servicesSetup";
+import { OfferStage } from "./OfferStage";
+import { offerSummary } from "../offerStage";
+import { SERVICE_CHOICES } from "../WhatYouSellCard";
+import { SELLS_CHANGED_EVENT } from "../shopWords";
+import { GROUPS_CHANGED_EVENT } from "../productGroups";
 
 // The welcome pulls in Studio's theme library and switcher, so it loads only for a shop that will show it.
 const ChooseLookWelcome = lazy(() => import("./ChooseLookWelcome").then(m => ({ default: m.ChooseLookWelcome })));
@@ -130,8 +135,19 @@ export function SetupStart({ books, orders, readiness, settings, bookings, onOpe
   const rows = inRun ? openRows(runSteps(platform, servicesOnly(doc)), step, {
     email: auth?.currentUser?.email, name: shopName, country: code ? countryName(code) : "", look,
     lookStyle: chosenLook(handover)?.theme === look ? chosenLook(handover)?.style : "", provider: platform,
+    offer: doc.offer ? offerSummary(doc, (id) => SERVICE_CHOICES.find((c) => c.id === id)?.label ?? "Services") : null,
   }) : null;
   const stage = () => {
+    if (step === "offer") {
+      // Step 1 (shop types plan): what the shop sells or what people book. The menu and words follow at once.
+      const offerDone = async (change: Parameters<typeof adminApi.updateFirstWeek>[0]) => {
+        await adminApi.updateFirstWeek(change);
+        setDoc({ ...doc, ...change } as FirstWeekDoc);
+        if (change.sells) window.dispatchEvent(new CustomEvent(SELLS_CHANGED_EVENT, { detail: change.sells }));
+        if (change.productGroups) window.dispatchEvent(new CustomEvent(GROUPS_CHANGED_EVENT, { detail: change.productGroups }));
+      };
+      return <OfferStage doc={doc} onDone={offerDone} />;
+    }
     if (step === "details") {
       const detailsDone = async (at: string) => {
         await adminApi.updateFirstWeek({ details: { at } });

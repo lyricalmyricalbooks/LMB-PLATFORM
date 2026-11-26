@@ -410,7 +410,7 @@ service cloud.firestore {
         // (Settings › General › What you sell), which reads before `publishes`.
         allow read: if isAdminReader();
         allow create, update: if isAdmin()
-          && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "sells", "sellsProducts", "ways", "alsoSells", "productGroups", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "payments", "shipping", "finalCheck", "createdAt", "updatedAt"])
+          && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "sells", "sellsProducts", "leadSide", "offer", "ways", "alsoSells", "productGroups", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "payments", "shipping", "finalCheck", "createdAt", "updatedAt"])
           // `productGroups`: the kinds of things the shop sells (sign-up's "Pick all that fit", changed in Settings ›
           // What you sell), a short list of the product groups' ids.
           && (!("productGroups" in request.resource.data) || (request.resource.data.productGroups is list && request.resource.data.productGroups.size() <= 16))
@@ -429,6 +429,10 @@ service cloud.firestore {
                 || resource.data.get("sells", "") in ["hair", "wellness", "lessons", "fitness", "studio", "services"]
                 || get(/databases/$(database)/documents/shops/$(shopId)/platform/features).data.get("bookings", false) == true)))
           && (!("sellsProducts" in request.resource.data) || request.resource.data.sellsProducts is bool)
+          // `leadSide`: which side a shop selling both leads with ("What do most customers come for?", shop types plan).
+          && (!("leadSide" in request.resource.data) || request.resource.data.leadSide in ["products", "services"])
+          // `offer`: when Get started's What you offer was answered, a small map.
+          && (!("offer" in request.resource.data) || (request.resource.data.offer is map && request.resource.data.offer.size() <= 2))
           // Ways to sell (beta; Settings › General › Ways to sell): the owner's own switches, true or false for each
           // of the six ways. A way is on only while the platform allows it too (`platform/features` › `ways`, which
           // no browser can write), and the server checks both before it sells anything.

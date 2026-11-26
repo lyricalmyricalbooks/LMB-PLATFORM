@@ -11,7 +11,8 @@ const closed = { design: { showUnderConstruction: true } };
 
 describe("the run's order is decided in one place (plans 17.1 to 17.13, move 4)", () => {
   it("walks a platform press through every step in order: the look first, contact and shipping last", () => {
-    expect(nextRunStep({ plan: "both" }, closed, "stripe")).toBe("look");
+    expect(nextRunStep({ plan: "both" }, closed, "stripe")).toBe("offer");
+    expect(nextRunStep({ plan: "both", offer: { at: "a" } }, closed, "stripe")).toBe("look");
     expect(nextRunStep(looked, closed, "stripe")).toBe("bring");
     expect(nextRunStep(brought, closed, "stripe")).toBe("payments");
     expect(nextRunStep(paid, closed, "stripe")).toBe("details");
@@ -30,9 +31,9 @@ describe("the run's order is decided in one place (plans 17.1 to 17.13, move 4)"
 
   it("a shop part-way through the older order carries on: the look, then what is left", () => {
     const older = { plan: "both", details: { at: "a" }, bring: { at: "a" } };
-    expect(nextRunStep(older, closed, "stripe")).toBe("look");
+    expect(nextRunStep({ ...older, offer: { at: "a" } }, closed, "stripe")).toBe("look");
     expect(nextRunStep({ ...older, welcome: { theme: "zine", at: "b" } }, closed, "stripe")).toBe("payments");
-    expect(nextRunStep({ plan: "both", details: { at: "a" } }, closed, null)).toBe("look");
+    expect(nextRunStep({ plan: "both", details: { at: "a" }, offer: { at: "a" } }, closed, null)).toBe("look");
   });
 
   it("ends when the shop is open, or the final check is done", () => {
@@ -46,12 +47,18 @@ describe("the run's order is decided in one place (plans 17.1 to 17.13, move 4)"
     expect(nextRunStep(null, closed, "stripe")).toBeNull();
   });
 
+  it("asks What you offer first, and never asks it of a shop already past its look (shop types plan)", () => {
+    expect(nextRunStep({ plan: "both", publishes: "hair" }, closed, null)).toBe("offer");
+    expect(nextRunStep(looked, closed, "stripe")).toBe("bring");
+    expect(nextRunStep({ plan: "both", offer: { at: "a" }, welcome: { theme: "zine", at: "a", firstRun: true } }, closed, "stripe")).toBe("bring");
+  });
+
   it("Google is not a step: an older document's Google marker changes nothing", () => {
     expect(nextRunStep({ ...reached, google: { at: "b", coming: true } }, closed, null)).toBe("shipping");
   });
 
   it("the list counts only the steps this press walks", () => {
-    expect(runSteps("stripe")).toEqual(["look", "bring", "payments", "details", "shipping", "final"]);
-    expect(runSteps(null)).toEqual(["look", "bring", "details", "shipping", "final"]);
+    expect(runSteps("stripe")).toEqual(["offer", "look", "bring", "payments", "details", "shipping", "final"]);
+    expect(runSteps(null)).toEqual(["offer", "look", "bring", "details", "shipping", "final"]);
   });
 });

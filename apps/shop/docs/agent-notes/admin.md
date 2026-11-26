@@ -1664,3 +1664,15 @@ with copy) and Remove (asks first). All through op `bookingHooks` (steps list, a
 - Phone fixes in the same change: huge headlines (`.fm-po-title`, `.fm-bi-title`) shrink until their longest word fits
   (`--fit-chars` from SectionComponents `fitChars`); the compact header row has 16px on both sides; starter sample names
   read by photo ("Example stoneware mug"); Guided start's unpicked pills have a fill and an outline.
+
+## Shop types: Product shop, Services or Both (26 November 2026, plan https://claude.ai/artifact/7nZNMBxFoF3bYzNMga37DJ)
+
+- Sign-up (LMB-PLATFORM `join/`, `signup/form.js` SHOP_TYPES) asks Product shop / Services / Both. Both is a services
+  answer plus `sellsProducts: true`, carried sign-up record → `signups` row → `firstWeek/start` (setup/later-steps.js
+  `sellsProductsToo`). No "Bookshop" card: the book tools turn on only from a books answer.
+- `servicesSetup.ts` `shopKindOf(doc)` ("products" | "services" | "both") and `leadSideOf(doc)` (`firstWeek/start` ›
+  `leadSide`, Both only, default "services"). The starters' three versions read these (starterForShop).
+- Get started's first step is What you offer (`startRun.ts` "offer", `overview/OfferStage.tsx`, pure logic in
+  `offerStage.ts`): a product shop's groups and a "Books, zines or comics" tick (the only thing that sets a book
+  `sells`), what people book, and Both's lead side, saved in one `updateFirstWeek` with `offer: { at }`. A shop that
+  already has `welcome` skips it. Rules allow `leadSide` (products/services) and `offer` (a small map).

@@ -48,14 +48,17 @@ test("every answer files the payment account under a real merchant category", ()
   assert.equal(merchantProfile("prints").mcc, "5971");
 });
 
-test("the front door's Bookshop / General shop choice files every answer the way the shop reads it", async () => {
-  const { BOOK_SELLS, GENERAL_SELLS, SERVICE_SELLS, PUBLISHES, SHOP_TYPES, shopTypeOf, isServiceSells } = await import("../../signup/form.js");
+test("the front door's Product shop / Services / Both choice files every answer the way the shop reads it", async () => {
+  const { BOOK_SELLS, GENERAL_SELLS, SERVICE_SELLS, SERVICE_TYPES, PUBLISHES, SHOP_TYPES, shopTypeOf, isServiceSells } = await import("../../signup/form.js");
   const { sellsServices, shopKind, wordsFor } = await import("./sells.js");
-  assert.deepEqual(SHOP_TYPES.map((t) => t.id), ["books", "general", "services"]);
+  assert.deepEqual(SHOP_TYPES.map((t) => t.id), ["products", "services", "both"]);
+  assert.deepEqual(SERVICE_TYPES, ["services", "both"]);
+  // No card says "Bookshop": books live under Product shop, and the book tools come only from a books answer.
+  assert.ok(SHOP_TYPES.every((t) => !/bookshop/i.test(t.label)));
   for (const { id } of PUBLISHES.options) {
-    assert.equal(shopTypeOf(id) === "books", sellsBooks(id), `${id} is filed under the right shop type`);
     assert.equal(shopTypeOf(id) === "services", sellsServices(id), `${id} is a services answer on both sides`);
-    assert.equal(shopKind(id), shopTypeOf(id) === "general" ? "products" : shopTypeOf(id));
+    assert.equal(shopTypeOf(id, true) === "both", sellsServices(id), `${id} with products too is Both only for a services answer`);
+    assert.equal(shopKind(id) === "services", shopTypeOf(id) === "services");
   }
   assert.ok(SERVICE_SELLS.length >= 5);
   for (const { id } of SERVICE_SELLS) {

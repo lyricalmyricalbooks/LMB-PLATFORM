@@ -4,7 +4,7 @@
 // framework (docs/decisions.md); Firebase's own browser library is loaded from Google for sign-in only. Every check the
 // page makes, the server makes again (signup/frontDoor.js).
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE, SETUP_ADMIN_URL } from "../signup/config.js";
-import { COUNTRIES, SERVICE_SELLS, SHOP_TYPES, countryFromTimeZone, isEmail, shopTypeOf } from "../signup/form.js";
+import { COUNTRIES, SERVICE_SELLS, SERVICE_TYPES, SHOP_TYPES, countryFromTimeZone, isEmail, shopTypeOf } from "../signup/form.js";
 import { ROW_WORDS, makingView } from "../signup/making.js";
 import { takeHandOff } from "../waitlist/frontPage.js";
 
@@ -229,10 +229,10 @@ if (STARTER_PICK) {
 // its setup guide (25 November 2026, Julian), so nothing here picks one for the person.
 const starterChange = () => (STARTER_PICK ? { look: STARTER_PICK.look, lookStyle: STARTER_PICK.lookStyle } : {});
 
-// Bookshop or general shop (14 November 2026, Julian): the first question, so it's clear which one gets the book
-// features. A general shop then says what it sells. Both are saved as one sign-up answer (signup/form.js SHOP_TYPES).
-// The Services kind (a salon, a studio, a tutor) shows only while the control room has it on (`plans.servicesOpen`),
-// or for a press that already picked it; it then asks what the business does.
+// Product shop, Services or Both (shop types plan, 26 November 2026, Julian; signup/form.js SHOP_TYPES). What a product
+// shop sells (and whether it sells books, which turns the book tools on) is asked after the shop exists, in its setup
+// guide. Services and Both show only while the control room has them on (`plans.servicesOpen`), or for a press that
+// already picked one; they then ask what the business does.
 let servicesShown = false;
 // The services page (/services) links here with ?type=services: that card starts picked, when it is shown and nothing
 // else is picked yet. Runs once the plans answered, so the card is there.
@@ -248,7 +248,7 @@ function showTypes(withServices) {
   if (withServices === servicesShown && $("#type-choices").childElementCount) return;
   servicesShown = withServices;
   const picked = startForm?.querySelector("input[name=shopType]:checked")?.value ?? "";
-  const types = SHOP_TYPES.filter((t) => t.id !== "services" || withServices);
+  const types = SHOP_TYPES.filter((t) => !SERVICE_TYPES.includes(t.id) || withServices);
   const box = $("#type-choices");
   box.dataset.count = String(types.length);
   box.replaceChildren(...types.map((t) => {
@@ -260,8 +260,6 @@ function showTypes(withServices) {
 }
 // What a product shop sells is asked after the shop exists (the look step's "What do you sell?"; Settings › What you sell).
 $("#does-choices").replaceChildren(...SERVICE_SELLS.map((o) => choice("does", o.id, o.label)));
-// A bookshop that signed up as zines or comics keeps that answer; a new bookshop is "books".
-let bookAnswer = "books";
 $("#country").replaceChildren(new Option("Choose a country", ""), ...Object.entries(COUNTRIES).map(([code, c]) => new Option(c.name, code)));
 
 const startForm = $("#start-form");
@@ -274,17 +272,19 @@ const showName = () => {
   $("#new-address").textContent = $("#form-address").textContent = addressFor(name);
 };
 const pickedValue = (name) => startForm.querySelector(`input[name=${name}]:checked`)?.value ?? "";
-/** The preview's shop line, and "What do you do?" only for a services shop. */
+/** The preview's shop line, and "What do you do?" only for a shop that takes bookings. */
 const showKind = () => {
   const type = pickedValue("shopType");
+  const takesBookings = SERVICE_TYPES.includes(type);
   const does = SERVICE_SELLS.find((o) => o.id === pickedValue("does"));
-  $("#does-group").hidden = type !== "services";
-  if (type !== "services") $("#does-error").hidden = true;
-  $("#new-kind").textContent = type === "books" ? "Bookshop"
-    : type === "general" ? "Product shop"
-    : type === "services" ? (does && does.id !== "services" ? does.label : "Services") : "Your store";
+  $("#does-group").hidden = !takesBookings;
+  if (!takesBookings) $("#does-error").hidden = true;
+  const doesLabel = does && does.id !== "services" ? does.label : "";
+  $("#new-kind").textContent = type === "products" ? "Product shop"
+    : type === "services" ? (doesLabel || "Services")
+    : type === "both" ? (doesLabel ? `${doesLabel} + products` : "Products and services") : "Your store";
   // A services shop's second side is its money, not a stockroom.
-  $("#new-includes").textContent = type === "services" ? "Bookings, website and bookkeeping" : "Shop and stockroom";
+  $("#new-includes").textContent = type === "services" ? "Bookings, website and bookkeeping" : type === "both" ? "Bookings, shop and stockroom" : "Shop and stockroom";
 };
 /** The note under the country, and the fee in the money that country's shops pay in. */
 function showCountry() {
@@ -326,14 +326,12 @@ startForm.addEventListener("change", (event) => {
 
 function fillAnswers() {
   startForm.pressName.value = press.pressName ?? "";
-  // A saved answer picks its shop type, and for a general shop its tile ("mixed", an older answer with no tile here,
-  // leaves the tiles for the person to pick again).
-  const type = shopTypeOf(press.sells);
-  // A press that already picked Services keeps its card, even when new sign-ups no longer see it.
-  showTypes(plans?.servicesOpen === true || type === "services");
-  if (type === "books") bookAnswer = press.sells;
+  // A saved answer picks its shop type, and for Services or Both what the business does.
+  const type = shopTypeOf(press.sells, press.sellsProducts);
+  // A press that already picked Services or Both keeps its card, even when new sign-ups no longer see it.
+  showTypes(plans?.servicesOpen === true || SERVICE_TYPES.includes(type));
   for (const input of startForm.querySelectorAll("input[name=shopType]")) input.checked = input.value === type;
-  for (const input of startForm.querySelectorAll("input[name=does]")) input.checked = type === "services" && input.value === press.sells;
+  for (const input of startForm.querySelectorAll("input[name=does]")) input.checked = SERVICE_TYPES.includes(type) && input.value === press.sells;
   showKind();
   // Not answered yet: start from the country the computer's clock is set to, when we can tell and serve it.
   startForm.country.value = press.country in COUNTRIES ? press.country : countryFromTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
@@ -361,7 +359,7 @@ function checkAnswers(answers, { terms = true } = {}) {
   const problems = {
     pressName: answers.pressName ? "" : "Enter your brand's name.",
     shopType: answers.shopType ? "" : "Pick the kind of shop.",
-    does: answers.shopType !== "services" || answers.sells ? "" : "Pick what you do.",
+    does: !SERVICE_TYPES.includes(answers.shopType) || answers.sells ? "" : "Pick what you do.",
     country: answers.country ? "" : "Choose where your brand is based.",
     terms: !terms || answers.termsAccepted ? "" : "Tick the box to agree to the terms.",
   };
@@ -375,13 +373,14 @@ function checkAnswers(answers, { terms = true } = {}) {
   return !first;
 }
 
-// `shopType` is the page's own; the server gets `sells`: the bookshop answer, the services shop's, or "other" for a
-// product shop (what it sells is asked after the shop exists). A product shop that already saved its kinds keeps them.
+// `shopType` is the page's own; the server gets `sells` and `sellsProducts`. A product shop is "other" until its setup
+// guide asks what it sells (a product shop that already saved an answer, books included, keeps it); Services and Both
+// send what the business does, and Both says it sells products too.
 const readAnswers = () => {
   const shopType = pickedValue("shopType");
-  const keptKinds = shopType === "general" && shopTypeOf(press?.sells) === "general" && press.sells !== "other";
-  const sells = shopType === "books" ? bookAnswer : shopType === "general" ? (keptKinds ? press.sells : "other") : shopType === "services" ? pickedValue("does") : "";
-  return { pressName: startForm.pressName.value.trim(), shopType, sells, country: startForm.country.value, termsAccepted: startForm.termsAccepted.checked };
+  const keptKinds = shopType === "products" && shopTypeOf(press?.sells) === "products";
+  const sells = shopType === "products" ? (keptKinds ? press.sells : "other") : SERVICE_TYPES.includes(shopType) ? pickedValue("does") : "";
+  return { pressName: startForm.pressName.value.trim(), shopType, sells, sellsProducts: shopType === "both", country: startForm.country.value, termsAccepted: startForm.termsAccepted.checked };
 };
 
 startForm.addEventListener("submit", (event) => {

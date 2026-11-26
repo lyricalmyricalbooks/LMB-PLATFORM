@@ -121,23 +121,29 @@ export const sellsForGroups = (groups) => PRODUCT_GROUPS.options.find((o) => o.i
 export const cleanAlsoSells = (value) => (Array.isArray(value) ? ALSO_SELLS.options.map((o) => o.id).filter((id) => value.includes(id)) : []);
 
 /**
- * The front door's first shop question (14 November 2026, Julian): what kind of shop. A bookshop gets the book
- * features (authors, ISBNs, royalties, artist payouts) and book words; a product shop (called "General shop" at
- * first) gets product words and none of the book-only pages; a services shop (a salon, a studio, a tutor) gets
- * Bookings, clients and payments for appointments in place of products, stock and shipping. The answer is still saved
- * as one of PUBLISHES' ids, so everything that reads a shop's `publishes`/`sells` (shared/sells/sells.js, the shop's
- * shopSells.ts) keeps working: a bookshop is "books", a product shop one of GENERAL_SELLS, a services shop one of
- * SERVICE_SELLS. BOOK_SELLS and SERVICE_SELLS must match sells.js (sells.test.js checks).
+ * The front door's shop question (shop types plan, 26 November 2026, Julian): Product shop, Services or Both. A product
+ * shop sells things it ships (and gets the book tools only when it says it sells books, in its setup guide or in What
+ * you offer); a services shop (a salon, a studio, a tutor) gets Bookings, clients and payments for appointments in place
+ * of products, stock and shipping; Both gets the two. Every kind can be changed later in the admin.
  *
- * The Services card shows only while the control room's "Services shops can sign up" is on (settings.servicesShops,
- * sent to the page as `servicesOpen`); the server refuses a services answer while it is off (frontDoor.js).
+ * The answer is still saved as one of PUBLISHES' ids, so everything that reads a shop's `publishes`/`sells`
+ * (shared/sells/sells.js, the shop's shopSells.ts) keeps working: a product shop is one of GENERAL_SELLS (or a book
+ * answer, which turns the book tools on), a services shop one of SERVICE_SELLS, and Both a SERVICE_SELLS answer with
+ * `sellsProducts: true` (the shop's "Sell products too", WhatYouSellCard.tsx). BOOK_SELLS and SERVICE_SELLS must match
+ * sells.js (sells.test.js checks).
+ *
+ * The Services and Both cards show only while the control room's "Services shops can sign up" is on
+ * (settings.servicesShops, sent to the page as `servicesOpen`); the server refuses a services answer while it is off
+ * (frontDoor.js).
  */
 export const BOOK_SELLS = Object.freeze(["books", "zines", "comics", "mix"]);
 export const SHOP_TYPES = Object.freeze([
-  Object.freeze({ id: "books", label: "Bookshop", line: "Books, zines, comics. Authors, ISBNs and royalties built in.", tools: "Books · stock · shipping" }),
-  Object.freeze({ id: "general", label: "Product shop", line: "T-shirts, prints, jewellery, records or anything you make and ship.", tools: "Products · stock · shipping" }),
-  Object.freeze({ id: "services", label: "Services", line: "Salons, studios, lessons, therapy. Bookings and payments built in.", tools: "Calendar · clients · deposits" }),
+  Object.freeze({ id: "products", label: "Product shop", line: "Clothing, prints, books, records or anything you make and ship.", tools: "Products · stock · shipping" }),
+  Object.freeze({ id: "services", label: "Services", line: "Salons, studios, lessons, therapy. People book a time with you.", tools: "Calendar · clients · deposits" }),
+  Object.freeze({ id: "both", label: "Both", line: "You sell things and take bookings, like a studio that sells its work.", tools: "Products · bookings · clients" }),
 ]);
+/** The kinds that need "Services shops can sign up" on (the control room switch). */
+export const SERVICE_TYPES = Object.freeze(["services", "both"]);
 /** A product shop's "What do you sell?" choices, each a PUBLISHES id (it picks the suggested look and the tax kind). */
 export const GENERAL_SELLS = Object.freeze([
   Object.freeze({ id: "clothing", label: "Clothing & accessories" }),
@@ -159,8 +165,11 @@ export const SERVICE_SELLS = Object.freeze([
 const SERVICE_IDS = SERVICE_SELLS.map((o) => o.id);
 /** True for a services shop's answer. */
 export const isServiceSells = (sells) => SERVICE_IDS.includes(sells);
-/** "books", "general" or "services" for a saved answer; "" when there is none yet. */
-export const shopTypeOf = (sells) => (!sells ? "" : BOOK_SELLS.includes(sells) ? "books" : isServiceSells(sells) ? "services" : "general");
+/**
+ * "products", "services" or "both" for a saved answer and its "Sell products too"; "" when there is none yet. A
+ * bookshop is a product shop (with the book tools); a products answer with `sellsProducts` is still a product shop.
+ */
+export const shopTypeOf = (sells, sellsProducts = false) => (!sells ? "" : isServiceSells(sells) ? (sellsProducts === true ? "both" : "services") : "products");
 
 // The web address is the shop id, so it follows the shop id's rules (setup/steps.js shopProblems): 6 to 30 lowercase
 // letters, digits and hyphens, starting with a letter and not ending with a hyphen. Google refuses ids holding the first
@@ -281,6 +290,8 @@ export function checkSignup(input) {
   const alsoSells = cleanAlsoSells(input?.[ALSO_SELLS.id]);
   // "What do you sell? Pick all that fit." (PRODUCT_GROUPS): left out when nothing was picked.
   const productGroups = cleanProductGroups(input?.[PRODUCT_GROUPS.id]);
-  const details = { pressName, plan, country, currency: country ? COUNTRIES[country].currency : "", answer, publishes, address, termsVersion, paymentProvider, ...(language ? { language } : {}), ...(timeZone ? { timeZone } : {}), ...(alsoSells.length ? { alsoSells } : {}), ...(productGroups.length ? { productGroups } : {}) };
+  // Both (SHOP_TYPES): a services answer that sells products too. Only a services answer can carry it.
+  const sellsProducts = input?.sellsProducts === true && isServiceSells(publishes);
+  const details = { pressName, plan, country, currency: country ? COUNTRIES[country].currency : "", answer, publishes, address, termsVersion, paymentProvider, ...(language ? { language } : {}), ...(timeZone ? { timeZone } : {}), ...(alsoSells.length ? { alsoSells } : {}), ...(productGroups.length ? { productGroups } : {}), ...(sellsProducts ? { sellsProducts } : {}) };
   return { ok: Object.keys(problems).length === 0, details, problems };
 }

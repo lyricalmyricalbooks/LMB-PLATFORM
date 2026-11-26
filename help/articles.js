@@ -642,6 +642,7 @@ export const CHECKLIST_ANSWERS = Object.freeze({
  * CHECKLIST_ANSWERS, which is the setup guide's own list. help.test.js checks this list against the run's stages.
  */
 export const RUN_ANSWERS = Object.freeze({
+  offer: "what-you-sell",
   details: "your-press",
   bring: "bring-books",
   services: "take-bookings",

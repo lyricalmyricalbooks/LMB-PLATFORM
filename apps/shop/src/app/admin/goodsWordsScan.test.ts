@@ -11,9 +11,10 @@ const WORD = /(?<![-\w])([Bb]ooks?|BOOKS?|[Aa]uthors?)\b/;
 const ATTRS = /^(label|placeholder|title|aria-label|hint|description|helper|emptyText|message|alt)$/;
 /**
  * Files left on purpose: Home's To do lines (as before), and Studio (shopper words live in Text & labels). Bookings.tsx
- * says "book" as the verb (book a time), which every kind of shop reads the same way.
+ * says "book" as the verb (book a time), which every kind of shop reads the same way. OfferStage.tsx asks a new shop
+ * whether it sells books (the only way the book tools turn on), so it must say books to every shop.
  */
-const KEEP = new Set(["overview/HomePage.tsx", "Dashboard.tsx", "BookEditor.tsx", "Bookings.tsx"]);
+const KEEP = new Set(["overview/HomePage.tsx", "Dashboard.tsx", "BookEditor.tsx", "Bookings.tsx", "overview/OfferStage.tsx"]);
 
 function files(dir: string, out: string[] = []) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {

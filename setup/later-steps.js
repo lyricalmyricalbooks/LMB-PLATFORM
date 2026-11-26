@@ -71,6 +71,9 @@ export const alsoSells = (shop) => (Array.isArray(shop.alsoSells) ? WAY_IDS.filt
 /** The kinds of things a product shop sells, picked at sign-up (signup/form.js PRODUCT_GROUPS), or []. */
 export const productGroups = (shop) => cleanProductGroups(shop.productGroups);
 
+/** Both (signup/form.js SHOP_TYPES): a services shop that sells products too, saved as the shop's "Sell products too". */
+export const sellsProductsToo = (shop) => shop.sellsProducts === true && sellsServices(publishes(shop));
+
 /** Where a shop's feature switches live in its own folder (control-room/bookingsBeta.js FEATURES_DOC). */
 const FEATURES_PATH = "platform/features";
 
@@ -209,7 +212,7 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
     // Overview › Choose your look and Set up your shop (plans 6.3, 6.9): the sign-up answers shape the theme suggestions
     // and the steps. Written once; the owner's ticks and choice stay.
     ...(appsOf(shop).includes("shop")
-      ? [{ path: "firstWeek/start", data: { sellingToday: sellingToday(shop), publishes: publishes(shop), country: countryOf(shop), plan: shop.plan, ...(alsoSells(shop).length ? { alsoSells: alsoSells(shop) } : {}), ...(productGroups(shop).length ? { productGroups: productGroups(shop) } : {}) } }]
+      ? [{ path: "firstWeek/start", data: { sellingToday: sellingToday(shop), publishes: publishes(shop), country: countryOf(shop), plan: shop.plan, ...(alsoSells(shop).length ? { alsoSells: alsoSells(shop) } : {}), ...(productGroups(shop).length ? { productGroups: productGroups(shop) } : {}), ...(sellsProductsToo(shop) ? { sellsProducts: true } : {}) } }]
       : []),
     // A services shop (a salon, a studio, a tutor) is built around Bookings, so it starts with Bookings on
     // (control-room/bookingsBeta.js FEATURES_DOC). Written once: turning it off in the control room later stays off.
