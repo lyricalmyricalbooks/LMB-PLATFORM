@@ -22,8 +22,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
     releases: [
       { version: 1, date: "2026-11-24", note: "The first version, in Terracotta, Sage and Night." },
       { version: 2, date: "2026-11-26", note: "A new frame: product pages open out across the page, a caption line under each product and a one-line footer." },
+      { version: 3, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
     ],
-    looks: { terracotta: "jc620e", sage: "ag8gip", night: "12gkm51" },
+    looks: { terracotta: "1s8npye", sage: "186l7h5", night: "88tm31" },
   },
   "juniper-catalogue": {
     releases: [
@@ -36,8 +37,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
     releases: [
       { version: 1, date: "2026-11-24", note: "The first version, in Cobalt, Sand and Night." },
       { version: 2, date: "2026-11-26", note: "A new frame: links in a row under your name, a staggered shop page, your name huge across the footer and a bag that fills the screen." },
+      { version: 3, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
     ],
-    looks: { cobalt: "15c8s0r", sand: "1w6iyrb", night: "179sjxr" },
+    looks: { cobalt: "14tm56e", sand: "fusx76", night: "1qle2x6" },
   },
   "starter-gallery": {
     releases: [
@@ -45,8 +47,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 2, date: "2026-11-26", note: "Your name now sits in the middle of the header, above a photo that fills the screen." },
       { version: 3, date: "2026-11-26", note: "A new frame: links behind a Menu button, a big photo on top of each product page, centred product names, a staggered shop page and a centred footer." },
       { version: 4, date: "2026-11-26", note: "A redesign: words in light type over the opening photo, two products shown large then three smaller, an open product page with your photos side by side and a breadcrumb, and a slim announcement bar." },
+      { version: 5, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
     ],
-    looks: { linen: "iovzfw", stone: "8bdv2u", night: "18di64v" },
+    looks: { linen: "1w2gaq7", stone: "1loy6d5", night: "mpyfg2" },
   },
   "starter-warehouse": {
     releases: [
@@ -54,8 +57,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 2, date: "2026-11-26", note: "A new frame: a big masthead header, half-and-half product pages, framed products and a bag that opens from the left." },
       { version: 3, date: "2026-11-26", note: "A redesign: a search bar in the header, a huge headline beside one photo, the page running wider, a moving band and a bright story band." },
       { version: 4, date: "2026-11-26", note: "Tidier on phones: categories two to a row and your promises one under another. The headline fits beside the photo on smaller screens." },
+      { version: 5, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
     ],
-    looks: { signal: "125bf4f", cobalt: "1ynt1i", night: "xjy9ft" },
+    looks: { signal: "1r0krfk", cobalt: "ngul7b", night: "1n16sgq" },
   },
   "starter-larder": {
     releases: [
@@ -63,8 +67,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 2, date: "2026-11-26", note: "A new frame: links in a row under your name, the title first on product pages, framed products and your email large in the footer." },
       { version: 3, date: "2026-11-26", note: "A redesign: a golden card beside a rounded photo, round photo links, rounded shelf cards, a dark gift band and your story." },
       { version: 4, date: "2026-11-26", note: "Tidier on phones: round photo links three to a row." },
+      { version: 5, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
     ],
-    looks: { harvest: "tj3slb", olive: "41eokb", night: "siuvw" },
+    looks: { harvest: "3n7ofp", olive: "1jhxbdd", night: "14fxvwy" },
   },
   "starter-salon": {
     releases: [

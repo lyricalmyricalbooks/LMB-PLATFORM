@@ -16,7 +16,7 @@ import { applyLook } from "./studio/themeSwitch";
 import { styledName } from "./studio/starterStyles";
 import type { LeadSide, StarterKind } from "./studio/starterDesign";
 import { currentWebsite, switchBackEntry, switchBackOffer, withSwitchBack } from "./websiteChoice";
-import { withStarterWords } from "./sells";
+import { withOwnBanner, withStarterWords } from "./sells";
 import { adminApi } from "./api";
 import { emailThemeFor } from "./lookGallery";
 import type { LibraryTheme } from "./lookGallery";
@@ -46,7 +46,7 @@ export async function applyChosenLook(theme: LibraryTheme, settings: any, publis
         await saveSavedThemes(ws, ws.savedThemes, withSwitchBack(ws.savedThemes, switchBackEntry(ws.draft, currentWebsite(ws.draft).name, styledName(theme))));
         kept = true;
       }
-      const next = withStarterWords(applyStarter(ws.draft || {}, starterForShop(theme, extra.kind ?? publishes, extra.lead), getSectionMeta, w, starterPhotos(publishes)), publishes);
+      const next = withOwnBanner(withStarterWords(applyStarter(ws.draft || {}, starterForShop(theme, extra.kind ?? publishes, extra.lead), getSectionMeta, w, starterPhotos(publishes)), publishes), theme, publishes);
       await saveDraft(ws, logoUrl ? { ...next, logoUrl } : next, ws.rev);
       break;
     } catch (error) {

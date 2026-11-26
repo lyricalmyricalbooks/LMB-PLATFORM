@@ -164,6 +164,23 @@ export function withShopWordsFor<T extends Record<string, any> | null | undefine
   return Object.keys(kept).length === Object.keys(copy).length ? design : { ...design, copy: kept } as T;
 }
 
+/** The banner a shop starts with until its owner writes one: its kind's own line (books, other things or services). */
+export function startingBanner(answer?: string | null): string {
+  if (sellsServices(answer)) return SERVICES_ANNOUNCEMENT;
+  return answer && !sellsBooks(answer) ? GOODS_ANNOUNCEMENT : DEFAULT_ANNOUNCEMENT;
+}
+
+/**
+ * A starter's banner belongs to its made-up sample brand ("Free shipping on orders over $150"), so a real shop never
+ * goes live promising it: the shop starts with its own kind's banner instead (Studio › Style › Announcement bar).
+ * The demo and the previews keep the sample brand's line.
+ */
+export function withOwnBanner<T extends Record<string, any>>(design: T, theme: any, answer?: string | null): T {
+  const sample = theme?.global?.announcementText;
+  if (!sample || design?.announcementText !== sample) return design;
+  return { ...design, announcementText: startingBanner(answer) };
+}
+
 /** The banner a shop that doesn't sell books starts with, until its owner writes one (Studio › Style › Announcement bar). */
 export const GOODS_ANNOUNCEMENT = "AN INDEPENDENT SHOP OF CAREFULLY MADE THINGS";
 /** The same for a services shop. */

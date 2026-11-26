@@ -9,7 +9,7 @@ import { wordsFor } from "../shared/shopSells";
 import { libraryLook, sampleProducts } from "../app/admin/lookGallery";
 import { starterPhotos } from "../app/admin/studio/starterPhotos";
 import { starterSampleBooks } from "../app/admin/studio/presetContent";
-import { withStarterWords } from "../app/admin/sells";
+import { withOwnBanner, withStarterWords } from "../app/admin/sells";
 import { ThemeConflictError, type ThemeBackend } from "../app/admin/themeStore";
 import type { SetupDoor, SetupPress } from "../setupMode/door";
 
@@ -31,7 +31,7 @@ export function startingDesign(press: Pick<SetupPress, "design" | "look" | "pres
   if (press.design && typeof press.design === "object") return clone(press.design);
   const theme = press.look ? libraryLook(press.look) : null;
   const words = wordsFor(press.sells || null);
-  const design = withStarterWords(theme ? applyStarter(clone(base), starterForShop(theme, press.sells || null), getSectionMeta, words, starterPhotos(press.sells || null)) : clone(base), press.sells || null);
+  const design = withOwnBanner(withStarterWords(theme ? applyStarter(clone(base), starterForShop(theme, press.sells || null), getSectionMeta, words, starterPhotos(press.sells || null)) : clone(base), press.sells || null), theme, press.sells || null);
   const name = (press.pressName || "").trim();
   return name && !design.copy?.siteName ? { ...design, copy: { ...(design.copy || {}), siteName: name } } : design;
 }
@@ -52,7 +52,7 @@ export function sampleShopBooks(sells?: string | null, look?: string | null): an
     retailPrice: priceOf(p.price), stockLevel: i === 5 ? 0 : 8, status: "published",
     isFeatured: i < 4, featured: i < 4, categories: [i % 2 ? "New" : "Featured"],
     photos: [{ id: `p${i + 1}`, url: p.photo || cover(FILLS[i % FILLS.length]), alt: p.title }],
-    description: `<p>A sample to show how your pages look. Your own will be here once your store is made.</p>`,
+    description: "A sample to show how your pages look. Your own will be here once your store is made.",
     createdAt: new Date(Date.UTC(2026, 10, 10 - i)).toISOString(),
     ...(p.kind ? { kind: p.kind } : {}),
   }));

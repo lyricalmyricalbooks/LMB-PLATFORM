@@ -34,7 +34,7 @@ describe("starter styles (next starters plan phase 2)", () => {
     expect(sage.global.primaryColor).toBe("#4f6b4a");
     const intro = sage.content.sections.heroPage.find((s: any) => s.type === "BigIntroSection");
     expect(intro.settings.bgColor).toBe("#e9ecdf");
-    expect(intro.settings.title).toBe("Your\nseason");
+    expect(intro.settings.title).toBe("The long\nwinter");
     // The library's own starter is never changed.
     expect(slow.content.sections.heroPage.find((s: any) => s.type === "BigIntroSection").settings.bgColor).toBe("#f2eddf");
   });

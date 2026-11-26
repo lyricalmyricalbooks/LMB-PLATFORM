@@ -70,13 +70,15 @@ export function demoPages(shop: any): any[] {
   return starterPagesToAdd(shop, []).map((page: any, i: number) => ({ ...page, id: `demo-${page.slug}`, status: "published", showInNav: true, order: i }));
 }
 
-export function demoDesign(choice: DemoChoice, base = "/", shopName = DEMO_NAME): { design: any; books: any[]; pages: any[]; name: string; sells: string } {
+export function demoDesign(choice: DemoChoice, base = "/", asked = DEMO_NAME): { design: any; books: any[]; pages: any[]; name: string; sells: string; shopName: string } {
   const sells = DEMO_SELLS[choice.sells];
   const theme = withStyle(libraryLook(choice.starter), choice.style);
+  // With no name of the visitor's own, the starter's made-up brand fills the header, as a finished shop's name would.
+  const shopName = asked === DEMO_NAME ? theme?.content?.sampleBrand || DEMO_NAME : asked;
   const shop = starterForShop(theme, choice.kind === "both" ? "both" : sells, choice.lead);
   const applied = applyStarter(defaultSettings().design, shop, getSectionMeta, wordsFor(sells), starterPhotos(sells, base));
   const design = withStarterWords({ ...applied, copy: { ...(applied.copy || {}), siteName: shopName } }, sells);
-  return { design: underBase(design, base), books: underBase(demoProducts(choice, sells), base), pages: demoPages(shop), name: styledName(theme), sells };
+  return { design: underBase(design, base), books: underBase(demoProducts(choice, sells), base), pages: demoPages(shop), name: styledName(theme), sells, shopName };
 }
 
 /**
