@@ -823,11 +823,11 @@ export const THEME_LIBRARY = [
       ],
       sections: {
         heroPage: [
-          { type: "SplitOpeningSection", settings: { eyebrow: "A short line about your shop", title: "Your headline, big and bold", body: "Say in one line what you sell and why it is worth a look.", accentWord: "", ctaText: "Shop the new things", ctaUrl: "/collections/all", imageUrl: "/samples/clothing/opening.webp", imageAlt: "Your shop", layout: "image-right", titleSizePx: 120, titleSizePxMobile: 56 } },
-          { type: "CollectionListSection", settings: { title: "Shop by category", columns: 4, align: "left", containerWidth: "full" } },
+          { type: "SplitOpeningSection", settings: { eyebrow: "A short line about your shop", title: "Your headline, big and bold", body: "Say in one line what you sell and why it is worth a look.", accentWord: "", ctaText: "Shop the new things", ctaUrl: "/collections/all", imageUrl: "/samples/clothing/opening.webp", imageAlt: "Your shop", layout: "image-right", titleSizePx: 88, titleSizePxMobile: 52 } },
+          { type: "CollectionListSection", settings: { title: "Shop by category", columns: 4, align: "left", containerWidth: "full", mobileColumns: 2 } },
           { type: "MarqueeSection", settings: { text: "New in every week ✳ Easy to find ✳ Sent out fast", separator: "✳", still: false, fontSize: 36, speed: 30, uppercase: true, bold: true, letterSpacing: 0, background: "#111111", color: "#ffe14a" } },
           { type: "ProductShowcaseGridSection", settings: { overlayOpacity: 0, eyebrow: "", title: "New this week", productLimit: 8, columnsDesktop: 4, columnsMobile: 2, imageAspectRatio: "4:5", showCategoryTag: true, showQuickAdd: true, showFormatLine: false, grainOpacity: 0, tagBg: "#ffe14a", tagText: "#111111", containerWidth: "full" } },
-          { type: "MulticolumnSection", settings: { title: "", columns: 3, align: "left", containerWidth: "full", items: [
+          { type: "MulticolumnSection", settings: { title: "", columns: 3, align: "left", containerWidth: "full", mobileColumns: 1, items: [
             { title: "Your delivery promise", body: "Say how fast you send orders and what it costs." },
             { title: "Your returns promise", body: "Say how long shoppers have to send something back." },
             { title: "Your help promise", body: "Say how shoppers can reach you with a question." },
@@ -865,7 +865,7 @@ export const THEME_LIBRARY = [
       sections: {
         heroPage: [
           { type: "SplitOpeningSection", settings: { eyebrow: "A short line about your shop", title: "Your headline, made by hand.", accentWord: "", body: "Say what you make, where it comes from and how it reaches people.", ctaText: "Shop the shelf", ctaUrl: "/collections/all", imageUrl: "/samples/food/opening.webp", imageAlt: "Your opening photo", layout: "image-right", titleSizePx: 76, titleSizePxMobile: 44, colorSchemeId: "scheme-accent", cornerRadius: "xl", outerGap: 32 } },
-          { type: "MulticolumnSection", settings: { title: "", columns: 6, align: "center", containerWidth: "full", items: [
+          { type: "MulticolumnSection", settings: { title: "", columns: 6, align: "center", containerWidth: "full", mobileColumns: 3, items: [
             { title: "New in", body: "", imageUrl: "/samples/food/sourdough.webp" },
             { title: "Best sellers", body: "", imageUrl: "/samples/food/jam.webp" },
             { title: "Gifts", body: "", imageUrl: "/samples/food/olive-oil.webp" },
@@ -934,7 +934,7 @@ export const THEME_LIBRARY = [
             { imageUrl: "/samples/studio/group-class.webp", alt: "A group class", caption: "", linkUrl: "" },
           ] } },
           { type: "BookTimeSection", settings: { eyebrow: "Coming up", title: "Classes with places left", maxServices: 6, showPrice: true, showDescription: true, showLength: true, showAll: true, align: "left" } },
-          { type: "MulticolumnSection", settings: { title: "What every class includes", columns: 3, align: "left", colorSchemeId: "scheme-accent", items: [
+          { type: "MulticolumnSection", settings: { title: "What every class includes", columns: 3, align: "left", colorSchemeId: "scheme-accent", mobileColumns: 1, items: [
             { title: "01 · Your first promise", body: "Say how big your groups are." },
             { title: "02 · Your second promise", body: "Say what's included, like materials and tea." },
             { title: "03 · Your third promise", body: "Say what people take home at the end." },
@@ -979,7 +979,7 @@ export const THEME_LIBRARY = [
             { imageUrl: "/samples/made/pedestal-table.webp", alt: "A piece you made" },
             { imageUrl: "/samples/made/spindle-chair.webp", alt: "A piece you made" },
           ] } },
-          { type: "MulticolumnSection", settings: { title: "How it works", columns: 3, align: "left", colorSchemeId: "scheme-inverse", items: [
+          { type: "MulticolumnSection", settings: { title: "How it works", columns: 3, align: "left", colorSchemeId: "scheme-inverse", mobileColumns: 1, items: [
             { title: "1. Tell us what you need", body: "Say what people should send you: sizes, photos, a budget." },
             { title: "2. We send a drawing and a price", body: "Say how you answer and how long it takes." },
             { title: "3. We make it and deliver", body: "Say how long making takes and how it reaches them." },

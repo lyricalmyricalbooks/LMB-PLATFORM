@@ -1139,3 +1139,11 @@ Plan https://claude.ai/artifact/A5vVNJk14QrF2JjoUk6gER; Figma https://www.figma.
 - Workshop v3: promises on the accent scheme without photos, newsletter on inverse.
 - Commission v3: Split opening, three-across recent work, how it works on inverse, four pieces, enquiry on accent.
 - Section-only changes don't move `lookSignature`, so their releases were added by hand with the control-room versions.
+
+### Starter design upgrade, step 6: phones and pictures (26 November 2026)
+Phone check of all nine starters at 390px. Warehouse, Larder, Workshop and Commission now set the section's own
+"Phone grid columns" (`mobileColumns`) so promise and step columns stack and round photo links sit three to a row.
+Multicolumn round photos get `max-w-full` so they shrink in narrow columns (unchanged where 128px fits).
+SplitOpening's owner-set title size is now the size at 1440px and scales down with the screen
+(`min(Npx, N/14.4 vw)`), so a long word never runs into the photo on a laptop. Warehouse v4 and Larder v4 releases;
+"Choose your website" pictures regenerated with `scripts/starter-thumbs.mjs`.

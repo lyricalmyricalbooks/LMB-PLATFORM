@@ -918,7 +918,8 @@ export function SplitOpeningSection({ settings, enableAnimations }: any) {
   const photoRight = settings.layout !== "image-left";
   const vars: Record<string, string> = {
     "--fm-split-accent": accent,
-    ...(size ? { "--fm-split-title": `${size}px` } : {}),
+    // The size is the size on a wide screen (1440px); narrower screens scale it down so a long word never runs into the photo.
+    ...(size ? { "--fm-split-title": `min(${size}px, ${+(size / 14.4).toFixed(2)}vw)` } : {}),
     ...(sizeMobile ? { "--fm-split-title-phone": `${sizeMobile}px` } : {}),
     ...(settings.photoBgColor ? { "--fm-split-photo-bg": settings.photoBgColor } : {}),
   };
@@ -1183,7 +1184,7 @@ export function MulticolumnSection({ settings, enableAnimations }: any) {
             <AnimationContainer key={idx} enabled={enableAnimations} delay={idx * 0.1}>
               <div {...blockEditAttrs(item, idx)} className={`space-y-4 ${textAlign}`}>
                 {item.imageUrl && (
-                  <div className="aspect-square w-32 mx-auto rounded-full overflow-hidden border border-white/10">
+                  <div className="aspect-square w-32 max-w-full mx-auto rounded-full overflow-hidden border border-white/10">
                     <ResponsiveImage src={item.imageUrl} media={item[mediaKey("imageUrl")]} sizes="128px" loading="lazy" decoding="async" className="w-full h-full object-cover" alt={item.title || ""} />
                   </div>
                 )}
