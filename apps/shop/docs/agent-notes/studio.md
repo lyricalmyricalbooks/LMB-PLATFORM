@@ -1256,3 +1256,16 @@ Squarespace demos). Step 1 fixed what was broken:
   per starter in `starterVersions.ts`, control room mirror bumped). Generic Shipping & returns page now
   `showInFooter: true`; the demo keeps each page's own menu/footer place, lists the sample products' shelves as
   categories and turns bookings on for a starter with sample services.
+
+## Starter shop page: intro line, chips and one Filter button (26 November 2026, plan "Starters on par", step 4)
+
+- `catalogIntro` (Style › Shop page heading & filters › Heading): a sentence beside/under the heading on the shop page
+  and `/collections/all` only (a category page keeps its own words). `categoryChipsShowPages` (default on) lets the
+  category chips leave out menu pages.
+- `catalogFilterLayout`: `open` (default, unchanged) or `button`. `CatalogControls` builds the search box, sort, stock
+  chips, filter rows and results once and lays them out either way; `button` = one row (Filter with a picked-count
+  badge, results on computers, sort), results under it on phones, everything else opens under the row
+  (`aria-expanded`/`aria-controls`). Baseline `none` on the fixture (its bar is off).
+- The Market-style looks' catalog button colour rule skips `.fm-active`, so a picked filter chip reads (it was ink on ink).
+- Product starters: intro line, chips without counts or pages, Filter button; Aurel "Bags & leather", Commission
+  "Furniture" headings.

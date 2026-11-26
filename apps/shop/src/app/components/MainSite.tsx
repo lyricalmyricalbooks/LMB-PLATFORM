@@ -712,6 +712,8 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
   const showCatalogControls = (storefrontDesign?.showCatalogControls ?? !isReferenceCatalog) || !!urlQuery;
   // Style › Catalog page header & filters › shop filter bar (All · categories · In stock), off by default.
   const filterBarOn = showShopFilterBar(storefrontDesign);
+  // The line under the heading belongs to every-product listing; a category page shows the category's own words.
+  const catalogIntro = !onCollectionRoute || collectionSlug === "all" ? String(storefrontDesign?.catalogIntro || "").trim() : "";
   const filterBarCounts = shopFilterBarCounts(storefrontDesign);
   const filterBarInStock = shopFilterBarInStock(storefrontDesign);
   
@@ -811,7 +813,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
           </SectionPageContext.Provider>
 
           {/* Catalog heading + title count, with the shop filter bar beside them (Style › Catalog page header & filters) */}
-          {(storefrontDesign?.catalogHeading || storefrontDesign?.showCatalogCount || filterBarOn) && (
+          {(storefrontDesign?.catalogHeading || storefrontDesign?.showCatalogCount || filterBarOn || catalogIntro) && (
             <div data-studio-target="style:catalog" data-studio-label="Catalog heading" className={`flex justify-between flex-wrap gap-4 mb-8 ${filterBarOn ? "items-end" : "items-baseline"}`}>
               {(storefrontDesign?.catalogHeading || storefrontDesign?.showCatalogCount) && (
                 <div className="flex items-baseline flex-wrap gap-4">
@@ -828,6 +830,8 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
                   )}
                 </div>
               )}
+              {/* Style › Shop page heading & filters › "Line under the heading": a sentence about the range (shop page only). */}
+              {catalogIntro && <p className="fm-catalog-intro fm-muted m-0 w-full max-w-2xl text-base leading-relaxed md:text-lg">{catalogIntro}</p>}
               {filterBarOn && (
                 <div role="group" aria-label={getCopy(activeDesign, "filterBarAria")} data-studio-target="style:catalog|menus:categories|copy:Search & filters" data-studio-label="Shop filter bar" className="fm-filter-bar">
                   {[{ name: "ALL", value: "ALL" as any }, ...shopFilterBarCategories(categories).map((c: any) => ({ name: typeof c === "string" ? c : c.name, value: c }))].map((chip: any) => {
@@ -873,7 +877,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
                   </button>
                 );
               })}
-              {navItems.filter((i) => i.kind === "page").map((i: any) => (
+              {storefrontDesign?.categoryChipsShowPages !== false && navItems.filter((i) => i.kind === "page").map((i: any) => (
                 <Link
                   key={i.key}
                   to={`/page/${i.page.slug}`}

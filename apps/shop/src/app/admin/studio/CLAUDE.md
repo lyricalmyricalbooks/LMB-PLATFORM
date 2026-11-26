@@ -90,3 +90,4 @@ Details of each feature live in [`docs/agent-notes/studio.md`](../../../../docs/
 - Starter page fixes (26 November 2026, plan "Starters on par", step 1)
 - Starter About, Contact and services (26 November 2026, plan "Starters on par", step 2)
 - Starter menus: Shop link and full-screen phone menu (26 November 2026, plan "Starters on par", step 3)
+- Starter shop page: intro line, chips and one Filter button (26 November 2026, plan "Starters on par", step 4)
