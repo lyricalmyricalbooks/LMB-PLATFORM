@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from "react";
 import { BookOpen, Check } from "lucide-react";
-import { PrimaryButton, SectionCard } from "../riso/components";
+import { PrimaryButton, SectionCard, TextField } from "../riso/components";
 import { TYPE_GROUPS, type TypeGroupId } from "../../../shared/productTypes";
 import { SERVICE_CHOICES } from "../WhatYouSellCard";
 import { friendlyError } from "../studio/friendlyError";
-import { offerChange, offerProblem, offerStart, type OfferAnswers } from "../offerStage";
+import { OTHER_LABEL, OTHER_MAX, OTHER_SERVICE, offerChange, offerProblem, offerStart, type OfferAnswers } from "../offerStage";
 import type { FirstWeekDoc } from "../firstWeek";
 
 const KIND_NAME = { products: "Product shop", services: "Services", both: "Products and services" } as const;
@@ -28,13 +28,15 @@ export function OfferStage({ doc, onDone }: { doc: FirstWeekDoc; onDone: (change
     try { await onDone(offerChange(a, doc, new Date().toISOString())); }
     catch (e) { setError(friendlyError(e, "your answers")); setBusy(false); }
   };
-  const question = (id: string, title: string, hint: string, body: ReactNode) => (
+  // `more` sits under the choices: the box for the owner's own words when Something else is picked.
+  const question = (id: string, title: string, hint: string, body: ReactNode, more?: ReactNode) => (
     <section aria-labelledby={id} style={{ display: "grid", gap: 10 }}>
       <div>
         <h3 id={id} style={{ margin: 0, fontSize: 16, fontWeight: 600, letterSpacing: "-0.01em" }}>{title}</h3>
         <p className="rp-hint" style={{ margin: "2px 0 0" }}>{hint}</p>
       </div>
       {body}
+      {more || null}
     </section>
   );
   // An answer picked is the admin's on state (a filled pill), like the product groups in Settings.
@@ -57,11 +59,16 @@ export function OfferStage({ doc, onDone }: { doc: FirstWeekDoc; onDone: (change
         {takesBookings && question("offer-does", "What do people book?", "We'll start your calendar and website with services like these.",
           <div className="rp-group-chips" role="radiogroup" aria-labelledby="offer-does">
             {SERVICE_CHOICES.map((c) => pill(a.does === c.id, c.label, () => set({ does: c.id }), { "data-offer-does": c.id }, true))}
-          </div>)}
+          </div>, a.does === OTHER_SERVICE && (
+            <TextField label="What do people book with you?" placeholder="e.g. Dog grooming" maxLength={OTHER_MAX} autoFocus value={a.serviceText} disabled={busy}
+              data-offer-other-service="" onChange={(e) => set({ serviceText: e.target.value })} />))}
         {sellsThings && question("offer-groups", a.kind === "both" ? "What do you sell alongside?" : "What do you sell?", "Pick all that fit. Adding a product offers these kinds first.",
           <div className="rp-group-chips" role="group" aria-labelledby="offer-groups">
             {TYPE_GROUPS.filter((g) => g.id !== "books" || a.kind === "both").map((g) => pill(a.groups.includes(g.id), g.name, () => toggleGroup(g.id), { "data-offer-group": g.id }))}
-          </div>)}
+            {pill(a.other, OTHER_LABEL, () => set({ other: !a.other }), { "data-offer-group": "other" })}
+          </div>, a.other && (
+            <TextField label="What else do you sell?" placeholder="e.g. Surfboards" maxLength={OTHER_MAX} autoFocus value={a.otherText} disabled={busy}
+              data-offer-other="" onChange={(e) => set({ otherText: e.target.value })} />))}
         {a.kind === "products" && (
           <label data-offer-books style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: 12, alignItems: "start", padding: 16, borderRadius: "var(--rp-radius-lg)", cursor: "pointer",
             border: `1px solid ${a.books ? "var(--rp-text)" : "var(--rp-border)"}`, background: a.books ? "var(--rp-primary-tint)" : "var(--rp-surface)" }}>

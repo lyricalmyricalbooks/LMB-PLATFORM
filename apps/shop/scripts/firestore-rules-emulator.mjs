@@ -346,6 +346,10 @@ await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-
   await check("admin saves which side the shop leads with", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { leadSide: "products" }, { merge: true })));
   await check("an unknown lead side refused", assertFails(setDoc(doc(admin, "firstWeek/start"), { leadSide: "books" }, { merge: true })));
   await check("this shop's owner can't set another shop's lead side", assertFails(setDoc(doc(signedIn("admin", { email: "owner@example.com", email_verified: true }, { shop: "s2" }), "firstWeek/start"), { leadSide: "services" }, { merge: true })));
+  await check("admin saves its own words for Something else", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { otherSells: "Surfboards", otherService: "Dog grooming" }, { merge: true })));
+  await check("Something else words over 80 characters refused", assertFails(setDoc(doc(admin, "firstWeek/start"), { otherSells: "x".repeat(81) }, { merge: true })));
+  await check("Something else words must be words", assertFails(setDoc(doc(admin, "firstWeek/start"), { otherService: 5 }, { merge: true })));
+  await check("this shop's owner can't write another shop's own words", assertFails(setDoc(doc(signedIn("admin", { email: "owner@example.com", email_verified: true }, { shop: "s2" }), "firstWeek/start"), { otherSells: "Surfboards" }, { merge: true })));
   await check("kinds of things that aren't a list refused", assertFails(setDoc(doc(admin, "firstWeek/start"), { productGroups: "home" }, { merge: true })));
   await check("this shop's owner can't change another shop's kinds of things", assertFails(setDoc(doc(signedIn("admin", { email: "owner@example.com", email_verified: true }, { shop: "s2" }), "firstWeek/start"), { productGroups: ["pets"] }, { merge: true })));
   await check("a product shop can't switch to services before Bookings is on", assertFails(setDoc(doc(admin, "firstWeek/start"), { sells: "hair" }, { merge: true })));

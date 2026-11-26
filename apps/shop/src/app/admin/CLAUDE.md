@@ -14,6 +14,8 @@ another admin call takes it from its own small file the same way. `adminApiImpor
 - Compose `riso/components.tsx` and `riso/FormKit.tsx` (form pages, `CardsAsSections`); don't add a second kit or new `.admin-reso` compat rules, and never wrap `rp-*` chrome in `.admin-light`. Studio keeps its own look (`.rp:not(.studio-editor)`).
 - Never show raw `err.message` (`plainError.ts`, `friendlyError`, `loginError.ts`). Settings card descriptions stay one line of 70 characters at most (`settingsWording.test.ts`). Keep words lean: one short line per card.
 - Partner logos come only from `shared/brand-logos`; never redraw or recolour one, never show a rival shop builder's. Words a press sees never name another shop system (`shopMove.test.ts`, `SHAPE_WORDS`); only files inside a download may.
+- Every list of choices about the owner's business (what they sell, what people book, reasons) ends in Something else
+  with a box for their own words (Julian, 26 November 2026; `offerStage.ts` `otherWords`).
 - Shop words: wrap new admin words in `w(...)` (`useShopWords`) so non-book and services shops read their own nouns. A new shopper word containing "book" needs a starter word in `sells.ts` or `BOOK_ONLY_COPY` (`sells.test.ts`).
 
 ### Menu and routing

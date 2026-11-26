@@ -56,4 +56,22 @@ describe("Settings › What you offer (shop types plan, part 2)", () => {
     await flush();
     expect(api.updateFirstWeek).toHaveBeenCalledWith({ leadSide: "products" });
   });
+
+  it("always has Something else, and saves the owner's own words (Julian, 26 November 2026)", async () => {
+    await mount({ publishes: "other", productGroups: ["art"] });
+    expect(document.querySelector("[data-group-other-words]")).toBeNull();
+    act(() => (document.querySelector("[data-group-other]") as HTMLButtonElement).click());
+    const box = document.querySelector("[data-group-other-words]") as HTMLInputElement;
+    expect(box).not.toBeNull();
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    act(() => { setValue.call(box, "Surfboards"); box.dispatchEvent(new Event("input", { bubbles: true })); });
+    await act(async () => { box.dispatchEvent(new FocusEvent("focusout", { bubbles: true })); });
+    await flush();
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ otherSells: "Surfboards" });
+  });
+
+  it("asks a services shop on Other services what people book", async () => {
+    await mount({ publishes: "services", otherService: "Dog grooming" });
+    expect((document.querySelector("[data-other-service]") as HTMLInputElement).value).toBe("Dog grooming");
+  });
 });

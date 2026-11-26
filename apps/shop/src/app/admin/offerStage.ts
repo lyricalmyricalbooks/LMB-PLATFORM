@@ -7,10 +7,23 @@ import { TYPE_GROUPS, type TypeGroupId } from "../../shared/productTypes";
 import { groupsFor } from "./productGroups";
 import { leadSideOf, shopKindOf, type LeadSide, type ShopType } from "./servicesSetup";
 
+/** The services answer that means "not in the list" (Other services). */
+export const OTHER_SERVICE = "services";
+
 /** The step's marker in `firstWeek/start`: when the owner answered it. */
 export type OfferMarker = { at: string };
 
-type OfferDoc = { sells?: string | null; publishes?: string | null; sellsProducts?: boolean; leadSide?: string | null; productGroups?: unknown } | null | undefined;
+type OfferDoc = { sells?: string | null; publishes?: string | null; sellsProducts?: boolean; leadSide?: string | null; productGroups?: unknown; otherSells?: unknown; otherService?: unknown } | null | undefined;
+
+/**
+ * Julian, 26 November 2026: "always have the other option if it's not in the list". Every list of what a shop sells or
+ * what people book ends in Something else, with a box for the owner's own words (`otherSells`, `otherService` in
+ * `firstWeek/start`, at most OTHER_MAX characters). The words are kept as typed; they never turn tools on or off.
+ */
+export const OTHER_MAX = 80;
+export const OTHER_LABEL = "Something else";
+/** The owner's own words, trimmed and cut to OTHER_MAX; "" when there are none. */
+export const otherWords = (value: unknown): string => (typeof value === "string" ? value.trim().slice(0, OTHER_MAX) : "");
 
 /** The owner's answers on the step. */
 export interface OfferAnswers {
@@ -23,6 +36,11 @@ export interface OfferAnswers {
   does: string;
   /** What most customers come for (Both only). */
   lead: LeadSide;
+  /** Something else is picked among the kinds of things, and the owner's words for it. */
+  other: boolean;
+  otherText: string;
+  /** The owner's words when what people book is Other services. */
+  serviceText: string;
 }
 
 /**
@@ -46,13 +64,17 @@ export function offerStart(doc: OfferDoc): OfferAnswers {
   const picked = Array.isArray(doc?.productGroups) ? (doc.productGroups as unknown[]) : [];
   // A product shop with no picks yet starts with nothing chosen, so it says what it sells instead of keeping a guess.
   const groups = picked.length ? groupsFor(doc) : [];
-  return { kind, groups, books: kind === "products" && sellsBooks(sells), does: sellsServices(sells) ? (sells as string) : "", lead: leadSideOf(doc) };
+  const otherText = otherWords(doc?.otherSells);
+  return { kind, groups, books: kind === "products" && sellsBooks(sells), does: sellsServices(sells) ? (sells as string) : "", lead: leadSideOf(doc),
+    other: !!otherText, otherText, serviceText: otherWords(doc?.otherService) };
 }
 
 /** What still needs an answer before Continue, in plain words; "" when the answers are complete. */
 export function offerProblem(a: OfferAnswers): string {
-  if (a.kind !== "services" && !a.groups.length && !a.books) return "Pick at least one kind of thing you sell.";
+  if (a.kind !== "services" && !a.groups.length && !a.books && !a.other) return "Pick at least one kind of thing you sell.";
+  if (a.kind !== "services" && a.other && !otherWords(a.otherText)) return "Tell us what else you sell.";
   if (a.kind !== "products" && !a.does) return "Pick what people book.";
+  if (a.kind !== "products" && a.does === OTHER_SERVICE && !otherWords(a.serviceText)) return "Tell us what people book.";
   return "";
 }
 
@@ -63,16 +85,21 @@ export function offerProblem(a: OfferAnswers): string {
  */
 export function offerChange(a: OfferAnswers, doc: OfferDoc, at: string) {
   const was = doc?.sells || doc?.publishes || null;
+  // The owner's own words go with the answer they belong to; "" clears words left from an earlier visit.
+  const otherSells = a.kind !== "services" && a.other ? otherWords(a.otherText) : "";
+  const otherService = a.kind !== "products" && a.does === OTHER_SERVICE ? otherWords(a.serviceText) : "";
+  const own = { ...(otherSells || doc?.otherSells ? { otherSells } : {}), ...(otherService || doc?.otherService ? { otherService } : {}) };
   if (a.kind === "products") {
     const groups = a.books && !a.groups.includes("books") ? (["books", ...a.groups] as TypeGroupId[]) : a.groups;
     const ordered = TYPE_GROUPS.map((g) => g.id).filter((id) => groups.includes(id));
     const sells = a.books ? (sellsBooks(was) ? (was as string) : "books") : goodsSellsFor(ordered);
-    return { sells, productGroups: ordered, offer: { at } };
+    return { sells, productGroups: ordered, ...own, offer: { at } };
   }
   const ordered = TYPE_GROUPS.map((g) => g.id).filter((id) => a.groups.includes(id));
   return {
     sells: a.does,
     ...(a.kind === "both" ? { leadSide: a.lead, ...(ordered.length ? { productGroups: ordered } : {}) } : {}),
+    ...own,
     offer: { at },
   };
 }

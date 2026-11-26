@@ -9,24 +9,29 @@ import { currentSells } from "./sells";
 import { hasPublisherTools, sellsServices } from "../../shared/shopSells";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { SELLS_CHANGED_EVENT, SELLS_PRODUCTS_CHANGED_EVENT } from "./shopWords";
-import { SectionCard, Toggle, useConfirm } from "./riso/components";
+import { SectionCard, TextField, Toggle, useConfirm } from "./riso/components";
 import { FormField } from "./riso/FormKit";
 import { BookOpen, Check, X } from "lucide-react";
 import { TYPE_GROUPS, sellsGroups, typeById, type TypeGroupId } from "../../shared/productTypes";
 import { groupsFor, saveProductGroups, useProductGroups } from "./productGroups";
 import { LEAD_SIDE_CHANGED_EVENT, leadSideOf, shopKindOf } from "./servicesSetup";
-import { goodsSellsFor } from "./offerStage";
+import { OTHER_LABEL, OTHER_MAX, OTHER_SERVICE, goodsSellsFor, otherWords } from "./offerStage";
 import type { FirstWeekDoc } from "./firstWeek";
 import { removeOwnType, useOwnTypes } from "./ownTypes";
 
 /** The kinds of things you sell (product types plan, change 12): tap a group on or off; "What is it?" offers its types first. */
-export function ProductGroupsPicker({ sells }: { sells: string | null }) {
+export function ProductGroupsPicker({ sells, other = "", onOther }: {
+  sells: string | null;
+  /** The owner's own words for Something else ("" when it isn't picked), and how to save them ("" takes it off). */
+  other?: string; onOther?: (words: string) => Promise<void>;
+}) {
   const fallback = useMemo(() => sellsGroups(sells), [sells]);
   const groups = useProductGroups(fallback);
   const [busy, setBusy] = useState(false);
+  const [otherOn, setOtherOn] = useState(!!other);
   const toggle = async (id: TypeGroupId) => {
     const next = TYPE_GROUPS.map((g) => g.id).filter((g) => (g === id ? !groups.includes(id) : groups.includes(g)));
-    if (!next.length) { toast.error("Keep at least one kind of thing."); return; }
+    if (!next.length && !other) { toast.error("Keep at least one kind of thing."); return; }
     setBusy(true);
     try { await saveProductGroups(next); }
     catch { toast.error("Couldn't save that. Check your connection and try again."); }
@@ -40,9 +45,39 @@ export function ProductGroupsPicker({ sells }: { sells: string | null }) {
           const on = groups.includes(g.id);
           return <button key={g.id} type="button" aria-pressed={on} disabled={busy} className="rp-group-chip" onClick={() => { void toggle(g.id); }}>{on && <Check size={14} aria-hidden />}{g.name}</button>;
         })}
+        {onOther && (
+          <button type="button" aria-pressed={otherOn} disabled={busy} className="rp-group-chip" data-group-other
+            onClick={() => {
+              if (!otherOn) { setOtherOn(true); return; }
+              if (!groups.length && other) { toast.error("Keep at least one kind of thing."); return; }
+              setOtherOn(false); if (other) void onOther("");
+            }}>{otherOn && <Check size={14} aria-hidden />}{OTHER_LABEL}</button>
+        )}
       </div>
+      {onOther && otherOn && <OtherWords label="What else do you sell?" placeholder="e.g. Surfboards" saved={other} onSave={onOther} data="data-group-other-words" />}
       <span className="rp-fk-hint">Adding a product offers these kinds first. Your products stay as they are.</span>
     </section>
+  );
+}
+
+/**
+ * The box for the owner's own words when their answer isn't in the list (Julian, 26 November 2026: "always have the
+ * other option"). Saves when the box is left or Enter is pressed, only when the words changed.
+ */
+export function OtherWords({ label, placeholder, saved, onSave, data }: { label: string; placeholder: string; saved: string; onSave: (words: string) => Promise<void>; data: string }) {
+  const [text, setText] = useState(saved);
+  const [busy, setBusy] = useState(false);
+  const commit = async () => {
+    const words = otherWords(text);
+    if (words === saved || !words) return;
+    setBusy(true);
+    try { await onSave(words); } finally { setBusy(false); }
+  };
+  return (
+    <TextField label={label} placeholder={placeholder} maxLength={OTHER_MAX} value={text} disabled={busy} {...{ [data]: "" }}
+      hint={!otherWords(text) ? "A few words is plenty." : undefined}
+      onChange={(e) => setText(e.target.value)} onBlur={() => { void commit(); }}
+      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void commit(); } }} />
   );
 }
 
@@ -186,7 +221,7 @@ export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
   };
   const setSellsProducts = (on: boolean) => save("products", { sellsProducts: on }, on ? "Products, stock and shipping are back in your menu." : "Your menu is back to bookings and clients.");
 
-  const groupNames = TYPE_GROUPS.filter((g) => groups.includes(g.id)).map((g) => g.name.toLowerCase());
+  const groupNames = [...TYPE_GROUPS.filter((g) => groups.includes(g.id)).map((g) => g.name.toLowerCase()), ...(otherWords(doc?.otherSells) ? [otherWords(doc?.otherSells).toLowerCase()] : [])];
   const summary = type === "services"
     ? SERVICE_CHOICES.find((c) => c.id === saved)?.label ?? "Services"
     : [type === "both" ? SERVICE_CHOICES.find((c) => c.id === saved)?.label : "", groupNames.length ? `${type === "both" ? "sells " : "Sells "}${groupNames.join(", ")}` : ""].filter(Boolean).join(" · ");
@@ -210,6 +245,10 @@ export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
         </select>}
       </FormField>
     )}
+    {type !== "products" && saved === OTHER_SERVICE && (
+      <OtherWords label="What do people book with you?" placeholder="e.g. Dog grooming" saved={otherWords(doc?.otherService)} data="data-other-service"
+        onSave={(words) => save("other-service", { otherService: words }, "Saved.")} />
+    )}
     {type === "both" && (
       <section className="rp-fk-field" aria-labelledby="lead-side-label">
         <div className="rp-fk-label-row"><h3 id="lead-side-label" className="rp-fk-label" style={{ margin: 0 }}>What most customers come for</h3></div>
@@ -227,7 +266,7 @@ export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
           <span className="rp-hint">Adds the Products, stock and shipping pages, for aftercare or merchandise. Gift cards work either way.</span></span>
       </label>
     )}
-    {type !== "services" && <ProductGroupsPicker sells={saved} />}
+    {type !== "services" && <ProductGroupsPicker sells={saved} other={otherWords(doc?.otherSells)} onOther={(words) => save("other", { otherSells: words }, words ? "Saved." : "Something else is off.")} />}
     {showBookTools && (
       <div data-book-tools style={{ display: "flex", gap: 16, alignItems: "center", justifyContent: "space-between", padding: "14px 16px", border: "1px solid var(--rp-border)", borderRadius: "var(--rp-radius-lg)" }}>
         <span style={{ display: "grid", gap: 2 }}>

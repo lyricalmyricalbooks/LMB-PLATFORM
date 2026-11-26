@@ -1684,3 +1684,7 @@ anchor `gs-offer`) shows the type card, what people book, the lead side and the 
 switch shows only to a product shop that has books, and turning it off asks first. Help: articles carry `side`
 ("products" | "services") and `articlesFor(plan, sells, kind)` drops the other side's answers for a one-sided shop.
 Orders search and Studio categories no longer say "ISBN" to a shop without books.
+**Something else, always (Julian, 26 November 2026: "always have the other option if it's not in the list").** The
+first step and Settings end every kinds-of-things list in Something else with a box (`otherSells`), and Other services
+asks what people book (`otherService`); both at most 80 characters (`offerStage.ts` `otherWords`, rules, emulator).
+New choice lists the owner answers about their business need the same: an other option and a box for their words.
