@@ -1121,3 +1121,10 @@ Plan https://claude.ai/artifact/A5vVNJk14QrF2JjoUk6gER; Figma https://www.figma.
   section's own Content width "full".
 - Gallery also hides the Back link (`pdpShowBackLink: false`, breadcrumb only, as in Figma): at 70% opacity its muted
   words failed contrast on the open product page.
+
+## Starter design upgrade: Larder (26 November 2026, plan step 4)
+
+- Larder v3 follows Figma: Split opening on `scheme-accent` with section `cornerRadius: "xl"` and `outerGap: 32` (a rounded
+  golden card), Multicolumn with photos as round aisle links, 8 products at 4:3 with `cardRadius: 16`, a dark rounded
+  Image with text gift band, a story and the FAQ. Words stay neutral (spot labels like "New in", "Gifts").
+- The header stays Centred: switching to Modern would share three frame parts with Slow Season (`starterFrames.test.ts`).
