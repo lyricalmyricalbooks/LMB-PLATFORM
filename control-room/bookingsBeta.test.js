@@ -143,3 +143,22 @@ test("money kept follows the shop's own rule", () => {
   for (const b of cases) assert.equal(keptMinor(b), moneyKept(b), JSON.stringify(b));
   assert.deepEqual(monthUse([], "USD"), { bookings: 0, noShows: 0, cancelled: 0, money: {} });
 });
+
+test("an owner changing to a services type turns Bookings on only while services are open (or a test shop), once, never off", async () => {
+  const w = await world();
+  await assert.rejects(w.desk.ownerOpen({ shopId: SHOP, by: "owner@example.com" }), (e) => e.status === 409 && /Services aren't open yet/.test(e.message));
+  assert.equal(await w.shopData.get(SHOP, FEATURES_DOC), null);
+  await assert.rejects(w.desk.ownerOpen({ shopId: "stock-only", open: true }), (e) => e.status === 409);
+  await assert.rejects(w.desk.ownerOpen({ shopId: "nope", open: true }), (e) => e.status === 404);
+  await w.shopData.set(SHOP, FEATURES_DOC, { ways: { classes: true } });
+  assert.deepEqual(await w.desk.ownerOpen({ shopId: SHOP, by: "owner@example.com", open: true }), { shopId: SHOP, on: true, changed: true });
+  assert.deepEqual(await w.shopData.get(SHOP, FEATURES_DOC), { ways: { classes: true }, bookings: true, bookingsChangedAt: at(0), bookingsChangedBy: "owner@example.com" });
+  assert.equal((await w.registry.getShop(SHOP)).bookingsBeta, true);
+  assert.equal(w.activity.rows.filter((r) => r.what === "bookings-opened-by-owner").length, 1);
+  // Already on: nothing new, even with services closed since.
+  assert.deepEqual(await w.desk.ownerOpen({ shopId: SHOP, open: false }), { shopId: SHOP, on: true, changed: false });
+  assert.equal(w.activity.rows.filter((r) => r.what === "bookings-opened-by-owner").length, 1);
+  // A test shop may change type while services are closed.
+  await w.registry.createShop("test-press", { shopId: "test-press", status: "live", plan: "both", testShop: true });
+  assert.equal((await w.desk.ownerOpen({ shopId: "test-press" })).changed, true);
+});

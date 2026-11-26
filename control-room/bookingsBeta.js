@@ -191,6 +191,29 @@ export function createBookingsBeta({ admins, registry, auditLog, shopData, activ
       return { on, shops: results, changed: results.filter((r) => r.changed).length };
     },
 
+    /**
+     * The owner's own way in (shop types plan, part 3, 26 November 2026): a product shop changing its type to Services
+     * or Products and services turns Bookings on for itself, from Settings › General › What you offer › Change. Only
+     * while the control room has "Services shops can sign up" on (`open`, read live), or for a test shop. Never turns
+     * it off: a shop that changes back keeps its services and bookings, hidden by its menu. Safe to repeat.
+     */
+    async ownerOpen({ shopId, by, open = false } = {}) {
+      const row = typeof shopId === "string" && shopId ? await registry.getShop(shopId) : null;
+      if (!row) throw new ControlError(404, "There's no shop with that id.");
+      const words = notHere(row);
+      if (words) throw new ControlError(409, "Your shop can't take bookings yet. Ask us from Help.");
+      const saved = (await shopData.get(shopId, FEATURES_DOC)) ?? {};
+      if (saved.bookings === true) return { shopId, on: true, changed: false };
+      if (!open && row.testShop !== true) throw new ControlError(409, "Services aren't open yet. Ask us from Help and we'll let you know when they are.");
+      if (!(await auditLog.ready(shopId))) throw new ControlError(409, "Your shop's records aren't ready yet. Try again in a minute.");
+      const stamp = at();
+      const who = typeof by === "string" && by ? by : "owner";
+      await shopData.set(shopId, FEATURES_DOC, { ...saved, bookings: true, bookingsChangedAt: stamp, bookingsChangedBy: who });
+      await registry.updateShop(shopId, { bookingsBeta: true });
+      await log(shopId, "bookings-opened-by-owner", { by: who, to: true });
+      return { shopId, on: true, changed: true };
+    },
+
     /** Turns Bookings on or off for one shop. Safe to repeat: the same answer writes nothing new. */
     async set(claims, { shopId, on } = {}) {
       const { by, row } = await liveShop(claims, shopId);

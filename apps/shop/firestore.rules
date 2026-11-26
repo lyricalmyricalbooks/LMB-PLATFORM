@@ -410,7 +410,7 @@ service cloud.firestore {
         // (Settings › General › What you sell), which reads before `publishes`.
         allow read: if isAdminReader();
         allow create, update: if isAdmin()
-          && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "sells", "sellsProducts", "leadSide", "otherSells", "otherService", "offer", "ways", "alsoSells", "productGroups", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "payments", "shipping", "finalCheck", "createdAt", "updatedAt"])
+          && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "sells", "sellsProducts", "leadSide", "otherSells", "otherService", "typeChange", "offer", "ways", "alsoSells", "productGroups", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "payments", "shipping", "finalCheck", "createdAt", "updatedAt"])
           // `productGroups`: the kinds of things the shop sells (sign-up's "Pick all that fit", changed in Settings ›
           // What you sell), a short list of the product groups' ids.
           && (!("productGroups" in request.resource.data) || (request.resource.data.productGroups is list && request.resource.data.productGroups.size() <= 16))
@@ -434,6 +434,15 @@ service cloud.firestore {
           // `otherSells` / `otherService`: the owner's own words when their answer isn't in the list ("Something else").
           && (!("otherSells" in request.resource.data) || (request.resource.data.otherSells is string && request.resource.data.otherSells.size() <= 80))
           && (!("otherService" in request.resource.data) || (request.resource.data.otherService is string && request.resource.data.otherService.size() <= 80))
+          // `typeChange`: the last change of type and what it was before, so Switch back can undo it (shop types plan, part 3).
+          && (!("typeChange" in request.resource.data) || (request.resource.data.typeChange is map
+            && request.resource.data.typeChange.keys().hasOnly(["at", "from", "to", "before", "website", "undoneAt"])
+            && request.resource.data.typeChange.get("from", "") in ["products", "services", "both"]
+            && request.resource.data.typeChange.get("to", "") in ["products", "services", "both"]
+            && request.resource.data.typeChange.get("website", "") in ["follow", "pick", "later"]
+            && request.resource.data.typeChange.get("at", "") is string
+            && request.resource.data.typeChange.get("before", {}) is map
+            && request.resource.data.typeChange.get("before", {}).keys().hasOnly(["sells", "sellsProducts", "leadSide"])))
           // `offer`: when Get started's What you offer was answered, a small map.
           && (!("offer" in request.resource.data) || (request.resource.data.offer is map && request.resource.data.offer.size() <= 2))
           // Ways to sell (beta; Settings › General › Ways to sell): the owner's own switches, true or false for each

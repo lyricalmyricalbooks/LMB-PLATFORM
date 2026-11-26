@@ -50,6 +50,8 @@ export interface FirstWeekDoc {
   /** The owner's own words when what they sell or what people book isn't in the list (offerStage.ts `otherWords`). */
   otherSells?: string;
   otherService?: string;
+  /** The last change of type, so Switch back can undo it for 30 days (shopTypeChange.ts). */
+  typeChange?: import("./shopTypeChange").TypeChange;
   /** Get started's What you offer, answered (offerStage.ts). */
   offer?: import("./offerStage").OfferMarker;
   /** The ways to sell (beta) the owner asked for at sign-up ("Anything else you'll sell?"); never changed from the admin. */

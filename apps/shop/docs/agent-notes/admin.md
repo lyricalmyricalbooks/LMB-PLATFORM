@@ -1688,3 +1688,16 @@ Orders search and Studio categories no longer say "ISBN" to a shop without books
 first step and Settings end every kinds-of-things list in Something else with a box (`otherSells`), and Other services
 asks what people book (`otherService`); both at most 80 characters (`offerStage.ts` `otherWords`, rules, emulator).
 New choice lists the owner answers about their business need the same: an other option and a box for their words.
+
+**Part 3 (26 November 2026): Change type and Switch back.** The type card's Change type opens `ChangeShopTypeDialog.tsx`:
+pick (three `rp-choices` rows, the current one marked Now, plus what the new type needs: what people book, the kinds of
+things, Both's lead side), what changes (`whatChanges` with real counts from `shopTypeApi.ts`), the website (follow /
+pick / later, stored in the record; part 4 applies "follow"), confirm. One `updateFirstWeek` writes `sells`,
+`sellsProducts`, `leadSide` and `typeChange { at, from, to, before, website, undoneAt? }` (`shopTypeChange.ts`
+`typeChangeWrite`; rules + emulator checks). Switch back (`switchBackOf`, 30 days, only while the type is still the new
+one) writes `before` back and marks the record undone. A product shop taking bookings first asks the platform's
+`open-bookings` call (shop billing door → `control-room/bookingsBeta.js` `ownerOpen`: only while "Services shops can
+sign up" is on, or for a test shop; never turns Bookings off). Leaving services: upcoming bookings stay (they show under
+Ways to sell › Bookings) or, behind a tick box, are cancelled with a full refund / declined one by one through
+`bookingsAdmin`. The old "Sell products too" box and the kind switch are gone. Fixture: `?offer=…&offerDone=1`
+(`&changed=1` adds a change three days old); `__adminFixture.calls` records the writes, opens and cancels.

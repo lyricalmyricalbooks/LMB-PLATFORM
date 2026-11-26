@@ -557,6 +557,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const shopVerifiers = new Map();
   const shopBilling = createShopBillingDoor({
     billing, paymentWay, exports: dataExports, bankFeed, texts, meters: usageMeters, closing, accounts, registry, auditLog, settings, now, log,
+    // A product shop changing its type to services turns Bookings on, while "Services shops can sign up" is on (read live).
+    openBookings: async (shopId, by) => bookingsBeta.ownerOpen({ shopId, by, open: (await Promise.resolve().then(live).catch(() => null))?.servicesShops === true }),
     limits: createLimits({ throttle: firestoreThrottle(platform), admins, proxyHops: proxyHopsOf(env), now, log }),
     verifierFor: (shopProject) => {
       if (!shopVerifiers.has(shopProject)) shopVerifiers.set(shopProject, createIdTokenVerifier({ projectId: shopProject, fetch, now: nowMs }));
