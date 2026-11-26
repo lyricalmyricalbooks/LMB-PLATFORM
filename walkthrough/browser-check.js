@@ -85,16 +85,19 @@ async function checkFrontDoor(browser, walk, log) {
       if ((await page.locator("#new-name").textContent()) !== "Front Door Press") throw new Error("Your new store doesn't show the brand's name");
       if (!/^front-door-[a-z]+\.web\.app$/.test(await page.locator("#new-address").textContent())) throw new Error("Your new store doesn't show its address");
       // The kind of shop is picked first. What a product shop sells, and the shop's look, are asked after the shop exists.
-      await page.click("#type-choices label.choice:has(input[value=books])");
-      if ((await page.locator("#new-kind").textContent()) !== "Bookshop") throw new Error("Your new store doesn't say Bookshop");
+      // Product shop, Services or Both (shop types plan): no Bookshop card; books sit under Product shop.
+      if (await page.locator("#type-choices input[value=books]").count()) throw new Error("a Bookshop card is back on the sign-up page");
+      await page.click("#type-choices label.choice:has(input[value=both])");
+      if ((await page.locator("#new-kind").textContent()) !== "Products and services") throw new Error("Your new store doesn't say Products and services");
+      if (!(await page.locator("#does-group").isVisible())) throw new Error("Both doesn't ask what people book");
       if (process.env.WALKTHROUGH_SHOTS) {
-        await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "join-bookshop-phone.png"), fullPage: true });
+        await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "join-both-phone.png"), fullPage: true });
         const phone = page.viewportSize();
         await page.setViewportSize({ width: 1280, height: 900 });
-        await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "join-bookshop.png"), fullPage: true });
+        await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "join-both.png"), fullPage: true });
         if (phone) await page.setViewportSize(phone);
       }
-      await page.click("#type-choices label.choice:has(input[value=general])");
+      await page.click("#type-choices label.choice:has(input[value=products])");
       if ((await page.locator("#new-kind").textContent()) !== "Product shop") throw new Error("Your new store doesn't say Product shop");
       for (const asked of ["#sells-group", "#new-look", "#design-first", "#new-shot"]) if (await page.locator(asked).count()) throw new Error(`${asked} is back on the sign-up page: what it sells and its look are chosen after the shop exists`);
       // Sign out sits in the header once signed in.
@@ -217,7 +220,7 @@ async function checkFrontDoor(browser, walk, log) {
     });
     await step("a country that isn't open yet keeps its place on a calm page, not an error", async () => {
       await page.fill("#start-form input[name=pressName]", "Later Press");
-      await page.click("#type-choices label.choice:has(input[value=books])");
+      await page.click("#type-choices label.choice:has(input[value=products])");
       await page.selectOption("#country", "GB");
       await page.check("#start-form input[name=termsAccepted]");
       await page.click("#start-form button[type=submit]");
