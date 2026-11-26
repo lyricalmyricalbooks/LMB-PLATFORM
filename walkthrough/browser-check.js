@@ -186,7 +186,7 @@ async function checkFrontDoor(browser, walk, log) {
       if (!(await fits())) throw new Error("Your web address scrolls sideways on a phone");
       // Design opens on Choose your website (three starters picked for the shop, then the rest), and Use this saves it.
       await page.evaluate(() => { location.hash = "settings/designer"; });
-      await page.locator("ul[aria-label='Your shortlist'] button", { hasText: "Use this" }).first().click();
+      await page.locator("ul[aria-label='All websites'] button", { hasText: "Use this" }).first().click();
       await page.locator("text=Your website:").waitFor({ state: "visible", timeout: 10_000 });
       if (!(await record())?.look) throw new Error("the chosen website wasn't saved");
       if (!(await fits())) throw new Error("Design scrolls sideways on a phone");

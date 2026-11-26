@@ -2,7 +2,7 @@
 import { act, createElement as h } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ChooseLookWelcome, SHORTLIST } from "./ChooseLookWelcome";
+import { ChooseLookWelcome } from "./ChooseLookWelcome";
 import { startersForKind } from "../websiteChoice";
 import { STARTER_SITES } from "../lookGallery";
 
@@ -29,13 +29,14 @@ const useOn = (id: string) => [...document.querySelectorAll(`[data-starter-card=
 const button = (label: string) => [...document.querySelectorAll("button")].find(b => b.textContent?.trim() === label) as HTMLButtonElement;
 
 describe("Choose your website (one website picker, step 4)", () => {
-  it("shows the same starter cards as Online store: three picked for the shop, then the rest, with no categories", async () => {
-    await mount();
+  it("shows the same starter cards as Online store: everybody gets the full list, with no shortlist and no categories", async () => {
+    await mount({ starters: ALL });
     expect(text()).toContain("Welcome to Moth Press. Choose your website");
-    const all = startersForKind("products");
-    expect(cards("Your shortlist")).toEqual(all.slice(0, SHORTLIST));
-    expect(cards("More websites")).toEqual(all.slice(SHORTLIST));
-    expect(text()).not.toMatch(/See every look|Quiet & classic|Bold & loud/);
+    const all = startersForKind("products", ALL);
+    expect(all.length).toBe(STARTER_SITES.length);
+    expect(cards("All websites")).toEqual(all);
+    expect(document.querySelectorAll("ul.rp-website-grid").length).toBe(1);
+    expect(text()).not.toMatch(/Picked for you|More websites|See every look|Quiet & classic|Bold & loud/);
     // Each card has a real picture and its colour versions.
     expect(document.querySelector(`[data-starter-card='${all[0]}'] img`)?.getAttribute("src")).toMatch(/starters\/thumbs\//);
     expect(document.querySelector(`[data-starter-card='${all[0]}'] [role=radiogroup]`)).not.toBeNull();
@@ -43,8 +44,9 @@ describe("Choose your website (one website picker, step 4)", () => {
 
   it("a services shop sees the starters made for appointments first", async () => {
     await mount({ publishes: "services", kind: "services", starters: ALL });
-    expect(cards("Your shortlist")).toEqual(["starter-salon", "starter-workshop", "starter-commission"]);
-    expect(text()).toContain("Made for services.");
+    const list = cards("All websites");
+    expect(list.slice(0, 3)).toEqual(["starter-salon", "starter-workshop", "starter-commission"]);
+    expect(list.length).toBe(STARTER_SITES.length);
   });
 
   it("Use this records the starter in the colour picked", async () => {
@@ -61,7 +63,7 @@ describe("Choose your website (one website picker, step 4)", () => {
     expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ theme: id }));
   });
 
-  it("Skip for now takes the first of the shortlist and says it was skipped", async () => {
+  it("Skip for now takes the first of the list and says it was skipped", async () => {
     const { onDone } = await mount();
     await act(async () => { button("Skip for now").click(); });
     await flush();
@@ -72,7 +74,8 @@ describe("Choose your website (one website picker, step 4)", () => {
     await mount({ chosen: { theme: "starter-larder" }, starters: ALL });
     expect(text()).toContain("Here's the website you chose");
     expect(cards("The website you chose")).toEqual(["starter-larder"]);
-    expect(cards("Your shortlist")).not.toContain("starter-larder");
+    expect(cards("All websites")).not.toContain("starter-larder");
+    expect(text()).toContain("Or pick another");
     act(() => root?.unmount()); document.body.innerHTML = "";
     await mount({ chosen: { theme: "starter-larder" }, settled: true, starters: ALL });
     expect(text()).toContain("Your website: Larder");

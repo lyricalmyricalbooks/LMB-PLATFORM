@@ -45,7 +45,7 @@ const mount = async (props: any) => {
 };
 const button = (label: string) => [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === label) as HTMLButtonElement | undefined;
 const text = () => document.body.textContent || "";
-const shortlisted = () => [...document.querySelectorAll("ul[aria-label='Your shortlist'] [data-starter-card]")].map((li) => li.getAttribute("data-starter-card")!);
+const shortlisted = () => [...document.querySelectorAll("ul[aria-label='All websites'] [data-starter-card]")].map((li) => li.getAttribute("data-starter-card")!);
 const useOn = (id: string) => [...document.querySelectorAll(`[data-starter-card='${id}'] button`)].find((b) => b.textContent?.trim() === "Use this") as HTMLButtonElement;
 
 describe("Choose your website, then Set up your shop (plans 6.3, 6.9)", () => {
@@ -55,12 +55,13 @@ describe("Choose your website, then Set up your shop (plans 6.3, 6.9)", () => {
     expect(text()).toBe("");
   });
 
-  it("a new shop sees Choose your website first, with the press's name and three websites picked for it", async () => {
+  it("a new shop sees Choose your website first, with the press's name and the full list of websites", async () => {
     api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, sellingToday: "starting", publishes: "zines", plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
     expect(text()).toContain("Welcome to Moth Press. Choose your website");
     expect(text()).not.toContain("Set up your shop");
-    expect(shortlisted()).toEqual(startersForKind("products").slice(0, 3));
+    expect(shortlisted()).toEqual(startersForKind("products"));
+    expect(text()).not.toContain("Picked for you");
     expect(text()).not.toContain("See every look");
   });
 
@@ -98,7 +99,7 @@ describe("Choose your website, then Set up your shop (plans 6.3, 6.9)", () => {
     expect(draft.backgroundColor).toBe("#121722");
   });
 
-  it("Skip takes the first of the shortlist and says so", async () => {
+  it("Skip takes the first of the list and says so", async () => {
     api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
     await act(async () => { button("Skip for now")!.click(); });

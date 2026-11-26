@@ -7,18 +7,16 @@ import { shopKindOf, type LeadSide } from "../servicesSetup";
 import type { StarterKind } from "../studio/starterDesign";
 import { styledName } from "../studio/starterStyles";
 import { firstColour, StarterCard } from "../StarterCards";
-import { KIND_WORDS, startersForKind, starterTheme, type ShowAs } from "../websiteChoice";
+import { startersForKind, starterTheme, type ShowAs } from "../websiteChoice";
 
 // The full-screen preview carries the section list and the storefront hand-over: it loads on the first Preview.
 const StarterPreview = lazy(() => import("../StarterPreview").then((m) => ({ default: m.StarterPreview })));
 
-/** How many starters the shortlist shows on top. */
-export const SHORTLIST = 3;
-
 /**
  * Choose your website (plan "One website picker", step 4, 26 November 2026): the setup guide's first step on Home, and
- * setup mode's Design page. The same starter cards as Online store (StarterCards.tsx): a shortlist of three made for
- * the shop's kind on top, then the rest, each in its colour versions with Use this and Preview. No categories and no
+ * setup mode's Design page. The same starter cards as Online store (StarterCards.tsx): every starter in one list, those
+ * made for the shop's kind first (Julian, 26 November 2026: no "Picked for you", everybody sees the full list), each in
+ * its colour versions with Use this and Preview. No categories and no
  * older looks: changing the website later happens on Online store.
  * `settings` is settings/website as the Overview read it: undefined while it loads, null when it couldn't be read.
  * `onDone` gets what to record once the website is in the draft; the parent saves it (and puts the welcome away).
@@ -63,10 +61,8 @@ export function ChooseLookWelcome({ publishes, settings, onDone, onRetrySettings
   // A website chosen before the shop was made that is no longer offered (an older look): it can still be used as it is.
   const chosenOlder = chosen && !chosenStarter ? libraryLook(chosen.theme) ?? null : null;
   const rest = ids.filter((id) => id !== chosenStarter);
-  const shortlist = rest.slice(0, SHORTLIST);
-  const more = rest.slice(SHORTLIST);
   const styleOf = (id: string) => picked[id] ?? firstColour(id, starters);
-  const skipTo = chosenStarter || shortlist[0];
+  const skipTo = chosenStarter || rest[0];
 
   const choose = async (theme: LibraryTheme | null, as: ShowAs = showAs, skipped = false) => {
     if (!theme || busy) return;
@@ -132,19 +128,13 @@ export function ChooseLookWelcome({ publishes, settings, onDone, onRetrySettings
           </div>
         )}
 
-        {shortlist.length > 0 && (
-          <section aria-labelledby="website-shortlist" className="rp-website-section">
+        {rest.length > 0 && (
+          <section aria-labelledby="website-all" className="rp-website-section">
             <div>
-              <h3 id="website-shortlist" className="rp-website-section-title">{chosen ? "Or pick another" : "Picked for you"}</h3>
-              <p className="rp-hint">Made for {KIND_WORDS[kind].toLowerCase()}. Each comes with its own layout and pages, and your {kind === "services" ? "services" : "products"}, words and logo take the samples' places.</p>
+              <h3 id="website-all" className="rp-website-section-title">{chosen ? "Or pick another" : "All websites"}</h3>
+              <p className="rp-hint">Each comes with its own layout and pages, and your {kind === "services" ? "services" : "products"}, words and logo take the samples' places.</p>
             </div>
-            <ul className="rp-website-grid" aria-label="Your shortlist" data-guided-shortlist>{shortlist.map((id) => card(id))}</ul>
-          </section>
-        )}
-        {more.length > 0 && (
-          <section aria-labelledby="website-more" className="rp-website-section">
-            <h3 id="website-more" className="rp-website-section-title">More websites</h3>
-            <ul className="rp-website-grid" aria-label="More websites">{more.map((id) => card(id))}</ul>
+            <ul className="rp-website-grid" aria-label="All websites">{rest.map((id) => card(id))}</ul>
           </section>
         )}
         {!ids.length && !chosenOlder && <p className="rp-hint" style={{ margin: 0 }}>No websites are offered right now. Your shop keeps its plain starting design, and you can choose one later on Online store.</p>}
