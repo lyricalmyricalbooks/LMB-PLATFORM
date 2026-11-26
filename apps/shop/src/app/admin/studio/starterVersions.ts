@@ -53,6 +53,7 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 1, date: "2026-11-25", note: "The first version, in Signal, Cobalt and Night." },
       { version: 2, date: "2026-11-26", note: "A new frame: a big masthead header, half-and-half product pages, framed products and a bag that opens from the left." },
       { version: 3, date: "2026-11-26", note: "A redesign: a search bar in the header, a huge headline beside one photo, the page running wider, a moving band and a bright story band." },
+      { version: 4, date: "2026-11-26", note: "Tidier on phones: categories two to a row and your promises one under another. The headline fits beside the photo on smaller screens." },
     ],
     looks: { signal: "125bf4f", cobalt: "1ynt1i", night: "xjy9ft" },
   },
@@ -61,6 +62,7 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 1, date: "2026-11-25", note: "The first version, in Harvest, Olive and Night." },
       { version: 2, date: "2026-11-26", note: "A new frame: links in a row under your name, the title first on product pages, framed products and your email large in the footer." },
       { version: 3, date: "2026-11-26", note: "A redesign: a golden card beside a rounded photo, round photo links, rounded shelf cards, a dark gift band and your story." },
+      { version: 4, date: "2026-11-26", note: "Tidier on phones: round photo links three to a row." },
     ],
     looks: { harvest: "tj3slb", olive: "41eokb", night: "siuvw" },
   },
@@ -76,7 +78,7 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
     releases: [
       { version: 1, date: "2026-11-25", note: "The first version, in Sunny, Mint and Night." },
       { version: 2, date: "2026-11-26", note: "A new frame: half-and-half product pages, centred product names, a list shop page, your name huge in the footer, new type and a sunny background." },
-      { version: 3, date: "2026-11-26", note: "A redesign: what every class includes on a sunny band, and a dark newsletter band." },
+      { version: 3, date: "2026-11-26", note: "A redesign: what every class includes on a sunny band, and a dark newsletter band. On phones the promises sit one under another." },
     ],
     looks: { sunny: "158ym2", mint: "1rj76ra", night: "1gmivo4" },
   },
@@ -84,7 +86,7 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
     releases: [
       { version: 1, date: "2026-11-25", note: "The first version, in Walnut, Chalk and Night." },
       { version: 2, date: "2026-11-26", note: "A new frame: a side menu on computers, open product pages, numbered work, a staggered shop page, a one-line footer and new type." },
-      { version: 3, date: "2026-11-26", note: "A redesign: a big serif headline beside a tall photo, recent work in three, how it works on a dark band, four pieces and the enquiry form on a warm band." },
+      { version: 3, date: "2026-11-26", note: "A redesign: a big serif headline beside a tall photo, recent work in three, how it works on a dark band, four pieces and the enquiry form on a warm band. On phones the steps sit one under another." },
     ],
     looks: { walnut: "qq10jg", chalk: "1eiva9h", night: "4zfioj" },
   },
