@@ -1188,3 +1188,13 @@ phones (computers keep `1fr auto 1fr`). Found with Stillwater Ceramics, Northlin
 SplitOpeningSection has "Photo first on phones" (`phonePhotoFirst`, off by default, `.fm-split-photo-first` in
 `styles/index.css`); the five starters that open with it turn it on. Releases: Slow Season, Aurel, Salon, Workshop and
 Commission 4, Warehouse and Larder 6.
+
+## Starter product pages (26 November 2026, plan "Starters vs Shopify and Squarespace", step 5)
+
+Each sample product has a second photo (`morePhotos`, `public/starters/<name>/<photo>-2.jpg`, Figma AI, same light as the
+first); `starterSampleBooks` turns `photo` + `morePhotos` into the product's photo list (ids `s1`, `s1-2`).
+`sampleShops.test.ts` wants two photos per product and checks the files exist. The nine starters set existing product
+page controls only: no ambient glow, no tag, no "Fig. 1" caption, no Back link, no share button, full-width Add to bag,
+the tax and shipping line, phone thumbnails hidden (swipe), and the details tabs under the buy card for the side-by-side
+layouts. The Magazine (`editorial`) product page keeps words first only on computers (`productPageLayoutCss`); phones
+show the photo first. The empty Reviews tab stays: it is where a shopper writes the first review.

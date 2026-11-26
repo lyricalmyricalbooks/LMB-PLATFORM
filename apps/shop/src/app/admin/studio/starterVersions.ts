@@ -24,15 +24,17 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 2, date: "2026-11-26", note: "A new frame: product pages open out across the page, a caption line under each product and a one-line footer." },
       { version: 3, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
       { version: 4, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links." },
+      { version: 5, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
     ],
-    looks: { terracotta: "1csf16d", sage: "1gh4o14", night: "5lgdwc" },
+    looks: { terracotta: "1k7gpe7", sage: "l619r6", night: "7n5512" },
   },
   "juniper-catalogue": {
     releases: [
       { version: 1, date: "2026-11-24", note: "The first version, in Acid, Blueprint and Night." },
       { version: 2, date: "2026-11-26", note: "A new frame: links behind a Menu button, numbered products, a list shop page, the title first on product pages and your email large in the footer, on cool grey paper." },
+      { version: 3, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
     ],
-    looks: { acid: "gdf8mj", blueprint: "1inuvnu", night: "qjngtp" },
+    looks: { acid: "b03tek", blueprint: "mk0o3f", night: "1p6c3by" },
   },
   "aurel-editorial": {
     releases: [
@@ -40,8 +42,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 2, date: "2026-11-26", note: "A new frame: links in a row under your name, a staggered shop page, your name huge across the footer and a bag that fills the screen." },
       { version: 3, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
       { version: 4, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links, and the opening photo comes first." },
+      { version: 5, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
     ],
-    looks: { cobalt: "13f4hfp", sand: "1bzesm9", night: "g44vyx" },
+    looks: { cobalt: "idxdun", sand: "za79h7", night: "cptwur" },
   },
   "starter-gallery": {
     releases: [
@@ -50,8 +53,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 3, date: "2026-11-26", note: "A new frame: links behind a Menu button, a big photo on top of each product page, centred product names, a staggered shop page and a centred footer." },
       { version: 4, date: "2026-11-26", note: "A redesign: words in light type over the opening photo, two products shown large then three smaller, an open product page with your photos side by side and a breadcrumb, and a slim announcement bar." },
       { version: 5, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
+      { version: 6, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
     ],
-    looks: { linen: "1w2gaq7", stone: "1loy6d5", night: "mpyfg2" },
+    looks: { linen: "wsren", stone: "xmmqi1", night: "1wez7mq" },
   },
   "starter-warehouse": {
     releases: [
@@ -61,8 +65,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 4, date: "2026-11-26", note: "Tidier on phones: categories two to a row and your promises one under another. The headline fits beside the photo on smaller screens." },
       { version: 5, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
       { version: 6, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links, and the opening photo comes first." },
+      { version: 7, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
     ],
-    looks: { signal: "1dtv0bz", cobalt: "1pfkhgm", night: "1r9lmy1" },
+    looks: { signal: "oyh1s9", cobalt: "i4t0kg", night: "1xn3y9v" },
   },
   "starter-larder": {
     releases: [
@@ -72,8 +77,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 4, date: "2026-11-26", note: "Tidier on phones: round photo links three to a row." },
       { version: 5, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
       { version: 6, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links, and the opening photo comes first." },
+      { version: 7, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
     ],
-    looks: { harvest: "dsovyc", olive: "6mj8ps", night: "50gmzl" },
+    looks: { harvest: "35usc5", olive: "1qhg6sx", night: "1afze5u" },
   },
   "starter-salon": {
     releases: [
@@ -81,8 +87,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 2, date: "2026-11-26", note: "A new frame: a side menu on computers, a big photo on product pages, a centred footer, new type and a blush background." },
       { version: 3, date: "2026-11-26", note: "A redesign: light words over a full photo, a wider price list, your space on a soft band and open times on a dark band." },
       { version: 4, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links." },
+      { version: 5, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
     ],
-    looks: { blush: "kshmms", sage: "hr2a29", night: "112eadc" },
+    looks: { blush: "9n2h5x", sage: "1qej7wi", night: "3bp5ht" },
   },
   "starter-workshop": {
     releases: [
@@ -90,8 +97,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 2, date: "2026-11-26", note: "A new frame: half-and-half product pages, centred product names, a list shop page, your name huge in the footer, new type and a sunny background." },
       { version: 3, date: "2026-11-26", note: "A redesign: what every class includes on a sunny band, and a dark newsletter band. On phones the promises sit one under another." },
       { version: 4, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links." },
+      { version: 5, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
     ],
-    looks: { sunny: "1ql9w3t", mint: "v8o6f9", night: "khavab" },
+    looks: { sunny: "103llsz", mint: "18cgncv", night: "fcku65" },
   },
   "starter-commission": {
     releases: [
@@ -99,8 +107,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 2, date: "2026-11-26", note: "A new frame: a side menu on computers, open product pages, numbered work, a staggered shop page, a one-line footer and new type." },
       { version: 3, date: "2026-11-26", note: "A redesign: a big serif headline beside a tall photo, recent work in three, how it works on a dark band, four pieces and the enquiry form on a warm band. On phones the steps sit one under another." },
       { version: 4, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links, and the opening photo comes first." },
+      { version: 5, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
     ],
-    looks: { walnut: "ef2i0b", chalk: "shsilg", night: "y7tl4y" },
+    looks: { walnut: "1ew66th", chalk: "1f0fgou", night: "c2sccc" },
   },
 };
 
