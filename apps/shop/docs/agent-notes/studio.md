@@ -1198,3 +1198,15 @@ page controls only: no ambient glow, no tag, no "Fig. 1" caption, no Back link, 
 the tax and shipping line, phone thumbnails hidden (swipe), and the details tabs under the buy card for the side-by-side
 layouts. The Magazine (`editorial`) product page keeps words first only on computers (`productPageLayoutCss`); phones
 show the photo first. The empty Reviews tab stays: it is where a shopper writes the first review.
+
+## Starter fonts and "Good for" (26 November 2026, plan "Starters vs Shopify and Squarespace", step 6)
+
+- Every starter offers at least two font pairs across its styles (`starterStyles.test.ts`). The second ("calm") style of
+  Slow Season, Gallery, Warehouse, Larder, Salon, Workshop and Commission sets its own `headingFont`/`headingWeight`/`bodyFont`
+  (Catalogue Blueprint and Aurel Sand already had one). Fonts are `FONT_CHOICES` families in listed weights.
+- `studio/starterStrengths.ts` is the one list of what each starter suits: a catalogue size (`goodFor`: a few products, a big
+  range, either, or appointments and classes) and three plain lines (`strengthsOf`), each true of the starter's own sections.
+  It feeds the public starter pages (`demoShop/libraryPage.ts`: the size under the mood on each card; size plus "What it
+  does well" on the detail page) and Choose your website (`StarterCards.tsx`, `.rp-website-strengths` in `riso.css`).
+  `starterStrengths.test.ts` keeps it to every starter, three lines of at most 48 characters, no full stops.
+- A new starter needs an entry here as well as in `STARTER_INFO` and `STARTER_BLURB`.

@@ -517,13 +517,16 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
             {/* The link's name comes from the logo itself (its alt text, or the words of a text logo), so what a screen
                 reader says matches what shoppers see (accessibility check, plan 8.8). */}
             {minimal && <MobileStorefrontNav design={design} pages={pages} onSearch={onSearch} everywhere />}
-            {phoneMenu && <PhoneHeaderMenu design={design} pages={pages} onSearch={onSearch} />}
+            {phoneMenu && !centered && <PhoneHeaderMenu design={design} pages={pages} onSearch={onSearch} />}
             <Link to="/" state={HOME_LINK_STATE} data-hdr-fixed className="flex min-w-0 items-center md:shrink-0">
               <span className="min-w-0" data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={scheme ? { ...storefront, logoColor: undefined } : storefront} /></span>
             </Link>
             {!navBelow && !minimal && navBar}
           </div>
-          {centered && <div className="flex-1 order-1" aria-hidden="true" />}
+          {/* A centred logo keeps the phone menu button at the left edge, like the other headers (plan step 6 check). */}
+          {centered && (phoneMenu
+            ? <div className="flex flex-1 order-1"><PhoneHeaderMenu design={design} pages={pages} onSearch={onSearch} /></div>
+            : <div className="flex-1 order-1" aria-hidden="true" />)}
           {market && <HeaderSearchBox design={storefront} copyDesign={design} onSearch={onSearch} />}
           <div data-hdr-fixed className={`${centered ? "order-3 flex-1 " : ""}flex shrink-0 flex-nowrap items-center justify-end gap-2 sm:gap-6 md:gap-8`} data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart">
             {storefront.menus?.header?.length > 0 && <div className="mr-2"><StoreMenu items={storefront.menus.header} design={storefront} /></div>}

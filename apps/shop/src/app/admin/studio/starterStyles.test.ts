@@ -55,6 +55,16 @@ describe("starter styles (next starters plan phase 2)", () => {
     expect(updatedTheme(own)).toBeNull();
   });
 
+  it("offers a second pair of fonts in every starter, not only new colours (plan step 6, 26 November 2026)", () => {
+    for (const [id, styles] of Object.entries(STARTER_STYLES)) {
+      const pairs = new Set(styles.map((s) => {
+        const g = withStyle(theme(id), s.id).global as any;
+        return `${g.headingFont} / ${g.bodyFont}`;
+      }));
+      expect(pairs.size, id).toBeGreaterThanOrEqual(2);
+    }
+  });
+
   it("lets the control room hide a style, never the starter's own", () => {
     expect(offeredStyles("aurel-editorial").map((s) => s.id)).toEqual(["cobalt", "sand", "night"]);
     expect(offeredStyles("aurel-editorial", { hiddenStyles: ["aurel-editorial/sand", "aurel-editorial/cobalt"] }).map((s) => s.id)).toEqual(["cobalt", "night"]);

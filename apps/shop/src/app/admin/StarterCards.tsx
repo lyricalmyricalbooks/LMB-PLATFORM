@@ -5,6 +5,7 @@ import { useState } from "react";
 import { PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
 import type { StarterChoice } from "./lookGallery";
 import { coloursOf, STARTER_BLURB, starterTheme, thumbUrl } from "./websiteChoice";
+import { goodFor, strengthsOf } from "./studio/starterStrengths";
 
 /** A starter's colour versions as named swatches; nothing when it has only one. */
 export function Colours({ id, value, onPick, choice, label }: { id: string; value: string | null; onPick: (style: string) => void; choice?: StarterChoice; label: string }) {
@@ -64,6 +65,12 @@ export function StarterCard({ id, style, onStyle, choice, isNew, busy, onUse, on
           {isNew && <StatusBadge tone="info" glyph={false}>New</StatusBadge>}
         </div>
         <p className="rp-hint">{STARTER_BLURB[id]}</p>
+        {goodFor(id) && (
+          <div className="rp-website-strengths">
+            <p className="rp-website-good-for">{goodFor(id)}</p>
+            <ul aria-label={`What ${theme.name} does well`}>{strengthsOf(id).map((line) => <li key={line}>{line}</li>)}</ul>
+          </div>
+        )}
         <Colours id={id} value={style} onPick={onStyle} choice={choice} label={`Colours of ${theme.name}`} />
         {(onUse || onPreview) && (
           <div className="rp-website-actions">

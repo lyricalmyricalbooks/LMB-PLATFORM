@@ -25,8 +25,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 3, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
       { version: 4, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links." },
       { version: 5, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
+      { version: 6, date: "2026-11-26", note: "A second pair of fonts in the calm colour version, so it feels like its own design and not only new colours." },
     ],
-    looks: { terracotta: "1k7gpe7", sage: "l619r6", night: "7n5512" },
+    looks: { terracotta: "1k7gpe7", sage: "jmgwy6", night: "7n5512" },
   },
   "juniper-catalogue": {
     releases: [
@@ -54,8 +55,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 4, date: "2026-11-26", note: "A redesign: words in light type over the opening photo, two products shown large then three smaller, an open product page with your photos side by side and a breadcrumb, and a slim announcement bar." },
       { version: 5, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
       { version: 6, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
+      { version: 7, date: "2026-11-26", note: "A second pair of fonts in the calm colour version, so it feels like its own design and not only new colours." },
     ],
-    looks: { linen: "wsren", stone: "xmmqi1", night: "1wez7mq" },
+    looks: { linen: "wsren", stone: "1tqgza5", night: "1wez7mq" },
   },
   "starter-warehouse": {
     releases: [
@@ -66,8 +68,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 5, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
       { version: 6, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links, and the opening photo comes first." },
       { version: 7, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
+      { version: 8, date: "2026-11-26", note: "A second pair of fonts in the calm colour version, so it feels like its own design and not only new colours." },
     ],
-    looks: { signal: "oyh1s9", cobalt: "i4t0kg", night: "1xn3y9v" },
+    looks: { signal: "oyh1s9", cobalt: "kuovrw", night: "1xn3y9v" },
   },
   "starter-larder": {
     releases: [
@@ -78,8 +81,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 5, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
       { version: 6, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links, and the opening photo comes first." },
       { version: 7, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
+      { version: 8, date: "2026-11-26", note: "A second pair of fonts in the calm colour version, so it feels like its own design and not only new colours." },
     ],
-    looks: { harvest: "35usc5", olive: "1qhg6sx", night: "1afze5u" },
+    looks: { harvest: "35usc5", olive: "zf5kol", night: "1afze5u" },
   },
   "starter-salon": {
     releases: [
@@ -88,8 +92,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 3, date: "2026-11-26", note: "A redesign: light words over a full photo, a wider price list, your space on a soft band and open times on a dark band." },
       { version: 4, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links." },
       { version: 5, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
+      { version: 6, date: "2026-11-26", note: "A second pair of fonts in the calm colour version, so it feels like its own design and not only new colours." },
     ],
-    looks: { blush: "9n2h5x", sage: "1qej7wi", night: "3bp5ht" },
+    looks: { blush: "9n2h5x", sage: "1h35z9x", night: "3bp5ht" },
   },
   "starter-workshop": {
     releases: [
@@ -98,8 +103,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 3, date: "2026-11-26", note: "A redesign: what every class includes on a sunny band, and a dark newsletter band. On phones the promises sit one under another." },
       { version: 4, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links." },
       { version: 5, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
+      { version: 6, date: "2026-11-26", note: "A second pair of fonts in the calm colour version, so it feels like its own design and not only new colours." },
     ],
-    looks: { sunny: "103llsz", mint: "18cgncv", night: "fcku65" },
+    looks: { sunny: "103llsz", mint: "1oqgt1x", night: "fcku65" },
   },
   "starter-commission": {
     releases: [
@@ -108,8 +114,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 3, date: "2026-11-26", note: "A redesign: a big serif headline beside a tall photo, recent work in three, how it works on a dark band, four pieces and the enquiry form on a warm band. On phones the steps sit one under another." },
       { version: 4, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links, and the opening photo comes first." },
       { version: 5, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
+      { version: 6, date: "2026-11-26", note: "A second pair of fonts in the calm colour version, so it feels like its own design and not only new colours." },
     ],
-    looks: { walnut: "1ew66th", chalk: "1f0fgou", night: "c2sccc" },
+    looks: { walnut: "1ew66th", chalk: "m4jfbi", night: "c2sccc" },
   },
 };
 
