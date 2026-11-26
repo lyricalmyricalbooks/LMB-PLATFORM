@@ -32,6 +32,8 @@ export type PresetContent = {
 
 export type StarterSampleProduct = {
   title: string; price: number; photo: string;
+  /** More photos of the same product (a close-up, the product in use), shown after the first on its page. */
+  morePhotos?: string[];
   /** The shelf it sits on (Bags, Bread…): the category shoppers filter by. */
   category?: string;
   /** Two plain sentences: what it is, what it is made of, one detail worth knowing. */
@@ -58,7 +60,7 @@ export function starterSampleBooks(preset: any): any[] {
     return {
       id: `starter-sample-${i + 1}`, slug: sampleSlug(p.title), title: p.title, authorName: p.maker || "", author: p.maker || "",
       retailPrice: p.price, stockLevel: 8, status: "published", isFeatured: i < 4, featured: i < 4,
-      categories: [p.category || "Featured"], photos: [{ id: `s${i + 1}`, url: p.photo, alt: p.title }],
+      categories: [p.category || "Featured"], photos: [p.photo, ...(p.morePhotos || [])].map((url, n) => ({ id: n ? `s${i + 1}-${n + 1}` : `s${i + 1}`, url, alt: p.title })),
       description: p.description || "A sample product. Your own products take its place once you add them.",
       ...(options.length ? { options, variants } : {}),
       createdAt: new Date(Date.UTC(2026, 10, 20 - i)).toISOString(), sample: true,

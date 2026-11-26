@@ -2,6 +2,7 @@
 // each starter is a finished sample shop for a made-up brand, like a shop-builder's theme demo. Its words, products and
 // prices read as a real business, never as a form to fill in ("Your headline", "Example …"). A new shop keeps its own
 // name and products; the starter's words arrive marked Sample in Studio until the owner changes them (applyStarter).
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { THEME_LIBRARY } from "./themeLibrary";
 import { starterSampleBooks } from "./presetContent";
@@ -18,7 +19,8 @@ it("all nine starters are covered", () => expect(STARTERS.map((t: any) => t.id).
 
 describe.each(STARTERS.map((t: any) => [t.id, t]))("starter %s is a finished sample shop", (id, look: any) => {
   const words = JSON.stringify({ sections: look.content.sections, global: look.global, samples: look.content.sampleProducts })
-    .replace(/"(imageUrl|photo|ctaUrl|plusUrl|[a-zA-Z]*Font|themeStyle)":"[^"]*"/g, "");
+    .replace(/"(imageUrl|photo|ctaUrl|plusUrl|[a-zA-Z]*Font|themeStyle)":"[^"]*"/g, "")
+    .replace(/"morePhotos":\[[^\]]*\]/g, "");
 
   it("has its own made-up brand, unlike every other starter", () => {
     expect(look.content.sampleBrand).toMatch(/^[A-Z]/);
@@ -31,6 +33,14 @@ describe.each(STARTERS.map((t: any) => [t.id, t]))("starter %s is a finished sam
   it("shows its photos as they are, never under the product grid's default purple tint", () => {
     const grids = Object.values(look.content.sections as Record<string, any[]>).flat().filter((x: any) => x?.type === "ProductShowcaseGridSection");
     for (const grid of grids) expect(grid.settings.overlayOpacity, id).toBe(0);
+  });
+  it("shows at least two photos of every product, all of them in the shop's files", () => {
+    for (const p of look.content.sampleProducts || []) {
+      const photos = [p.photo, ...(p.morePhotos || [])];
+      expect(photos.length, p.title).toBeGreaterThanOrEqual(2);
+      for (const url of photos) expect(existsSync(`public${url}`), url).toBe(true);
+    }
+    for (const book of starterSampleBooks(look)) expect(new Set(book.photos.map((ph: any) => ph.id)).size).toBe(book.photos.length);
   });
   it("sells real-sounding products with a shelf, two sentences and working options", () => {
     const list = look.content.sampleProducts || [];

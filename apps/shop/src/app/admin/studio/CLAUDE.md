@@ -85,3 +85,4 @@ Details of each feature live in [`docs/agent-notes/studio.md`](../../../../docs/
 - Starter sample shops (26 November 2026, plan "Starters vs Shopify and Squarespace", step 2)
 - Starter photo sets (26 November 2026, plan "Starters vs Shopify and Squarespace", step 3)
 - Starter phone header and photo first (26 November 2026, plan "Starters vs Shopify and Squarespace", step 4)
+- Starter product pages (26 November 2026, plan "Starters vs Shopify and Squarespace", step 5)

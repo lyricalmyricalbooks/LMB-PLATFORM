@@ -459,8 +459,9 @@ export function productPageLayoutCss(d: any): string {
         + `${L} .fm-pdp-frame{aspect-ratio:16/9 !important;}`
         + `${L} .fm-pdp-info{position:static !important;max-width:760px;margin-inline:auto;}}`;
     case "editorial":
+      // Words first on computers; phones keep the photo on top so shoppers see the product before scrolling.
       return open + `${L}.fm-pdp-grid{--pdp-title-auto:clamp(48px, 8vw, 128px);}`
-        + `${L} .fm-pdp-info{order:-1;}`
+        + `@media ${PDP_WIDE}{${L} .fm-pdp-info{order:-1;}}`
         + `${L} .fm-pdp-card-section{border-top:1px solid rgba(var(--border-rgb), 0.45);padding-top:20px;padding-bottom:20px;}`
         + `${L} .fm-pdp-card-section:first-child{border-top:0;}`
         + `@media ${PDP_WIDE}{${L}.fm-pdp-grid{grid-template-columns:minmax(0,1fr) !important;}`
