@@ -110,14 +110,17 @@ async function loadPressName() {
 }
 
 /** The strip over the page: the price, the trial or the next bill, the card and where the plan stands. */
+// A tile's big date: "26 Dec", so it fits one line ("26 December" broke over two at the tile's size).
+const tileDay = (at) => day(at).replace(/ \d{4}$/, "").replace(/^(\d+ \p{L}{3})\p{L}+$/u, "$1");
+
 function renderLedger(billing, words) {
   const tax = billing.plusTax ? " + tax" : "";
   const cells = [["Plan", billing.price, `${billing.planName}, monthly${tax}`]];
   if (billing.access === "paused" || billing.access === "closed") cells.push(["Shop", words.state, billing.access === "paused" ? "kept for 60 days" : "90 days to download", "danger"]);
   else if (billing.status === "trialing") cells.push(["Free trial", `${billing.trialDaysLeft ?? 0} days`, `until ${day(billing.trialEnd)}`, "trial"]);
-  else if (billing.cancelAtPeriodEnd) cells.push(["Open until", day(billing.cancelEndsAt ?? billing.currentPeriodEnd).replace(/ \d{4}$/, ""), "then the plan ends", "warning"]);
+  else if (billing.cancelAtPeriodEnd) cells.push(["Open until", tileDay(billing.cancelEndsAt ?? billing.currentPeriodEnd), "then the plan ends", "warning"]);
   else cells.push(["Status", words.state, billing.status === "past_due" ? "update your card" : "all paid up", billing.status === "past_due" ? "danger" : undefined]);
-  cells.push(billing.nextPaymentAt ? ["Next bill", day(billing.nextPaymentAt).replace(/ \d{4}$/, ""), `${billing.price}${tax}`] : ["Next bill", "None", billing.hasCard ? "nothing due" : "until a card is added"]);
+  cells.push(billing.nextPaymentAt ? ["Next bill", tileDay(billing.nextPaymentAt), `${billing.price}${tax}`] : ["Next bill", "None", billing.hasCard ? "nothing due" : "until a card is added"]);
   cells.push(billing.card ? ["Card", `•••• ${billing.card.last4}`, `runs out ${String(billing.card.expMonth).padStart(2, "0")}/${billing.card.expYear}`] : billing.hasCard ? ["Card", "On file", ""] : ["Card", "None", billing.status === "trialing" ? `needed before ${day(billing.trialEnd).replace(/ \d{4}$/, "")}` : "add one to keep the shop open", billing.status === "trialing" ? undefined : "danger"]);
   $("#plan-ledger").replaceChildren(...cells.map(([label, value, foot, tone]) => {
     const cell = el("div", {}, el("span", { className: "cp-kicker", textContent: label }), el("b", { textContent: value }), el("em", { textContent: foot }));
@@ -200,7 +203,7 @@ async function loadInvoices() {
       const [word, tone] = INVOICE_WORDS[invoice.status] ?? [invoice.status, "neutral"];
       const pill = el("span", { className: "pill", textContent: word });
       pill.dataset.tone = tone;
-      return el("tr", {}, el("td", { textContent: date }), el("td", { textContent: invoice.number || "" }), el("td", { className: "cp-amount", textContent: invoice.amount }), el("td", {}, pill), el("td", {}, pdf));
+      return el("tr", {}, el("td", { textContent: date }), el("td", { textContent: invoice.number || "—" }), el("td", { className: "cp-amount", textContent: invoice.amount }), el("td", {}, pill), el("td", {}, pdf));
     });
     // The bill that's coming, so a new shop sees when its first one lands instead of an empty box.
     const coming = current?.nextPaymentAt ?? (current?.status === "trialing" && !current?.cancelAtPeriodEnd ? current.trialEnd : null);
