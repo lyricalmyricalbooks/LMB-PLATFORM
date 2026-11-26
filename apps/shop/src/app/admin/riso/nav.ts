@@ -216,12 +216,71 @@ export const SERVICES_MENU: Menu = [
   { label: "Design", icon: Palette, pages: ["design"] },
   { label: "Settings", icon: Settings, pages: SERVICES_SETTINGS },
 ];
-/** Which menu a shop gets: "services" for a services shop that doesn't also sell products, "shop" for every other. */
-export type MenuKind = "shop" | "services";
+/**
+ * A shop that does both (shop types plan, part 2, 26 November 2026): products and bookings in one admin. Its answer to
+ * "What do most customers come for?" (servicesSetup.ts `leadSideOf`) decides which leads the menu: Calendar before
+ * Orders for a shop people mostly book with, Orders and Products first for one they mostly buy from. Every page of both
+ * menus is there, shipping included; the stockroom side keeps stock, stockists and the money pages.
+ */
+const WAYS_ONLY = ["events", "classes", "giving", "memberships", "rentals"];
+export const BOTH_BY_BOOKINGS_SIDE: Menu = [
+  { label: "Home", icon: LayoutDashboard, pages: ["overview"] },
+  { label: "Calendar", icon: CalendarDays, pages: ["bookings", "takePayment"] },
+  { label: "Clients", icon: Users, pages: ["customers"] },
+  { label: "Messages", icon: Inbox, pages: ["messages"] },
+  { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB] },
+  { label: "Books", icon: BookOpen, pages: ["catalog", "reviews"] },
+  { label: "Ways to sell", icon: Shapes, pages: WAYS_ONLY },
+  { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", "socialPosts", "channels"] },
+  { label: "Analytics", icon: ChartLine, pages: ["analytics"] },
+  { label: "Online store", icon: Palette, pages: ["design"] },
+  { label: "Settings", icon: Settings, pages: [...SETTINGS_PAGES, S("sheets")], labels: { [S("sheets")]: "Sales spreadsheet" } },
+];
+export const BOTH_BY_PRODUCTS_SIDE: Menu = [
+  { label: "Home", icon: LayoutDashboard, pages: ["overview"] },
+  { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB, "customers"] },
+  { label: "Messages", icon: Inbox, pages: ["messages"] },
+  { label: "Books", icon: BookOpen, pages: ["catalog", "reviews"] },
+  { label: "Calendar", icon: CalendarDays, pages: ["bookings", "takePayment"] },
+  { label: "Ways to sell", icon: Shapes, pages: WAYS_ONLY },
+  { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", "socialPosts", "channels"] },
+  { label: "Analytics", icon: ChartLine, pages: ["analytics"] },
+  { label: "Online store", icon: Palette, pages: ["design"] },
+  { label: "Settings", icon: Settings, pages: [...SETTINGS_PAGES, S("sheets")], labels: { [S("sheets")]: "Sales spreadsheet" } },
+];
+/** The shop-only admin (no stockroom) for a shop doing both: the five items with Calendar beside Orders. */
+const ORDERS_WITHOUT_BOOKINGS = ["orders", "events", "classes", "giving", "memberships", "rentals", "customers", "discounts", "giftCards", "socialPosts", "messages"];
+export const BOTH_BY_BOOKINGS_MENU: Menu = [
+  { label: "Home", icon: LayoutDashboard, pages: ["overview", "analytics"] },
+  { label: "Calendar", icon: CalendarDays, pages: ["bookings", "takePayment"] },
+  { label: "Orders", icon: ShoppingCart, pages: ORDERS_WITHOUT_BOOKINGS },
+  { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", "reviews", "channels"] },
+  { label: "Design", icon: Palette, pages: ["design"] },
+  { label: "Settings", icon: Settings, pages: SETTINGS_PAGES },
+];
+export const BOTH_BY_PRODUCTS_MENU: Menu = [
+  { label: "Home", icon: LayoutDashboard, pages: ["overview", "analytics"] },
+  { label: "Orders", icon: ShoppingCart, pages: ORDERS_WITHOUT_BOOKINGS },
+  { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", "reviews", "channels"] },
+  { label: "Calendar", icon: CalendarDays, pages: ["bookings", "takePayment"] },
+  { label: "Design", icon: Palette, pages: ["design"] },
+  { label: "Settings", icon: Settings, pages: SETTINGS_PAGES },
+];
+export const BOTH_BY_BOOKINGS_COMBINED: Menu = [...BOTH_BY_BOOKINGS_SIDE, ...STOCKROOM_SIDE];
+export const BOTH_BY_PRODUCTS_COMBINED: Menu = [...BOTH_BY_PRODUCTS_SIDE, ...STOCKROOM_SIDE];
+
+/**
+ * Which menu a shop gets (servicesSetup.ts `shopKindOf`, with the lead side for "both"): "services" for a services shop
+ * that doesn't also sell products, "both" for one that does (led by `lead`), "shop" for every product shop.
+ */
+export type MenuKind = "shop" | "services" | "both";
+export type MenuLead = "products" | "services";
 export const SERVICES_COMBINED_MENU: Menu = [...SERVICES_WEBSITE_SIDE, ...SERVICES_MONEY_SIDE];
 /** The whole menu for a kind: both sides in the combined admin, the five items otherwise. */
-export const adminMenu = (combined: boolean, kind: MenuKind = "shop"): Menu =>
-  kind === "services" ? (combined ? SERVICES_COMBINED_MENU : SERVICES_MENU) : combined ? COMBINED_MENU : MENU;
+export const adminMenu = (combined: boolean, kind: MenuKind = "shop", lead: MenuLead = "services"): Menu =>
+  kind === "services" ? (combined ? SERVICES_COMBINED_MENU : SERVICES_MENU)
+    : kind === "both" ? (lead === "products" ? (combined ? BOTH_BY_PRODUCTS_COMBINED : BOTH_BY_PRODUCTS_MENU) : (combined ? BOTH_BY_BOOKINGS_COMBINED : BOTH_BY_BOOKINGS_MENU))
+      : combined ? COMBINED_MENU : MENU;
 
 /** The side a page belongs to. */
 export function sideOf(page: string): AdminSide {
@@ -230,8 +289,10 @@ export function sideOf(page: string): AdminSide {
   if (WEBSITE_SIDE.some((g) => g.pages.includes(page))) return "website";
   return page.startsWith(STOCKROOM_ITEM_PREFIX) || STOCKROOM_SIDE.some((g) => g.pages.includes(page)) ? "stockroom" : "website";
 }
-export const sideMenu = (side: AdminSide, kind: MenuKind = "shop"): Menu =>
-  kind === "services" ? (side === "stockroom" ? SERVICES_MONEY_SIDE : SERVICES_WEBSITE_SIDE) : side === "stockroom" ? STOCKROOM_SIDE : WEBSITE_SIDE;
+export const sideMenu = (side: AdminSide, kind: MenuKind = "shop", lead: MenuLead = "services"): Menu =>
+  kind === "services" ? (side === "stockroom" ? SERVICES_MONEY_SIDE : SERVICES_WEBSITE_SIDE)
+    : side === "stockroom" ? STOCKROOM_SIDE
+      : kind === "both" ? (lead === "products" ? BOTH_BY_PRODUCTS_SIDE : BOTH_BY_BOOKINGS_SIDE) : WEBSITE_SIDE;
 
 /** Every page with its menu id and label, in NAV order. */
 export function navPages(nav: NavEntry[]): { id: string; label: string }[] {

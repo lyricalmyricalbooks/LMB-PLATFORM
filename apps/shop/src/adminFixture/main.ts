@@ -1906,11 +1906,12 @@ if (new URLSearchParams(location.search).get("variants")) {
 }
 
 // ── What you offer (shop types plan): `?offer=products|services|both` is a new shop at Get started's first step, just
-// signed up as that kind. In memory. ──
+// signed up as that kind (`&offerDone=1`: past that step, for Settings › What you offer and the menus). In memory. ──
 {
   const offer = new URLSearchParams(location.search).get("offer");
   if (offer === "products" || offer === "services" || offer === "both") {
-    const week: any = { publishes: offer === "products" ? "other" : "hair", plan: "both", country: "CA", ...(offer === "both" ? { sellsProducts: true } : {}) };
+    const week: any = { publishes: offer === "products" ? "other" : "hair", plan: "both", country: "CA", ...(offer === "both" ? { sellsProducts: true } : {}),
+      ...(new URLSearchParams(location.search).get("offerDone") ? { offer: { at: "2026-11-26T10:00:00.000Z" }, welcome: { at: "2026-11-26T10:00:00.000Z" } } : {}) };
     const api = adminApi as any;
     api.getFirstWeek = async () => JSON.parse(JSON.stringify(week));
     api.updateFirstWeek = async (change: any) => { Object.assign(week, change); };

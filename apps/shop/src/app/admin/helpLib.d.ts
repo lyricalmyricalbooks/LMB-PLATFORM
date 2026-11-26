@@ -6,6 +6,6 @@ declare module "@help/articles.js" {
   }
   export const TOPICS: readonly string[];
   export const ARTICLES: readonly HelpArticleSource[];
-  export function articlesFor(plan: "both" | "shop" | "stockroom", sells?: string | null): HelpArticleSource[];
+  export function articlesFor(plan: "both" | "shop" | "stockroom", sells?: string | null, kind?: "products" | "services" | "both" | null): HelpArticleSource[];
   export function searchArticles(text: string, list?: readonly HelpArticleSource[]): HelpArticleSource[];
 }

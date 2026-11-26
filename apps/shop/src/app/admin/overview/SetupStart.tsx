@@ -33,7 +33,7 @@ import { chosenDesign, chosenLook, keptFile, type SetupHandover } from "../setup
 import { SignupDesignStage } from "./SignupDesignStage";
 import { KeptFileCard } from "./KeptFileCard";
 import { ServicesStage } from "./ServicesStage";
-import { servicesOnly, type BookingsFacts } from "../servicesSetup";
+import { LEAD_SIDE_CHANGED_EVENT, servicesOnly, type BookingsFacts } from "../servicesSetup";
 import { OfferStage } from "./OfferStage";
 import { offerSummary } from "../offerStage";
 import { SERVICE_CHOICES } from "../WhatYouSellCard";
@@ -145,6 +145,7 @@ export function SetupStart({ books, orders, readiness, settings, bookings, onOpe
         setDoc({ ...doc, ...change } as FirstWeekDoc);
         if (change.sells) window.dispatchEvent(new CustomEvent(SELLS_CHANGED_EVENT, { detail: change.sells }));
         if (change.productGroups) window.dispatchEvent(new CustomEvent(GROUPS_CHANGED_EVENT, { detail: change.productGroups }));
+        if (change.leadSide) window.dispatchEvent(new CustomEvent(LEAD_SIDE_CHANGED_EVENT, { detail: change.leadSide }));
       };
       return <OfferStage doc={doc} onDone={offerDone} />;
     }

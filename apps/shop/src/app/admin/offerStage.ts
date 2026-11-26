@@ -25,10 +25,19 @@ export interface OfferAnswers {
   lead: LeadSide;
 }
 
-/** The words a product group gives the shop's one-word answer (sign-up's PRODUCT_GROUPS mapping, signup/form.js). */
+/**
+ * The words a product group gives the shop's one-word answer (sign-up's PRODUCT_GROUPS mapping, signup/form.js). Books
+ * and paper gives "other": notebooks and cards are not books, and only the books tick turns the book tools on.
+ */
 const GROUP_SELLS: Partial<Record<TypeGroupId, string>> = {
-  clothing: "clothing", bags: "clothing", shoes: "shoes", jewelry: "jewelry", art: "prints", books: "mixed", music: "music",
+  clothing: "clothing", bags: "clothing", shoes: "shoes", jewelry: "jewelry", art: "prints", music: "music",
 };
+
+/** A product shop's one-word answer without the book tools: its first kind's word, in the list's order, else "other". */
+export function goodsSellsFor(groups: readonly TypeGroupId[]): string {
+  const first = TYPE_GROUPS.map((g) => g.id).find((id) => groups.includes(id));
+  return (first && GROUP_SELLS[first]) || "other";
+}
 
 /** The step's starting answers, read from what sign-up (or an earlier visit) saved. */
 export function offerStart(doc: OfferDoc): OfferAnswers {
@@ -57,8 +66,7 @@ export function offerChange(a: OfferAnswers, doc: OfferDoc, at: string) {
   if (a.kind === "products") {
     const groups = a.books && !a.groups.includes("books") ? (["books", ...a.groups] as TypeGroupId[]) : a.groups;
     const ordered = TYPE_GROUPS.map((g) => g.id).filter((id) => groups.includes(id));
-    const first = ordered[0];
-    const sells = a.books ? (sellsBooks(was) ? (was as string) : "books") : (first && GROUP_SELLS[first]) || "other";
+    const sells = a.books ? (sellsBooks(was) ? (was as string) : "books") : goodsSellsFor(ordered);
     return { sells, productGroups: ordered, offer: { at } };
   }
   const ordered = TYPE_GROUPS.map((g) => g.id).filter((id) => a.groups.includes(id));

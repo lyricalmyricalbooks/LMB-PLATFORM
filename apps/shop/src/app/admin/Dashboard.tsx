@@ -56,7 +56,8 @@ import { useAdminAppManifest } from "./adminApp";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
 import { adminWordsFor, currentSells } from "./sells";
 import { SELLS_CHANGED_EVENT, SELLS_PRODUCTS_CHANGED_EVENT, ShopSellsContext, ShopWordsContext } from "./shopWords";
-import { hasPublisherTools, sellsServices } from "../../shared/shopSells";
+import { hasPublisherTools } from "../../shared/shopSells";
+import { LEAD_SIDE_CHANGED_EVENT, leadSideOf, shopKindOf, type LeadSide } from "./servicesSetup";
 import { FAIR_MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, adminMenu, itemSections, menuItemFor, menuWithout, sideMenu, sideOf, sidebarItems, type MenuKind } from "./riso/nav";
 import { FairCard, SideSwitch, rememberFair, rememberSide, rememberedFair, rememberedSide } from "./SideSwitch";
 import { PhoneNav } from "./PhoneNav";
@@ -311,20 +312,26 @@ export function Dashboard() {
   const [sellsAnswer, setSellsAnswer] = useState<string | null>(null);
   useEffect(() => {
     if (!user) return;
-    Promise.resolve().then(() => adminApi.getFirstWeek()).then((doc) => { setSellsAnswer(currentSells(doc)); setSellsProducts(doc?.sellsProducts === true); }).catch(() => {});
+    Promise.resolve().then(() => adminApi.getFirstWeek()).then((doc) => { setSellsAnswer(currentSells(doc)); setSellsProducts(doc?.sellsProducts === true); setLeadSide(leadSideOf(doc)); }).catch(() => {});
   }, [user]);
   // A services shop that also sells a few products (Settings › What you sell) keeps the full menu.
   const [sellsProducts, setSellsProducts] = useState(false);
+  // A shop doing both leads its menu with what most customers come for (shop types plan, part 2).
+  const [leadSide, setLeadSide] = useState<LeadSide>("services");
   useEffect(() => {
     const on = (e: Event) => setSellsAnswer(String((e as CustomEvent).detail || "") || null);
     const onProducts = (e: Event) => setSellsProducts((e as CustomEvent).detail === true);
+    const onLead = (e: Event) => setLeadSide((e as CustomEvent).detail === "products" ? "products" : "services");
     window.addEventListener(SELLS_CHANGED_EVENT, on);
     window.addEventListener(SELLS_PRODUCTS_CHANGED_EVENT, onProducts);
-    return () => { window.removeEventListener(SELLS_CHANGED_EVENT, on); window.removeEventListener(SELLS_PRODUCTS_CHANGED_EVENT, onProducts); };
+    window.addEventListener(LEAD_SIDE_CHANGED_EVENT, onLead);
+    return () => { window.removeEventListener(SELLS_CHANGED_EVENT, on); window.removeEventListener(SELLS_PRODUCTS_CHANGED_EVENT, onProducts); window.removeEventListener(LEAD_SIDE_CHANGED_EVENT, onLead); };
   }, []);
-  // A services shop (a salon, a studio, a tutor) gets the calendar-and-clients menu (riso/nav.ts SERVICES_WEBSITE_SIDE).
-  const menuKind: MenuKind = sellsServices(sellsAnswer) && !sellsProducts ? "services" : "shop";
-  const ADMIN_MENU = adminMenu(COMBINED, menuKind);
+  // A services shop (a salon, a studio, a tutor) gets the calendar-and-clients menu (riso/nav.ts SERVICES_WEBSITE_SIDE);
+  // one that sells products too gets both, led by what most customers come for.
+  const shopType = shopKindOf({ sells: sellsAnswer, sellsProducts });
+  const menuKind: MenuKind = shopType === "both" ? "both" : shopType === "services" ? "services" : "shop";
+  const ADMIN_MENU = adminMenu(COMBINED, menuKind, leadSide);
   // Bookings (beta): shown only once the platform's control room turned it on for this shop (platform/features).
   const bookingsOn = useBookingsOn(!!user);
   // Bookkeeping › Artist payouts is a book shop's (or a mixed one's); other shops never see the tab.
@@ -799,7 +806,7 @@ export function Dashboard() {
   openStockroomRef.current = (page, bookId) => { void openStockroomPage(page, bookId); };
   // The tour's stops open menu pages; a stop in fair mode's absence: fair mode ends first, so the rail shows both sides.
   // The walkthrough's stops: one per menu item this admin shows on either side (walkthrough/tourSteps.ts).
-  const tourMenuItems = new Set((COMBINED ? [...sideMenu("website", menuKind), ...sideMenu("stockroom", menuKind)] : ADMIN_MENU)
+  const tourMenuItems = new Set((COMBINED ? [...sideMenu("website", menuKind, leadSide), ...sideMenu("stockroom", menuKind, leadSide)] : ADMIN_MENU)
     .map((g) => g.pages.find((p) => !hiddenPages.has(p))).filter((p): p is string => !!p));
   const tourSteps = tourFor({ combined: COMBINED, books: hasPublisherTools(sellsAnswer), menuItems: tourMenuItems });
   const startTour = (start: number | null) => {
@@ -910,14 +917,14 @@ export function Dashboard() {
   const content = (() => {
     switch (activeTab) {
       case "overview":
-        return <HomePage setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes" || tab === "designer" || tab === "security") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} ownerName={user.displayName || ""} services={menuKind === "services"} tourWaiting={tourPhase !== null || !tourSeen()} alerts={alertsView(true)} onSetWall={(on: boolean) => toggleUnderConstruction(on, { checked: true })} />;
+        return <HomePage setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes" || tab === "designer" || tab === "security") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} ownerName={user.displayName || ""} services={menuKind === "services"} bookingsFirst={menuKind === "services" || (menuKind === "both" && leadSide === "services")} tourWaiting={tourPhase !== null || !tourSeen()} alerts={alertsView(true)} onSetWall={(on: boolean) => toggleUnderConstruction(on, { checked: true })} />;
       case "analytics":
         return <AnalyticsPage subTab={subTab} onSubTabChange={openSubTab} setActiveTab={(tab: string) => { if (tab === "google" || tab === "general") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} />;
       case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} refreshTrigger={catalogRefreshKey} />;
       case "customers": return <Customers initialQuery={searchCustomerQuery} />;
       case "inventory": return <Inventory onEditBook={handleEditBook} />;
       case "discounts": return <Discounts />;
-      case "help": return <HelpPage combined={COMBINED} sells={sellsAnswer} askUrl={askPersonPage(platformPlan)}
+      case "help": return <HelpPage combined={COMBINED} sells={sellsAnswer} kind={shopType} askUrl={askPersonPage(platformPlan)}
         fromPage={helpFrom.current?.page} fromLabel={helpFrom.current?.label}
         onTour={(start) => startTour(start)} onOpen={(page) => openMenuPage(page)} />;
       case "alerts": return alertsView(false);
@@ -986,7 +993,7 @@ export function Dashboard() {
     rememberFair(on); setFairMode(on);
     void openMenuPage(on ? FAIR_MENU[0].pages[0] : sideMenu("stockroom", menuKind)[0].pages[0]);
   };
-  const railMenu = menuWithout(COMBINED ? (fairMode ? FAIR_MENU : sideMenu(currentSide, menuKind)) : ADMIN_MENU, hiddenPages);
+  const railMenu = menuWithout(COMBINED ? (fairMode ? FAIR_MENU : sideMenu(currentSide, menuKind, leadSide)) : ADMIN_MENU, hiddenPages);
   const railItems = sidebarItems(nav, railMenu).map((n) => {
     // Orders counts open cancel/return requests too (they sit in Needs attention).
     // Privacy requests are handled in Settings › General.
@@ -1033,7 +1040,7 @@ export function Dashboard() {
             activeChildId={activePageId}
             onSelect={openMenuPage}
             onSelectChild={(_item, page) => openMenuPage(page)}
-            top={COMBINED && fairMode ? <FairCard /> : COMBINED ? <SideSwitch side={currentSide} stockroomCount={stockroomTodos.items?.length || 0} stockroomLabel={menuKind === "services" ? "Money" : undefined} onPick={(side) => { setSidebarOpen(false); void openMenuPage(sideMenu(side, menuKind)[0].pages[0]); }} />
+            top={COMBINED && fairMode ? <FairCard /> : COMBINED ? <SideSwitch side={currentSide} stockroomCount={stockroomTodos.items?.length || 0} stockroomLabel={menuKind === "services" ? "Money" : undefined} onPick={(side) => { setSidebarOpen(false); void openMenuPage(sideMenu(side, menuKind, leadSide)[0].pages[0]); }} />
               : hasStockroom() ? <AppSwitcher onSwitch={() => setSidebarOpen(false)} /> : undefined}
             brand={storesPage(platformPlan) ? (
               <StoreSwitcher name={shopNameFromSettings(settings)} tag={platformPlan?.state === "trial" ? "Free trial" : null}

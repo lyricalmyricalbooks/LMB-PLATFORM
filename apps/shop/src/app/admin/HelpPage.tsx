@@ -12,13 +12,15 @@ import { PrimaryButton } from "./riso/components";
 import { answersForPage, askWith, helpList, relatedTo, wherePage, type HelpEntry } from "./helpAnswers";
 import "./help.css";
 
-export function HelpPage({ combined, sells, askUrl, fromPage, fromLabel, onTour, onOpen }: {
+export function HelpPage({ combined, sells, kind = null, askUrl, fromPage, fromLabel, onTour, onOpen }: {
   combined: boolean; sells: string | null;
+  /** The shop's type: a product shop sees no booking answers, a services shop no stock or shipping ones. */
+  kind?: "products" | "services" | "both" | null;
   /** The platform's Ask a person page (null off the platform). */ askUrl: string | null;
   /** The admin page the owner opened Help from, and its menu name. */ fromPage?: string | null; fromLabel?: string | null;
   onTour: (start: number) => void; onOpen: (page: string) => void;
 }) {
-  const list = useMemo<HelpEntry[]>(() => articlesFor(combined ? "both" : "shop", sells), [combined, sells]);
+  const list = useMemo<HelpEntry[]>(() => articlesFor(combined ? "both" : "shop", sells, kind), [combined, sells, kind]);
   const [text, setText] = useState("");
   const [picked, setPicked] = useState("");
   const [all, setAll] = useState(false);

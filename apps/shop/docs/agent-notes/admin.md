@@ -1676,3 +1676,11 @@ with copy) and Remove (asks first). All through op `bookingHooks` (steps list, a
   `offerStage.ts`): a product shop's groups and a "Books, zines or comics" tick (the only thing that sets a book
   `sells`), what people book, and Both's lead side, saved in one `updateFirstWeek` with `offer: { at }`. A shop that
   already has `welcome` skips it. Rules allow `leadSide` (products/services) and `offer` (a small map).
+
+**Part 2 (26 November 2026): menus, Settings and Help follow the type.** `adminMenu(combined, kind, lead)` / `sideMenu`
+take MenuKind "both" plus the lead side (`BOTH_BY_BOOKINGS_*` / `BOTH_BY_PRODUCTS_*` in `riso/nav.ts`); Dashboard reads
+`shopKindOf` and listens for `LEAD_SIDE_CHANGED_EVENT`. Settings › Your shop › What you offer (`WhatYouSellCard.tsx`,
+anchor `gs-offer`) shows the type card, what people book, the lead side and the kinds of things sold; the Book tools
+switch shows only to a product shop that has books, and turning it off asks first. Help: articles carry `side`
+("products" | "services") and `articlesFor(plan, sells, kind)` drops the other side's answers for a one-sided shop.
+Orders search and Studio categories no longer say "ISBN" to a shop without books.
