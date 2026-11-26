@@ -146,3 +146,30 @@ Income, Failed payments, Why brands leave, Costs, Prices and sign-up, Platform, 
 - Shops table: Plan and Health still wrap into tall rows on a laptop (also noted 17 November).
 - Failed payments: the Reminder column is empty with no dash or button.
 - Today: lines with no snooze (repair queue, support) end their buttons further right than the shop lines.
+
+## 26 November 2026 (desktop only)
+
+**Screens reviewed** (walkthrough, desktop 1440, phone glanced at): the front page, Your shops, Plan & billing (trial,
+paying), the sign-in boxes, help, status, trust, terms and the front door's first step.
+
+**Fixed** (one PR)
+- Plan & billing: the email language choices looked like three empty text boxes (noted 17 November); they are a row of
+  pills with a dot, like a choice.
+- Plan & billing: "Next bill 26 December" broke over two lines and made its tile taller than the rest; the big date reads
+  "26 Dec" (the year and full month are on the plan card).
+- Plan & billing: an invoice with no number left a blank gap in the table (noted 17 November); it shows a dash.
+- Plan & billing and sign-up: the small "Cards are kept by our payment company" lines were in typewriter type; they are
+  in the page's own type now.
+- Your shops: a short shop name pulled its "Free trial" tag up beside the name while longer names had theirs underneath;
+  every shop's tags sit on their own row under the name.
+- Status, help, terms, trust and every page with the plain footer: the footer's line ran out past the cards into the side
+  margins; it is as wide as the cards.
+- Hints on every platform page avoid leaving one word alone on the last line where the browser can.
+
+**Noticed, left for later**
+- Front door (sign-up): the "01 Sign in / 02 About your brand" steps sit tight on the title (sign-up and shop types work
+  is active there).
+- Your shops: the mint trial tile repeats the Moth Press card's own trial line and bar.
+- Plan & billing: the plan price shows three times (tile, Your plan, How you pay).
+- Your shops: "Delete my account" sits a few pixels in from the buttons above it.
+- Front page: the "three simple steps" heading leaves a tall gap beside its short paragraph.
