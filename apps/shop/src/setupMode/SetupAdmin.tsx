@@ -470,7 +470,7 @@ function DesignPage({ press, save }: { press: SetupPress; save: (c: SetupChange)
         settings={{ info: { name: press.pressName } }}
         apply={async () => {}}
         intro="It goes on your website when your shop is made."
-        keep={press.look ? { label: `Keep ${themeName(press.look) || "my look"}`, onKeep: () => {} } : undefined}
+        keep={press.look ? { label: `Keep ${themeName(press.look) || "my website"}`, onKeep: () => {} } : undefined}
         chosen={press.look ? { theme: press.look } : null}
         settled
         onDone={async (welcome) => {

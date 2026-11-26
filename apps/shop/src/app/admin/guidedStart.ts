@@ -1,6 +1,6 @@
 // Guided start (next starters plan phase 3, 24 November 2026): after sign-up, three questions (what you sell, the feel
 // you want, your logo) give a shortlist of starters already in the shop's name, its logo's colours and its first
-// products. Pure rules only; the questions and the cards are in overview/GuidedStart.tsx.
+// products. Pure rules only; Make it yours (studio/makeItYours.ts) uses the logo colours.
 //
 // The shortlist is every starter the control room offers (lookGallery `offeredStarters`, its order), each in the style
 // that answers the feel (studio/starterStyles.ts `feels`, the starter's own style when none does). A logo's main

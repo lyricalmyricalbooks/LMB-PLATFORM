@@ -13,7 +13,7 @@ describe("the one list on Home (sign-up to open shop plan, move 4)", () => {
     ]);
     expect(rows[0].detail).toBe("Signed in as owner@example.com");
     expect(rows[1].detail).toBe("Moth Press · Canada");
-    expect(rows[3].detail).toBe("Aurel, in Cobalt. Make it yours whenever you like.");
+    expect(rows[3].detail).toBe("Aurel, in Cobalt. Change it anytime on Online store.");
     expect(rowsLeft(rows)).toBe(3);
   });
 

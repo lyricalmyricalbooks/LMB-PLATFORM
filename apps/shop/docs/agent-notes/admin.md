@@ -1706,3 +1706,18 @@ in `websiteChoice.ts` (tests in `websiteChoice.test.ts`).
   (one only, 30 days, `switchBackOffer`); `switchBackWebsite` swaps it back and keeps the replaced one the same way.
   `ownSavedDesigns` leaves it out of "You have N saved designs".
 - Fixture: `admin-fixture.html?page=design&site=starter-gallery&style=stone&back=1` (all starters offered, two New).
+
+## Choose your website (26 November 2026, one website picker plan step 4)
+
+- The setup guide's look step (Home, `overview/ChooseLookWelcome.tsx`, the name kept) and setup mode's Design page are
+  **Choose your website**: the starter cards shared with Online store (`StarterCards.tsx`: `StarterCard`, `Shot`,
+  `Colours`), a shortlist of `SHORTLIST` (3) from `startersForKind(kind, starters)` on top, then "More websites". No
+  categories, no See every look, no try-on drawing (`LookStage.tsx` and `GuidedStart.tsx` were deleted; the guided
+  start's rules in `guidedStart.ts` stay for Make it yours).
+- The kind comes from `shopKindOf`/`leadSideOf` on the setup document (SetupStart passes them; setup mode works it out
+  from `sells`). Preview is the real storefront (`StarterPreview`), only in the shop's admin: setup mode has no shop, so
+  its cards have no Preview. `StarterPreview` turns the under construction wall off, so a private shop sees its website.
+- A website chosen before the shop was made shows first ("The website you chose"); an older look chosen then shows as a
+  line with Use <name>. Skip uses the chosen starter, else the first of the shortlist. The open list row reads
+  "Choose your website" (`openList.ts`).
+

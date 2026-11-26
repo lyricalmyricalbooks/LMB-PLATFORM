@@ -44,7 +44,8 @@ export function StarterPreview({ id, style: firstStyle, showAs: firstShowAs, set
     if (!theme) return null;
     const w = wordsFor(sells);
     const shaped = starterForShop(theme, showAs.kind, showAs.lead);
-    const design = withStarterWords(applyStarter(settings?.design || {}, shaped, getSectionMeta, w, starterPhotos(sells)), sells);
+    // A shop that isn't open yet has its "under construction" wall on: the preview shows the website behind it.
+    const design = { ...withStarterWords(applyStarter(settings?.design || {}, shaped, getSectionMeta, w, starterPhotos(sells)), sells), showUnderConstruction: false };
     const books = showAs.kind === "services" ? [] : starterSampleBooks(theme);
     return buildPreviewState({ ...settings, ...(showAs.kind === "both" ? { sellsProducts: true } : {}) }, design, [], books);
   }, [theme, showAs, settings, sells]);

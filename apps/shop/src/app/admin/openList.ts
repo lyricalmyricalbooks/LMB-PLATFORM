@@ -56,8 +56,8 @@ export function openRows(steps: RunStep[], step: RunStep | null, facts: OpenFact
       ? ["Told us what you offer", facts.offer || "Change it anytime in Settings."]
       : ["Tell us what you offer", "What you sell or the services you offer, so your menu and website fit."],
     look: (s) => s === "done"
-      ? ["Picked a starting look", `${look || "Your look"}${style ? `, in ${style}` : ""}. Make it yours whenever you like.`]
-      : ["Pick a starting look", "Keep the look you saw at sign-up, or try another. You can change it anytime."],
+      ? ["Chose your website", `${look || "Your website"}${style ? `, in ${style}` : ""}. Change it anytime on Online store.`]
+      : ["Choose your website", "Pick one of the websites made for your shop, in the colours you like. You can change it anytime."],
     bring: (s) => s === "done"
       ? ["Added your books", "Add more anytime from Books."]
       : ["Add your books", "Bring them from a file or start with one. The sample books step aside when yours arrive."],

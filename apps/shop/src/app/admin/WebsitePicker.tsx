@@ -8,14 +8,15 @@ import { usePlatformStarters } from "./platformStarters";
 import { newStarters } from "./lookGallery";
 import { leadSideOf, shopKindOf } from "./servicesSetup";
 import { Dialog, PrimaryButton, SecondaryButton, StatusBadge, useRisoToast } from "./riso/components";
+import { Colours, firstColour, Shot, StarterCard } from "./StarterCards";
 import type { SavedTheme } from "./studio/savedThemes";
 import { styledName } from "./studio/starterStyles";
 import { starterUpdate, type StarterUpdate } from "./studio/themeSwitch";
 import type { StarterKind } from "./studio/starterDesign";
 import type { StudioLocation } from "../lib/studioLocation";
 import {
-  coloursOf, currentWebsite, KIND_WORDS, ownSavedDesigns, startersForKind, STARTER_BLURB, starterTheme, switchBackOffer,
-  switchBackUntil, thumbUrl, type CurrentWebsite, type ShowAs, type SwitchBack,
+  currentWebsite, KIND_WORDS, ownSavedDesigns, startersForKind, STARTER_BLURB, starterTheme, switchBackOffer,
+  switchBackUntil, type CurrentWebsite, type ShowAs, type SwitchBack,
 } from "./websiteChoice";
 
 // The full-screen preview carries the section list and the storefront hand-over: it loads on the first Preview.
@@ -23,30 +24,6 @@ const StarterPreview = lazy(() => import("./StarterPreview").then((m) => ({ defa
 const actions = () => import("./chooseLook");
 
 type Props = { settings: any; onOpenStudio: (at?: StudioLocation) => void };
-
-function Colours({ id, value, onPick, choice, label }: { id: string; value: string | null; onPick: (style: string) => void; choice: any; label: string }) {
-  const colours = coloursOf(id, choice);
-  if (colours.length < 2) return null;
-  return (
-    <div role="radiogroup" aria-label={label} className="rp-colour-chips">
-      {colours.map((s) => (
-        <button key={s.id} type="button" role="radio" aria-checked={s.id === value} className="rp-colour-chip" onClick={() => onPick(s.id)}>
-          <span aria-hidden className="rp-colour-dots">{s.swatches.map((c, i) => <i key={i} style={{ background: c }} />)}</span>{s.name}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function Shot({ id, style, name, big }: { id: string; style: string | null; name: string; big?: boolean }) {
-  const [broken, setBroken] = useState(false);
-  return (
-    <div className="rp-website-shot" data-big={big || undefined}>
-      {broken ? <span className="rp-website-shot-missing">{name}</span>
-        : <img src={thumbUrl(id, style)} alt={`${name}, its home page on a computer`} loading={big ? "eager" : "lazy"} decoding="async" onError={() => setBroken(true)} />}
-    </div>
-  );
-}
 
 export function WebsitePicker({ settings, onOpenStudio }: Props) {
   const toast = useRisoToast();
@@ -202,28 +179,9 @@ export function WebsitePicker({ settings, onOpenStudio }: Props) {
         </div>
         <ul className="rp-website-grid">
           {others.map((id) => {
-            const theme = starterTheme(id, null);
-            if (!theme) return null;
-            const style = picked[id] ?? coloursOf(id, choice)[0]?.id ?? null;
-            return (
-              <li key={id} className="rp-website-card">
-                <button type="button" className="rp-website-card-shot" onClick={() => setPreview({ id, style })} aria-label={`Preview ${theme.name}`}>
-                  <Shot id={id} style={style} name={theme.name} />
-                </button>
-                <div className="rp-website-card-words">
-                  <div className="rp-website-card-title">
-                    <strong>{theme.name}</strong>
-                    {fresh.includes(id) && <StatusBadge tone="info" glyph={false}>New</StatusBadge>}
-                  </div>
-                  <p className="rp-hint">{STARTER_BLURB[id]}</p>
-                  <Colours id={id} value={style} onPick={(s) => setPicked((p) => ({ ...p, [id]: s }))} choice={choice} label={`Colours of ${theme.name}`} />
-                  <div className="rp-website-actions">
-                    <PrimaryButton size="sm" onClick={() => use(id, style)} disabled={!!busy}>{busy === id ? "Putting it in your draft…" : "Use this"}</PrimaryButton>
-                    <SecondaryButton size="sm" onClick={() => setPreview({ id, style })}>Preview</SecondaryButton>
-                  </div>
-                </div>
-              </li>
-            );
+            const style = picked[id] ?? firstColour(id, choice);
+            return <StarterCard key={id} id={id} style={style} onStyle={(st) => setPicked((p) => ({ ...p, [id]: st }))} choice={choice}
+              isNew={fresh.includes(id)} busy={busy} onUse={(st) => use(id, st)} onPreview={(st) => setPreview({ id, style: st })} />;
           })}
         </ul>
         {savedCount > 0 && (
