@@ -2793,6 +2793,11 @@ div.rp-listcard-main { cursor: default; }
 .rp-website-card-title { display: flex; align-items: center; gap: 10px; }
 .rp-website-card-title strong { font-size: 22px; letter-spacing: -0.03em; font-weight: 650; color: var(--rp-text); }
 .rp-website-card-words .rp-hint { margin: 0; min-height: 3em; }
+.rp-website-strengths { display: grid; gap: 6px; }
+.rp-website-good-for { margin: 0; font-size: 13px; font-weight: 600; color: var(--rp-text); }
+.rp-website-strengths ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; }
+.rp-website-strengths li { position: relative; padding-left: 14px; font-size: 13px; line-height: 1.4; color: var(--rp-text-muted); }
+.rp-website-strengths li::before { content: ""; position: absolute; left: 0; top: 0.55em; width: 6px; height: 6px; border-radius: 50%; background: var(--rp-text-muted); }
 .rp-website-saved { margin: 0 0 16px; }
 .rp-link { all: unset; cursor: pointer; color: var(--rp-text); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .rp-link:focus-visible { outline: 3px solid var(--rp-focus); outline-offset: 2px; }

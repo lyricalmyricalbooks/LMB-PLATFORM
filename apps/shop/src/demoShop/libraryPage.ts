@@ -3,6 +3,7 @@
 // (cream page, black pills, mint for the way in), so the page stays light and needs none of the shop's code until a
 // live preview opens the sample shop in a frame.
 import { filterEntries, LIBRARY_FILTERS, libraryEntries, liveHref, readOfferedChoice, joinHref, type LibraryEntry } from "./starterLibrary";
+import { goodFor, strengthsOf } from "../app/admin/studio/starterStrengths";
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -47,6 +48,11 @@ a{color:inherit}
 .sl-detail{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:56px;align-items:start;padding:24px 0 96px}
 .sl-detail h1{margin:6px 0 0;font-size:clamp(44px,5vw,68px);line-height:1;letter-spacing:-.035em}
 .sl-detail .sl-mood{-webkit-line-clamp:unset;font-size:17px;margin-top:16px}
+.sl-size{margin:2px 0 0;font-size:14px;font-weight:600;color:var(--cl-ink)}
+.sl-detail .sl-size{margin-top:14px}
+.sl-strengths{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.sl-strengths li{position:relative;padding-left:22px;font-size:15px;line-height:1.45}
+.sl-strengths li::before{content:"";position:absolute;left:2px;top:.5em;width:8px;height:8px;border-radius:50%;background:var(--cl-mint-ink)}
 .sl-label{margin:28px 0 10px;font-size:13px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--cl-muted)}
 .sl-styles{display:grid;gap:8px}
 .sl-style{display:flex;align-items:center;gap:12px;min-height:52px;padding:8px 14px;border-radius:16px;border:1.5px solid var(--cl-line);background:var(--cl-paper);font:500 15px/1.2 inherit;color:var(--cl-ink);cursor:pointer;text-align:left}
@@ -101,6 +107,7 @@ function card(entry: LibraryEntry) {
     h("div", { className: "sl-body" },
       h("h2", {}, h("a", { href: starterHref(entry.id), text: entry.name })),
       h("p", { className: "sl-mood", text: entry.mood }),
+      goodFor(entry.id) ? h("p", { className: "sl-size", text: goodFor(entry.id) }) : null,
       h("ul", { className: "sl-chips", "aria-label": "Best for" }, ...entry.bestFor.map((b) => h("li", { text: b }))),
       h("div", { className: "sl-swatches" }, ...entry.styles.map((s) => dots(s.swatches)).slice(0, 3),
         h("span", { text: `${entry.styles.length} styles` })),
@@ -178,6 +185,9 @@ function starterView(root: HTMLElement, entries: LibraryEntry[], id: string) {
         h("p", { className: "sl-mood", text: entry.mood }),
         h("p", { className: "sl-label", text: "Best for" }),
         h("ul", { className: "sl-chips" }, ...entry.bestFor.map((b) => h("li", { text: b }))),
+        goodFor(entry.id) ? h("p", { className: "sl-size", text: goodFor(entry.id) }) : null,
+        strengthsOf(entry.id).length ? h("p", { className: "sl-label", text: "What it does well" }) : null,
+        strengthsOf(entry.id).length ? h("ul", { className: "sl-strengths" }, ...strengthsOf(entry.id).map((b) => h("li", { text: b }))) : null,
         h("p", { className: "sl-label", text: "Styles" }),
         picker,
         h("div", { className: "sl-actions" }, use, see),
