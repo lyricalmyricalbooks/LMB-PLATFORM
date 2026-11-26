@@ -19,6 +19,65 @@ export function footerLinksAlign(d: any): FooterLinksAlign {
   return d?.footerLinksAlign === "start" || d?.footerLinksAlign === "spread" ? d.footerLinksAlign : "end";
 }
 
+/**
+ * Footer designs (frame designs, 26 November 2026): the same footer parts laid out five ways, so two starters never end
+ * on the same footer. Empty (every existing shop) is the footer as it has always been.
+ *   - "wordmark": the shop's name set huge across the bottom, above the bottom bar.
+ *   - "line":     one quiet line: the name and every link in a single row, no headings or about words.
+ *   - "centred":  everything stacked down the middle.
+ *   - "contact":  a large band first with the shop's email and where to find it, then the links.
+ */
+export const FOOTER_DESIGNS = ["", "wordmark", "line", "centred", "contact"] as const;
+export type FooterDesign = (typeof FOOTER_DESIGNS)[number];
+export const FOOTER_DESIGN_OPTIONS: { value: FooterDesign; label: string }[] = [
+  { value: "", label: "Columns: name and about on the left, link groups beside (default)" },
+  { value: "wordmark", label: "Big name: your shop's name huge across the bottom" },
+  { value: "line", label: "One line: name and links in a single quiet row" },
+  { value: "centred", label: "Centred: everything stacked down the middle" },
+  { value: "contact", label: "Contact first: your email and address large, then the links" },
+];
+export function footerDesign(d: any): FooterDesign {
+  return (FOOTER_DESIGNS as readonly string[]).includes(d?.footerDesign) ? d.footerDesign : "";
+}
+
+/** The giant name's size: it fills the width for a short name and never runs off the screen for a long one. */
+export function giantNameSize(name: string): string {
+  const letters = Math.max(4, Array.from(String(name || "").trim()).length);
+  return `clamp(44px, ${(150 / letters).toFixed(2)}vw, 260px)`;
+}
+
+/** The CSS each footer design adds on top of the footer's own rules. */
+export function footerDesignCss(d: any = {}): string {
+  const s = `${FOOTER_SCOPE}[data-footer-design="${footerDesign(d)}"]`;
+  switch (footerDesign(d)) {
+    case "wordmark":
+      return (ownColour(d.footerTextColor) && !elementScheme(d, "footer") ? `${s} .fm-footer-giant{color:${ownColour(d.footerTextColor)} !important;}` : "") + `${s} .fm-footer-giant{margin:0;padding:8px 0 4px;font-weight:700;line-height:.82;letter-spacing:-.045em;white-space:nowrap;overflow:hidden;text-overflow:clip;color:inherit;}`;
+    case "line":
+      return `${s} .fm-footer-main{display:flex !important;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px 40px;}`
+        + `${s} .fm-footer-brand{max-width:none;border-right:0 !important;padding-right:0 !important;display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;}`
+        + `${s} .fm-footer-brand>*{margin-top:0 !important;}${s} .fm-footer-brand>p~p{display:none !important;}`
+        + `${s} .fm-footer-heading{display:none !important;}`
+        + `${s} .fm-footer-groups{display:flex !important;flex-wrap:wrap;gap:10px 28px !important;}`
+        + `${s} .fm-footer-groups nav{display:block;min-width:0 !important;}`
+        + `${s} .fm-footer-list{display:flex;flex-wrap:wrap;gap:10px 28px;}${s} .fm-footer-list>*+*{margin-top:0 !important;}`
+        + `${s} .fm-footer-main .space-y-3{display:flex;flex-wrap:wrap;gap:10px 28px;}${s} .fm-footer-main .space-y-3>*{margin-top:0 !important;}`;
+    case "centred":
+      return `${s} .fm-footer-main{display:flex !important;flex-direction:column;align-items:center;text-align:center;}`
+        + `${s} .fm-footer-brand{border-right:0 !important;padding-right:0 !important;align-items:center;text-align:center;margin-inline:auto;}`
+        + `${s} .fm-footer-groups{display:flex !important;flex-wrap:wrap;justify-content:center;justify-self:center !important;}`
+        + `${s} .fm-footer-groups nav{text-align:center;}`
+        + `${s} .fm-footer-legal,${s} .fm-footer-bar{justify-content:center !important;align-items:center !important;text-align:center;}`;
+    case "contact":
+      return (ownColour(d.footerTextColor) && !elementScheme(d, "footer") ? `${s} .fm-footer-contact-big{color:${ownColour(d.footerTextColor)} !important;}` : "") + `${s} .fm-footer-contact{display:grid;gap:28px;padding:56px 0 40px;border-bottom:1px solid ${RULE};}`
+        + `@media (min-width:768px){${s} .fm-footer-contact[data-two]{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:end;}}`
+        + `${s} .fm-footer-contact-big{margin:0;font-family:var(--heading-font, inherit);font-size:clamp(28px, 4.4vw, 64px);line-height:1.02;letter-spacing:-.02em;overflow-wrap:normal;color:inherit;}`
+        + `${s} .fm-footer-contact-big a{color:inherit;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.12em;}`
+        + `${s} .fm-footer-contact .fm-footer-heading{display:block;margin-bottom:14px;}`;
+    default:
+      return "";
+  }
+}
+
 export type FooterBrandAlign = "center" | "start";
 export function footerBrandAlign(d: any): FooterBrandAlign {
   return d?.footerBrandAlign === "start" ? "start" : "center";

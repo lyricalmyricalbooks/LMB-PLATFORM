@@ -14,7 +14,7 @@ import { PHONE_MAX } from "./breakpoints";
 import { isLiveBook } from "./liveBook";
 import { MobileStorefrontNav } from "./MobileStorefrontNav";
 import { NavDropdown, selectInPlace, type NavDropdownEntry } from "./NavDropdown";
-import { headerLayout } from "./headerLayout";
+import { headerLayout, RAIL_HEADER_CSS } from "./headerLayout";
 import { bookingsLinkShown, useBookingsLive } from "./bookingsLive";
 import { eventsLinkShown, useEventsLive } from "./eventsLive";
 import { classesLinkShown, useClassesLive } from "./classesLive";
@@ -455,7 +455,8 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
   const layout = headerLayout(storefront);
   const centered = layout === "centered";
   const minimal = layout === "minimal";
-  const navBelow = useNavBelow(centered ? { ...storefront, navPlacement: "below" } : storefront, rowRef, navRef);
+  // The side menu keeps its links beside the logo (they run down the rail on computers).
+  const navBelow = useNavBelow(centered ? { ...storefront, navPlacement: "below" } : layout === "rail" ? { ...storefront, navPlacement: "inline" } : storefront, rowRef, navRef);
   const navFit = useNavFit(storefront, navRef, navBelow);
   const line = navLineProps(storefront, navBelow, navFit);
   const headerRef = useRef<HTMLElement>(null);
@@ -483,8 +484,10 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
     <>
       <AnnouncementBar design={storefront} copyDesign={design} show={storefront.showAnnouncement ?? false} shop={false} />
       {revealOnScrollUp && <style>{HEADER_REVEAL_CSS}</style>}
+      {layout === "rail" && <style>{RAIL_HEADER_CSS}</style>}
       <header
         data-section="navigation"
+        data-hdr-layout={layout}
         data-studio-target="style:header|menus:header-order|copy:Header"
         data-studio-label="Header"
         ref={headerRef}
@@ -570,8 +573,9 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   const minimal = layout === "minimal";
   // Links split around a centred logo sit inline beside it (each half is short), unless the owner picked "below".
   const splitInline = !centered && sf?.navAroundLogo === true && shop.logoPosition === "center" && (sf?.navPlacement || "auto") === "auto";
-  const navBelow = useNavBelow(centered ? { ...sf, navPlacement: "below" } : splitInline ? { ...sf, navPlacement: "inline" } : sf, headerRowRef, navRef);
-  const logoPosition = centered ? "center" : shop.logoPosition;
+  const navBelow = useNavBelow(centered ? { ...sf, navPlacement: "below" } : splitInline || layout === "rail" ? { ...sf, navPlacement: "inline" } : sf, headerRowRef, navRef);
+  // The side menu always starts with the logo at the top of the rail.
+  const logoPosition = centered ? "center" : layout === "rail" ? "left" : shop.logoPosition;
   const navFit = useNavFit(sf, navRef, navBelow);
   const line = navLineProps(sf, navBelow, navFit);
 
@@ -654,9 +658,11 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
     <>
       {stickers && <style>{STICKER_PILL_CSS}</style>}
       {revealOnScrollUp && <style>{HEADER_REVEAL_CSS}</style>}
+      {layout === "rail" && <style>{RAIL_HEADER_CSS}</style>}
       <AnnouncementBar design={sf} copyDesign={design} show={showAnnouncement} fallback={shop.announcement} shop />
       <header
         data-section="navigation"
+        data-hdr-layout={layout}
         data-studio-target="style:header|menus:header-order|copy:Header" data-studio-label="Header"
         ref={headerRef}
         data-fm-header=""

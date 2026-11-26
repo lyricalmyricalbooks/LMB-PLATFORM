@@ -7,12 +7,14 @@
  *   - "modern":  logo, links and icons in one bar, with the bag button.
  *   - "centered": the modern bar with the logo in the middle and the links in their own centred row below.
  *   - "minimal": logo and icons only; every link sits behind the Menu button on every screen size.
+ *   - "rail":    a side menu on computers: the shop name, links and icons run down the left edge and the page sits
+ *                beside them (frame designs, 26 November 2026). On phones it draws like "modern".
  *
  * Left empty (every existing shop), the header follows the shop page layout exactly as it did before: Modern draws
  * the modern header, anything else the classic one. Choosing a layout here never changes the shop page grid.
  */
 
-export const HEADER_LAYOUTS = ["classic", "modern", "centered", "minimal"] as const;
+export const HEADER_LAYOUTS = ["classic", "modern", "centered", "minimal", "rail"] as const;
 export type HeaderLayout = (typeof HEADER_LAYOUTS)[number];
 
 /** The Studio choices for Header layout; the empty value keeps following the shop page layout. */
@@ -22,7 +24,26 @@ export const HEADER_LAYOUT_OPTIONS: { value: "" | HeaderLayout; label: string }[
   { value: "modern", label: "Modern: logo, links and bag in one bar" },
   { value: "centered", label: "Centred: logo in the middle, links in a row below" },
   { value: "minimal", label: "Minimal: logo and bag, links behind a Menu button" },
+  { value: "rail", label: "Side menu: shop name and links down the left on computers" },
 ];
+
+/** Computers wide enough for the side menu; below this the "rail" header draws as the one-bar header. */
+export const RAIL_MIN_WIDTH = 1024;
+/** How wide the side menu is. */
+export const RAIL_WIDTH = 248;
+
+/**
+ * The side menu's look: the header is fixed down the left edge and the page (announcement bar, sections, footer) moves
+ * over by its width. Only colours the header already has are used (its own background, the theme's border token).
+ */
+export const RAIL_HEADER_CSS = `@media (min-width:${RAIL_MIN_WIDTH}px){`
+  + `body:has(header[data-hdr-layout="rail"]){padding-left:${RAIL_WIDTH}px;}`
+  + `header[data-hdr-layout="rail"]{position:fixed !important;top:0 !important;left:0;bottom:0;width:${RAIL_WIDTH}px;overflow-y:auto;border-bottom:0 !important;border-right:1px solid rgba(var(--border-rgb), 0.35) !important;backdrop-filter:none !important;}`
+  + `header[data-hdr-layout="rail"] .fm-hdr-row{display:flex !important;flex-direction:column;align-items:stretch;justify-content:space-between;gap:40px;min-height:100%;max-width:none !important;padding:40px 28px 32px !important;}`
+  + `header[data-hdr-layout="rail"] .fm-hdr-row>div{flex:0 0 auto !important;flex-direction:column;align-items:flex-start !important;justify-content:flex-start !important;gap:36px !important;order:0 !important;}`
+  + `header[data-hdr-layout="rail"] .fm-hdr-row>div:last-child{flex-direction:row;flex-wrap:wrap;gap:16px !important;}`
+  + `header[data-hdr-layout="rail"] nav[data-ga-menu="categories"]{flex-direction:column;align-items:flex-start;row-gap:14px;column-gap:0 !important;white-space:normal;}`
+  + `}`;
 
 /** The header layout a design draws. */
 export function headerLayout(design: any): HeaderLayout {
