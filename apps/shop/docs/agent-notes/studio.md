@@ -1128,3 +1128,14 @@ Plan https://claude.ai/artifact/A5vVNJk14QrF2JjoUk6gER; Figma https://www.figma.
   golden card), Multicolumn with photos as round aisle links, 8 products at 4:3 with `cardRadius: 16`, a dark rounded
   Image with text gift band, a story and the FAQ. Words stay neutral (spot labels like "New in", "Gifts").
 - The header stays Centred: switching to Modern would share three frame parts with Slow Season (`starterFrames.test.ts`).
+
+## Starter design upgrade: Salon, Workshop and Commission (26 November 2026, plan step 5)
+
+- Designed first in Figma (page Redesign, frames "Salon/Workshop/Commission · Redesign · Desktop home"), then built from
+  existing sections. Slow Season, Catalogue and Aurel keep their own Figma Make designs (the owner asked that those look
+  exactly like their Figma), so step 5 changed only the three services starters.
+- Salon v3: Image banner (full, fade, inverse) opening, wider price list (`containerWidth: "md"`), space on the accent
+  scheme, hours on the inverse scheme; the second booking list was dropped (the price list books too).
+- Workshop v3: promises on the accent scheme without photos, newsletter on inverse.
+- Commission v3: Split opening, three-across recent work, how it works on inverse, four pieces, enquiry on accent.
+- Section-only changes don't move `lookSignature`, so their releases were added by hand with the control-room versions.

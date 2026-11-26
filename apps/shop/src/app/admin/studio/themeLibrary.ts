@@ -894,21 +894,20 @@ export const THEME_LIBRARY = [
       showAnnouncement: true, announcementText: "Write a short announcement here", announcementBg: "#2b1d14", announcementColor: "#fbf5ea",
       cartDrawerBg: "#fbf5ea", cartDrawerText: "#2b1d14", checkoutAccentColor: "#a8401f", checkoutBgColor: "#fbf5ea", linkColorHover: "#a8401f", navLinkActiveColor: "#a8401f", catalogHeading: "The larder" } },
   { id: "starter-salon", name: "Salon",
-    mood: "Calm and polished for appointments: words on a soft colour band beside a photo, the price list, the team, open times and a clear Book a time",
+    mood: "Calm and polished for appointments: light words over a full photo, the price list, your space, the team and open times on a dark band",
     palettePreset: "salon", font: "Manrope", buttonStyle: "solid", productCardStyle: "minimal", productHoverEffect: "zoom", imageAspectRatio: "4:5",
     productColumnsDesktop: 3, productColumnsMobile: 2, cardRadius: 0, productCTA: "Add to bag", catalogLayoutStyle: "modern", showCatalogControls: true, homeLayoutTemplate: "starter-salon",
     content: {
       starterPages: ["about", "contact"],
       sections: {
         heroPage: [
-          { type: "ImageWithTextSection", settings: { eyebrow: "A short line about your business", title: "Your headline in a few words", body: "Say what you offer and who it's for in a sentence or two.", ctaText: "Book a time", ctaUrl: "/book", imageUrl: "/samples/beauty/opening.webp", imageAlt: "Your opening photo", layout: "text-left", colorSchemeId: "scheme-accent" } },
-          { type: "ServiceMenuSection", settings: { eyebrow: "Prices", title: "What we offer", subtitle: "Every service, its length and its price.", buttonLabel: "Book", showLength: true, showDescription: true, showBook: true, align: "left" } },
-          { type: "ImageWithTextSection", settings: { eyebrow: "About us", title: "Tell people about your space", body: "Share who you are, how you work and what a visit feels like. A few warm lines help someone visit for the first time.", imageUrl: "/samples/beauty/about.webp", imageAlt: "Your space", layout: "image-left" } },
+          { type: "ImageBannerSection", settings: { eyebrow: "A short line about your business", title: "Your headline in a few words", body: "Say what you offer and who it's for in a sentence or two.", imageUrl: "/samples/beauty/opening.webp", imageAlt: "Your opening photo", height: "full", contentPosition: "bottom-left", textAlign: "left", overlayOpacity: 0.5, overlayStyle: "fade", colorSchemeId: "scheme-inverse", ctaText: "Book a time", ctaUrl: "/book", secondaryCtaText: "" } },
+          { type: "ServiceMenuSection", settings: { eyebrow: "Prices", title: "What we offer", subtitle: "Every service, its length and its price.", buttonLabel: "Book", showLength: true, showDescription: true, showBook: true, align: "left", containerWidth: "md" } },
+          { type: "ImageWithTextSection", settings: { eyebrow: "About us", title: "Tell people about your space", body: "Share who you are, how you work and what a visit feels like. A few warm lines help someone visit for the first time.", imageUrl: "/samples/beauty/about.webp", imageAlt: "Your space", layout: "image-left", colorSchemeId: "scheme-accent" } },
           { type: "BookingTeamSection", settings: { eyebrow: "The team", title: "Who you'll see", showServices: true, align: "left" } },
-          { type: "BookTimeSection", settings: { eyebrow: "Book", title: "Book your next visit", maxServices: 4, showPrice: true, showDescription: false, showLength: true, showAll: true, align: "left" } },
-          { type: "BookingHoursSection", settings: { eyebrow: "Visit", title: "Open times and where to find us", showMap: true, showCancelRule: true, align: "left" } },
+          { type: "BookingHoursSection", settings: { eyebrow: "Visit", title: "Open times and where to find us", showMap: true, showCancelRule: true, align: "left", colorSchemeId: "scheme-inverse" } },
         ],
-        globalSections: [{ type: "NewsletterSection", settings: { title: "Hear about openings first", description: "Tell people what you send and how often.", align: "center", colorSchemeId: "scheme-accent" } }],
+        globalSections: [{ type: "NewsletterSection", settings: { title: "Hear about openings first", description: "Tell people what you send and how often.", align: "center" } }],
       },
       productBlocks: [{ type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
@@ -919,7 +918,7 @@ export const THEME_LIBRARY = [
       headerBg: "#f7e8e3", headerColor: "#2a2422", footerBg: "#2a2422", footerTextColor: "#f7e8e3", footerHeadingColor: "#eadcd3", showAnnouncement: false,
       cartDrawerBg: "#f7e8e3", cartDrawerText: "#2a2422", checkoutAccentColor: "#874a3e", checkoutBgColor: "#f7e8e3", linkColorHover: "#874a3e", navLinkActiveColor: "#874a3e" } },
   { id: "starter-workshop", name: "Workshop",
-    mood: "Bright and friendly for classes and workshops: a huge headline over a photo mosaic, the classes up next, what's included, who teaches and the questions people ask",
+    mood: "Bright and friendly for classes and workshops: a huge headline over a photo mosaic, the classes up next, what's included on a sunny band, who teaches and the questions people ask",
     palettePreset: "workshop", font: "Work Sans", buttonStyle: "solid", productCardStyle: "minimal", productHoverEffect: "lift", imageAspectRatio: "1:1",
     productColumnsDesktop: 3, productColumnsMobile: 2, cardRadius: 16, productCTA: "Add to bag", catalogLayoutStyle: "modern", showCatalogControls: true, homeLayoutTemplate: "starter-workshop",
     content: {
@@ -935,10 +934,10 @@ export const THEME_LIBRARY = [
             { imageUrl: "/samples/studio/group-class.webp", alt: "A group class", caption: "", linkUrl: "" },
           ] } },
           { type: "BookTimeSection", settings: { eyebrow: "Coming up", title: "Classes with places left", maxServices: 6, showPrice: true, showDescription: true, showLength: true, showAll: true, align: "left" } },
-          { type: "MulticolumnSection", settings: { title: "What every class includes", columns: 3, align: "left", items: [
-            { imageUrl: "/samples/studio/group-class.webp", title: "Your first promise", body: "Say how big your groups are." },
-            { imageUrl: "/samples/studio/hand-building.webp", title: "Your second promise", body: "Say what's included, like materials and tea." },
-            { imageUrl: "/samples/studio/glazing.webp", title: "Your third promise", body: "Say what people take home at the end." },
+          { type: "MulticolumnSection", settings: { title: "What every class includes", columns: 3, align: "left", colorSchemeId: "scheme-accent", items: [
+            { title: "01 · Your first promise", body: "Say how big your groups are." },
+            { title: "02 · Your second promise", body: "Say what's included, like materials and tea." },
+            { title: "03 · Your third promise", body: "Say what people take home at the end." },
           ] } },
           { type: "ImageWithTextSection", settings: { eyebrow: "Who teaches", title: "Introduce yourself", body: "Share how you started, how you teach and what a class with you is like.", imageUrl: "/samples/studio/story.webp", imageAlt: "You at work", layout: "image-left" } },
           { type: "FAQSection", settings: { title: "Before you book", showSearch: false, items: [
@@ -948,7 +947,7 @@ export const THEME_LIBRARY = [
           ] } },
           { type: "BookingHoursSection", settings: { eyebrow: "Visit", title: "Where we are", showMap: true, showCancelRule: true, align: "left" } },
         ],
-        globalSections: [{ type: "NewsletterSection", settings: { title: "Hear when new classes open", description: "Tell people what you send and how often.", align: "center", colorSchemeId: "scheme-accent" } }],
+        globalSections: [{ type: "NewsletterSection", settings: { title: "Hear when new classes open", description: "Tell people what you send and how often.", align: "center", colorSchemeId: "scheme-inverse" } }],
       },
       productBlocks: [{ type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
@@ -959,7 +958,7 @@ export const THEME_LIBRARY = [
       headerBg: "#fff1c7", headerColor: "#1d1b2e", footerBg: "#1d1b2e", footerTextColor: "#fff1c7", footerHeadingColor: "#ffd166", showAnnouncement: false,
       cartDrawerBg: "#fff1c7", cartDrawerText: "#1d1b2e", checkoutAccentColor: "#d2471c", checkoutBgColor: "#fff1c7", linkColorHover: "#d2471c", navLinkActiveColor: "#1d1b2e" } },
   { id: "starter-commission", name: "Commission",
-    mood: "Made to order: a dark band with a photo beside your words, recent work shown large, how it works in three steps, pieces ready to order and an enquiry form",
+    mood: "Made to order: a big serif headline beside a tall photo, recent work in three, how it works on a dark band, four pieces ready to order and an enquiry form",
     palettePreset: "commission", font: "Inter", buttonStyle: "solid", productCardStyle: "minimal", productHoverEffect: "zoom", imageAspectRatio: "4:5",
     productColumnsDesktop: 3, productColumnsMobile: 2, cardRadius: 0, productCTA: "Add to bag", catalogLayoutStyle: "modern", showCatalogControls: true, homeLayoutTemplate: "starter-commission",
     content: {
@@ -974,26 +973,26 @@ export const THEME_LIBRARY = [
       ],
       sections: {
         heroPage: [
-          { type: "ImageWithTextSection", settings: { eyebrow: "Made to order", title: "Your headline in a few words", body: "Say what you make to order and who it's for in a sentence or two.", ctaText: "Start an enquiry", ctaUrl: "/page/contact", imageUrl: "/samples/made/opening.webp", imageAlt: "Your opening photo", layout: "image-left", colorSchemeId: "scheme-inverse" } },
-          { type: "GallerySection", settings: { title: "Recent work", subtitle: "A few pieces you've made, to show what's possible.", columns: 2, align: "left", items: [
+          { type: "SplitOpeningSection", settings: { eyebrow: "Made to order", title: "Your headline, made to measure.", accentWord: "", body: "Say what you make to order, how long it takes and how to start.", ctaText: "Start an enquiry", ctaUrl: "/page/contact", imageUrl: "/samples/made/opening.webp", imageAlt: "Your opening photo", layout: "image-right", titleSizePx: 72, titleSizePxMobile: 40 } },
+          { type: "GallerySection", settings: { title: "Recent work", subtitle: "A few pieces you've made, to show what's possible.", columns: 3, align: "left", items: [
             { imageUrl: "/samples/made/round-table.webp", alt: "A piece you made" },
             { imageUrl: "/samples/made/pedestal-table.webp", alt: "A piece you made" },
             { imageUrl: "/samples/made/spindle-chair.webp", alt: "A piece you made" },
           ] } },
-          { type: "MulticolumnSection", settings: { title: "How it works", columns: 3, align: "left", colorSchemeId: "scheme-accent", items: [
+          { type: "MulticolumnSection", settings: { title: "How it works", columns: 3, align: "left", colorSchemeId: "scheme-inverse", items: [
             { title: "1. Tell us what you need", body: "Say what people should send you: sizes, photos, a budget." },
             { title: "2. We send a drawing and a price", body: "Say how you answer and how long it takes." },
             { title: "3. We make it and deliver", body: "Say how long making takes and how it reaches them." },
           ] } },
-          { type: "ProductShowcaseGridSection", settings: { overlayOpacity: 0, eyebrow: "Ready to order", title: "Pieces you can buy now", columnsDesktop: 3, columnsMobile: 2, imageAspectRatio: "4:5", showCategoryTag: false, showQuickAdd: false, grainOpacity: 0 } },
-          { type: "ContactFormSection", settings: { eyebrow: "Enquiries", title: "Start an enquiry", subtitle: "Say what you'd like made and we'll be in touch.", buttonLabel: "Send enquiry", showPhone: true, showSubject: true } },
+          { type: "ProductShowcaseGridSection", settings: { overlayOpacity: 0, eyebrow: "Ready to order", title: "Pieces you can buy now", productLimit: 4, columnsDesktop: 4, columnsMobile: 2, imageAspectRatio: "4:5", showCategoryTag: false, showQuickAdd: false, grainOpacity: 0 } },
+          { type: "ContactFormSection", settings: { eyebrow: "Enquiries", title: "Start an enquiry", subtitle: "Say what you'd like made and we'll be in touch.", buttonLabel: "Send enquiry", showPhone: true, showSubject: true, colorSchemeId: "scheme-accent" } },
           { type: "FAQSection", settings: { title: "Questions", showSearch: false, items: [
             { question: "How long does a piece take?", answer: "Say how long making usually takes, from yes to delivery." },
             { question: "Do you deliver?", answer: "Say where you deliver and what it costs." },
             { question: "Can I see materials first?", answer: "Say whether people can visit or ask for samples." },
           ] } },
         ],
-        globalSections: [{ type: "NewsletterSection", settings: { title: "Join our letter", description: "Tell people what you send and how often.", align: "center", colorSchemeId: "scheme-inverse" } }],
+        globalSections: [{ type: "NewsletterSection", settings: { title: "Join our letter", description: "Tell people what you send and how often.", align: "center" } }],
       },
       productBlocks: [{ type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
