@@ -11,15 +11,15 @@ import type { SavedTheme } from "./studio/savedThemes";
 
 /** One line per starter, what it is like and who it suits, in plain words. */
 export const STARTER_BLURB: Record<string, string> = {
-  "aurel-editorial": "A big serif headline beside one large photo. Made for clothing and design objects.",
+  "aurel-editorial": "A big serif headline, a staggered shop and your name huge in the footer. Made for clothing and design objects.",
   "juniper-slow-season": "A full photo in bold capitals, then calm colour bands. Made for seasonal collections.",
-  "juniper-catalogue": "A numbered catalogue with a running line. Made for books, prints and small ranges.",
+  "juniper-catalogue": "A numbered catalogue, a list shop page and a Menu button. Made for books, prints and small ranges.",
   "starter-gallery": "A photo that fills the screen and products shown large. Made for makers with a few pieces.",
-  "starter-warehouse": "Big moving words, categories first and a dense grid. Made for a big range.",
+  "starter-warehouse": "A big masthead, moving words and framed products in a dense grid. Made for a big range.",
   "starter-larder": "A warm photo banner, a running line and quick add. Made for food and drink.",
-  "starter-salon": "Words on a soft colour band, then your prices and team. Made for appointments.",
+  "starter-salon": "A side menu, a soft blush page and your prices up front. Made for appointments.",
   "starter-workshop": "A giant headline, a photo mosaic and class times. Made for classes and workshops.",
-  "starter-commission": "A dark band, past work shown large and an enquiry form. Made for work made to order.",
+  "starter-commission": "A side menu, past work shown large and an enquiry form. Made for work made to order.",
 };
 
 /** Which kinds of shop each starter was made for, best first. The rest suit products and both. */

@@ -1452,13 +1452,14 @@ for (const starter of STARTERS) for (const sells of ["books", "clothing", "hair"
   await check(`starter ${starter} as a ${sells} shop: styled, no sideways scroll, name clear of the buttons, the right menu`, desktop, async page => {
     await expectText(page, "Preview connected", 30000);
     const frame = page.frameLocator("iframe").first();
-    await frame.locator(".fm-hdr-row").first().waitFor({ timeout: 10000 });
+    // A starter may use the classic header (Warehouse): its masthead row stands in for the one-bar header's row.
+    await frame.locator(".fm-hdr-row, .fm-ref-masthead").first().waitFor({ timeout: 10000 });
     await page.waitForTimeout(1500);
     const look = async (where) => {
       const f = page.frames().find(fr => fr !== page.mainFrame() && fr.url().includes("preview=true"));
       if (!f) throw new Error("the preview isn't open");
       const seen = await f.evaluate(() => {
-        const row = document.querySelector(".fm-hdr-row");
+        const row = document.querySelector(".fm-hdr-row") || document.querySelector(".fm-ref-masthead")?.parentElement;
         const logo = row?.querySelector('a[href="/"]');
         const box = (el) => el.getBoundingClientRect();
         const l = logo ? box(logo) : null;

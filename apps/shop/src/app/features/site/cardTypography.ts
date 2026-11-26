@@ -1,3 +1,4 @@
+import { DEVICE_MEDIA } from "./breakpoints";
 import { phoneMinText } from "./smallPrint";
 
 // One place that turns the Studio › Style › "Product cards & grid" title/price controls into CSS,
@@ -102,7 +103,9 @@ export function cardDesignCss(d: any): string {
   const meta = `${S} .fm-card :has(> .fm-card-title)`;
   switch (cardDesign(d)) {
     case "framed":
-      return `${S} .fm-card{padding:12px 12px 16px;background:var(--surface);border:1px solid rgba(var(--border-rgb), 0.5);}`;
+      // On phones the frame leaves little room beside the name, so the price goes under it.
+      return `${S} .fm-card{padding:12px 12px 16px;background:var(--surface);border:1px solid rgba(var(--border-rgb), 0.5);}`
+        + `@media ${DEVICE_MEDIA.mobile}{${S} .fm-card{padding:8px 8px 12px;}${meta}{flex-direction:column;align-items:flex-start;gap:4px;}${S} .fm-card .fm-card-price-wrap{align-items:flex-start;}}`;
     case "caption":
       return `${meta}{flex-direction:column;align-items:flex-start;gap:6px;}`
         + `${S} .fm-card .fm-card-title{font-family:var(--heading-font, inherit);font-size:clamp(19px, 1.7vw, 28px);font-weight:400;line-height:1.08;letter-spacing:-.01em;text-transform:none;}`

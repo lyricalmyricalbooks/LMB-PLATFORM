@@ -48,7 +48,7 @@ export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle =
   return <details ref={ref} className={everywhere ? "relative shrink-0" : "md:hidden"} data-ga-menu="phone" data-studio-target="style:header|menus:categories|copy:Header" data-studio-label="Mobile navigation"
     onKeyDown={e => { if (e.key === "Escape") { close(); ref.current?.querySelector("summary")?.focus(); } }}>
     <summary className={everywhere ? "flex min-h-11 cursor-pointer list-none items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] [&::-webkit-details-marker]:hidden" : "min-h-11 cursor-pointer px-6 py-3 font-semibold"}>
-      {everywhere && <MenuIcon size={18} aria-hidden="true" />}{getCopy(design, "navMenu")}
+      {everywhere && <MenuIcon size={18} aria-hidden="true" />}{everywhere ? <span className="max-md:sr-only">{getCopy(design, "navMenu")}</span> : getCopy(design, "navMenu")}
     </summary>
     <nav aria-label={getCopy(design, "ariaMainNavigation")} className={everywhere ? "absolute left-0 top-full z-50 mt-2 w-72 max-w-[85vw] border border-current/20 pb-4 shadow-lg" : "border-t border-current/20 pb-4"}
       style={everywhere ? { backgroundColor: "var(--bg-color, var(--background))" } : undefined}>
