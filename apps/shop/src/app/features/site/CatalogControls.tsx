@@ -1,5 +1,5 @@
-import { useRef } from "react";
-import { Search, X } from "lucide-react";
+import { useId, useRef, useState } from "react";
+import { Search, SlidersHorizontal, X } from "lucide-react";
 import { ga4FilterUse, priceFilterValue } from "../../lib/ga4";
 import { getCopy } from "./storeCopy";
 import { regionProps } from "./storefrontRegions";
@@ -309,66 +309,73 @@ export function CatalogControls({
     const which = priceFilterValue(filters.minPrice, filters.maxPrice);
     if (which) ga4FilterUse("price", which);
   };
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  // How many things narrow the list, for the Filter button's badge.
+  const pickedCount = (query.trim() ? 1 : 0) + (inStockOnly ? 1 : 0) + (showSale && filters.onSale ? 1 : 0)
+    + (showFormats ? filters.formats.length : 0) + (showPriceBoxes && (filters.minPrice.trim() || filters.maxPrice.trim()) ? 1 : 0)
+    + Object.values(showOptions ? appliedOptions(filters, { optionFilters }) : {}).reduce((n, v) => n + v.length, 0);
   const clearAll = () => { setQuery(""); setInStockOnly(false); setFilters?.(EMPTY_FILTERS); };
   const chip = (active: boolean) => `px-4 py-3 rounded-full text-[10px] tracking-widest uppercase border transition-colors ${
     active ? "fm-active border-white" : "bg-white/[0.04] text-white/60 border-white/10 hover:border-white/30"
   }`;
-  return (
-    <div className="mb-10 space-y-4" data-studio-target="style:catalog|copy:Search & filters" data-studio-label="Search, sort & stock bar">
-      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
-        <div {...regionProps("catalogSearch")} className="relative flex-1">
-          <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30" />
-          <input
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder={c("filterSearchPlaceholder")}
-            aria-label={c("filterSearchAria")}
-            className="w-full bg-white/[0.04] border border-white/10 rounded-full py-3 pl-11 pr-10 text-xs text-white placeholder:text-[var(--muted)] outline-none focus:border-white/30 transition-all"
-          />
-          {query && (
-            <button
-              onClick={() => setQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 max-md:before:absolute max-md:before:-inset-2.5 max-md:before:content-[''] rounded-full hover:bg-white/10"
-              aria-label={c("filterClearAria")}
-            >
-              <X size={12} className="text-white/40" />
-            </button>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <select {...regionProps("catalogSort")}
-            value={sort}
-            onChange={e => { setSort(e.target.value as SortKey); ga4FilterUse("sort", e.target.value); }}
-            aria-label={c("filterSortAria")}
-            className="bg-white/[0.04] border border-white/10 rounded-full py-3 px-5 text-[10px] tracking-widest uppercase text-white/70 outline-none focus:border-white/30 cursor-pointer"
-          >
-            {SORT_OPTIONS.map(o => (
-              <option key={o.key} value={o.key} className="fm-surface-2">
-                {c("sort_" + o.key)}
-              </option>
-            ))}
-          </select>
-        <button {...regionProps("catalogStock")}
-            type="button"
-            aria-pressed={inStockOnly}
-            onClick={() => { ga4FilterUse("in_stock", inStockOnly ? "off" : "on"); setInStockOnly(!inStockOnly); }}
-            className={chip(inStockOnly)}
-          >
-            {c("filterInStock")}
-          </button>
-          {showSale && (
-            <button {...regionProps("catalogSale")}
-              type="button"
-              aria-pressed={!!filters.onSale}
-              onClick={() => { ga4FilterUse("on_sale", filters.onSale ? "off" : "on"); setFilters?.({ ...filters, onSale: !filters.onSale }); }}
-              className={chip(!!filters.onSale)}
-            >
-              {c("filterOnSale")}
-            </button>
-          )}
-        </div>
-      </div>
+  const searchBox = (
+    <div {...regionProps("catalogSearch")} className="relative flex-1">
+      <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30" />
+      <input
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder={c("filterSearchPlaceholder")}
+        aria-label={c("filterSearchAria")}
+        className="w-full bg-white/[0.04] border border-white/10 rounded-full py-3 pl-11 pr-10 text-xs text-white placeholder:text-[var(--muted)] outline-none focus:border-white/30 transition-all"
+      />
+      {query && (
+        <button
+          onClick={() => setQuery("")}
+          className="absolute right-3 top-1/2 -translate-y-1/2 p-1 max-md:before:absolute max-md:before:-inset-2.5 max-md:before:content-[''] rounded-full hover:bg-white/10"
+          aria-label={c("filterClearAria")}
+        >
+          <X size={12} className="text-white/40" />
+        </button>
+      )}
+    </div>
+  );
+  const sortSelect = (
+    <select {...regionProps("catalogSort")}
+      value={sort}
+      onChange={e => { setSort(e.target.value as SortKey); ga4FilterUse("sort", e.target.value); }}
+      aria-label={c("filterSortAria")}
+      className="bg-white/[0.04] border border-white/10 rounded-full py-3 px-5 text-[10px] tracking-widest uppercase text-white/70 outline-none focus:border-white/30 cursor-pointer"
+    >
+      {SORT_OPTIONS.map(o => (
+        <option key={o.key} value={o.key} className="fm-surface-2">
+          {c("sort_" + o.key)}
+        </option>
+      ))}
+    </select>
+  );
+  const stockChips = <>
+    <button {...regionProps("catalogStock")}
+      type="button"
+      aria-pressed={inStockOnly}
+      onClick={() => { ga4FilterUse("in_stock", inStockOnly ? "off" : "on"); setInStockOnly(!inStockOnly); }}
+      className={chip(inStockOnly)}
+    >
+      {c("filterInStock")}
+    </button>
+    {showSale && (
+      <button {...regionProps("catalogSale")}
+        type="button"
+        aria-pressed={!!filters.onSale}
+        onClick={() => { ga4FilterUse("on_sale", filters.onSale ? "off" : "on"); setFilters?.({ ...filters, onSale: !filters.onSale }); }}
+        className={chip(!!filters.onSale)}
+      >
+        {c("filterOnSale")}
+      </button>
+    )}
+  </>;
+  const filterRows = (
+    <>
       {(showFormats || showPriceBoxes || showOptions) && (
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           {showOptions && optionFilters.map(filter => (
@@ -416,14 +423,54 @@ export function CatalogControls({
           )}
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-4">
-        <p {...regionProps("catalogResults")} className="text-[10px] tracking-widest uppercase text-white/30" aria-live="polite">{c("filterResults", { count: resultCount })}</p>
-        {filtersActive(filters, query, inStockOnly, { availableFormats: showFormats ? availableFormats : [], showPrice: showPriceBoxes, hasSale: showSale, optionFilters: showOptions ? optionFilters : [] }) && (
-          <button {...regionProps("catalogClear")} type="button" onClick={clearAll} className="relative max-md:before:absolute max-md:before:-inset-x-1 max-md:before:-inset-y-3 max-md:before:content-[''] text-[10px] tracking-widest uppercase text-white/60 underline underline-offset-4 hover:text-white transition-colors">
-            {c("filterClear")}
-          </button>
-        )}
+    </>
+  );
+  const active = filtersActive(filters, query, inStockOnly, { availableFormats: showFormats ? availableFormats : [], showPrice: showPriceBoxes, hasSale: showSale, optionFilters: showOptions ? optionFilters : [] });
+  const resultsRow = <div className="flex flex-wrap items-center gap-4">
+    <p {...regionProps("catalogResults")} className="text-[10px] tracking-widest uppercase text-white/30" aria-live="polite">{c("filterResults", { count: resultCount })}</p>
+    {active && (
+      <button {...regionProps("catalogClear")} type="button" onClick={clearAll} className="relative max-md:before:absolute max-md:before:-inset-x-1 max-md:before:-inset-y-3 max-md:before:content-[''] text-[10px] tracking-widest uppercase text-white/60 underline underline-offset-4 hover:text-white transition-colors">
+        {c("filterClear")}
+      </button>
+    )}
+  </div>;
+  // Style › Shop page heading & filters › "Filters": one Filter button with the count and sort on its row (Shopify and
+  // Squarespace shop pages), the search and filters opening under it. The default keeps every filter open.
+  if (design?.catalogFilterLayout === "button") return (
+    <div className="mb-10" data-studio-target="style:catalog|copy:Search & filters" data-studio-label="Search, sort & stock bar" data-filter-layout="button">
+      <div className="flex items-center justify-between gap-4 border-y border-white/10 py-2">
+        <button type="button" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(!open)}
+          className="inline-flex min-h-11 items-center gap-2 text-[11px] font-semibold uppercase tracking-widest hover:opacity-70">
+          <SlidersHorizontal size={15} aria-hidden="true" />
+          {c("filterToggle")}{pickedCount > 0 && <span className="fm-active inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px]">{pickedCount}</span>}
+        </button>
+        <div className="flex items-center gap-5">
+          <div className="max-md:hidden">{resultsRow}</div>
+          {sortSelect}
+        </div>
       </div>
+      {/* Phones: the count (and Clear filters) under the row, so the Filter button and sort share one line. */}
+      <div className="flex flex-wrap items-center gap-4 pt-3 md:hidden">{resultsRow}</div>
+      {open && (
+        <div id={panelId} className="space-y-4 pt-5">
+          {searchBox}
+          <div className="flex flex-wrap items-center gap-2">{stockChips}</div>
+          {filterRows}
+        </div>
+      )}
+    </div>
+  );
+  return (
+    <div className="mb-10 space-y-4" data-studio-target="style:catalog|copy:Search & filters" data-studio-label="Search, sort & stock bar">
+      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
+        {searchBox}
+        <div className="flex items-center gap-2">
+          {sortSelect}
+          {stockChips}
+        </div>
+      </div>
+      {filterRows}
+      {resultsRow}
     </div>
   );
 }

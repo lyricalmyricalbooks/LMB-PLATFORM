@@ -542,6 +542,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "sort_title_az", label: "Sort: A→Z", default: "A → Z" },
       { key: "sort_title_za", label: "Sort: Z→A", default: "Z → A" },
       { key: "filterInStock", label: "In-stock toggle (also the shop filter bar's “In stock” button)", default: "In stock" },
+      { key: "filterToggle", label: "Filter button (Style › Shop page heading & filters › Filters › One Filter button)", default: "Filter" },
       { key: "filterBarAria", label: "Shop filter bar name read by screen readers", default: "Filter books" },
       { key: "filterOnSale", label: "On-sale toggle", default: "On sale" },
       { key: "filterFormatLabel", label: "Format filter — heading", default: "Format" },

@@ -122,12 +122,12 @@ export const blurbFor = (group: StyleGroup | undefined, id: string): string =>
  */
 export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }[]> = withFeatureSubsections({
   catalog: [
-    { title: "Heading", keys: ["catalogHeading", "catalogHeadingFont", "catalogHeadingSize", "catalogHeadingSizeMobile", "catalogHeadingCase", "catalogHeadingColor", "showCatalogCount"] },
+    { title: "Heading", keys: ["catalogHeading", "catalogHeadingFont", "catalogHeadingSize", "catalogHeadingSizeMobile", "catalogHeadingCase", "catalogHeadingColor", "catalogIntro", "showCatalogCount"] },
     { title: "Shop filter bar", keys: ["showShopFilterBar", "shopFilterBarCounts", "shopFilterBarInStock", "shopFilterBarFont", "shopFilterBarBorderColor", "shopFilterBarActiveColor"] },
-    { title: "Category chips", keys: ["showCategoryChips", "categoryChipShowCounts"] },
+    { title: "Category chips", keys: ["showCategoryChips", "categoryChipShowCounts", "categoryChipsShowPages"] },
     { title: "Book order", keys: ["soldOutLast", "catalogStateInUrl"] },
     { title: "Show more button", keys: ["catalogPageSize", "catalogAutoLoad"] },
-    { title: "Search, sort & in-stock bar", keys: ["showCatalogControls", "searchResultLimit", "searchNewInCount", "searchArtistLimit", "searchCategoryLimit", "searchTryLimit", "showSearchSeeAll", "showRecentSearches", "searchSuggestions"] },
+    { title: "Search, sort & in-stock bar", keys: ["showCatalogControls", "catalogFilterLayout", "searchResultLimit", "searchNewInCount", "searchArtistLimit", "searchCategoryLimit", "searchTryLimit", "showSearchSeeAll", "showRecentSearches", "searchSuggestions"] },
   ],
   tokens: [
     { title: "Type scale", keys: ["typeScale", "typeScaleBase", "typeScaleFluid"] },

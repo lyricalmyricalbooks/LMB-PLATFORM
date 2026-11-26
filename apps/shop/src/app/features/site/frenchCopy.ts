@@ -462,6 +462,7 @@ export const FRENCH_COPY: Record<string, string> = {
   sort_title_az: "A → Z",
   sort_title_za: "Z → A",
   filterInStock: "En stock",
+  filterToggle: "Filtrer",
   filterBarAria: "Filtrer les livres",
   filterOnSale: "En solde",
   filterFormatLabel: "Format",

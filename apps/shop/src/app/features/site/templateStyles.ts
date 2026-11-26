@@ -373,7 +373,7 @@ const CARD_X = `calc(${v("shadow-x", "4px")} * 1.5)`;
 export const MARKET_CSS = `
 ${S} h1,${S} h2,${S} h3{text-transform:${v("heading-case", "uppercase")};line-height:.92;letter-spacing:-.015em;font-weight:var(--rp-heading-weight,400);}
 ${S} header[data-section="navigation"] [class*="opacity-"],${S} a[class*="hover:!opacity-100"]{opacity:1 !important;}
-${S} [data-store-region^="catalog"] :is(button,select),${S} button[data-store-region^="catalog"],${S} select[data-store-region^="catalog"]{color:rgba(var(--fg-rgb),.86);}
+${S} [data-store-region^="catalog"] :is(button:not(.fm-active),select),${S} button[data-store-region^="catalog"]:not(.fm-active),${S} select[data-store-region^="catalog"]{color:rgba(var(--fg-rgb),.86);}
 ${S} header[data-section="navigation"]{background-color:var(--bg-color);border-bottom:${v("rule-w", "4px")} solid ${INK_K};}
 ${S} .fm-ref-catbar{text-transform:uppercase;letter-spacing:.04em;font-weight:800;}
 ${S} .fm-ref-catbar a[aria-current]{background:rgb(var(--fg-rgb));color:var(--bg-color);padding:.1rem .6rem;}
@@ -408,7 +408,7 @@ const INK_I = v("outline", "rgb(var(--fg-rgb))");
 export const INDEX_CSS = `
 ${S} h1,${S} h2,${S} h3{line-height:1;letter-spacing:-.02em;font-weight:var(--rp-heading-weight,700);}
 ${S} header[data-section="navigation"] [class*="opacity-"],${S} a[class*="hover:!opacity-100"]{opacity:1 !important;}
-${S} [data-store-region^="catalog"] :is(button,select),${S} button[data-store-region^="catalog"],${S} select[data-store-region^="catalog"]{color:rgba(var(--fg-rgb),.86);}
+${S} [data-store-region^="catalog"] :is(button:not(.fm-active),select),${S} button[data-store-region^="catalog"]:not(.fm-active),${S} select[data-store-region^="catalog"]{color:rgba(var(--fg-rgb),.86);}
 ${S} header[data-section="navigation"]{background-color:var(--bg-color);border-bottom:${v("rule-w", "2px")} solid ${INK_I};}
 ${S} .fm-ref-catbar{text-transform:uppercase;letter-spacing:.08em;font-size:.74rem;font-weight:600;}
 ${S} .fm-ref-catbar a[aria-current]{background:rgb(var(--fg-rgb));color:var(--bg-color);padding:.1rem .5rem;}
@@ -469,7 +469,7 @@ ${BTN_ACTIVE}{translate:0 ${y};--template-btn-shadow:${BTN_SHADOW("0px", "0px", 
   return `
 ${S} h1,${S} h2,${S} h3{text-transform:${v("heading-case", o.hCase ?? "none")};line-height:${o.hLine ?? "1.02"};letter-spacing:${o.hSpace ?? "-.01em"};font-weight:var(--rp-heading-weight,${o.hWeight ?? "600"});}
 ${S} header[data-section="navigation"] [class*="opacity-"],${S} a[class*="hover:!opacity-100"]{opacity:1 !important;}
-${S} [data-store-region^="catalog"] :is(button,select),${S} button[data-store-region^="catalog"],${S} select[data-store-region^="catalog"]{color:rgba(var(--fg-rgb),.86);}
+${S} [data-store-region^="catalog"] :is(button:not(.fm-active),select),${S} button[data-store-region^="catalog"]:not(.fm-active),${S} select[data-store-region^="catalog"]{color:rgba(var(--fg-rgb),.86);}
 ${S} header[data-section="navigation"]{background-color:var(--bg-color);border-bottom:${v("rule-w", rule)} solid ${line};}
 ${S} .fm-ref-catbar{text-transform:uppercase;letter-spacing:.1em;font-size:.74rem;font-weight:600;}
 ${S} .fm-ref-catbar a[aria-current]{box-shadow:inset 0 calc(-2 * ${v("rule-w", "1px")}) 0 var(--accent);padding-bottom:3px;}
