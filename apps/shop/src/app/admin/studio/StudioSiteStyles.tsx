@@ -1,22 +1,32 @@
 // Style › Site styles (round three, phase 5): ready-made palettes and font pairings. Each click is one undoable change
 // to the draft (named for Undo), so the preview beside the panel shows it on every page at once; nothing reaches
-// shoppers until Publish. The rules are in siteStyles.ts.
+// shoppers until Publish. The rules are in siteStyles.ts. A website built on a starter shows that starter's own colour
+// versions instead of the palettes (one website picker plan, step 3): the same swatches as Online store.
 import { ArrowLeft } from "lucide-react";
 import { googleFontHref } from "../../features/site/fonts";
+import { libraryLook } from "../lookGallery";
+import { applyLook } from "./themeSwitch";
+import { withStyle, type StarterStyle } from "./starterStyles";
 import { applyPairing, applyPalette, currentPairing, currentPalette, hasOwnSchemes, SITE_FONTS, SITE_PALETTES } from "./siteStyles";
 
 type Change = (fn: (d: any) => any, meta: { label: string }) => void;
 
-export function StudioSiteStyles({ design, change, onClose, onOwnSchemes }: {
+export function StudioSiteStyles({ design, change, onClose, onOwnSchemes, starterStyles = [], surfaceIds }: {
   design: any;
   change: Change;
   onClose: () => void;
   /** Opens Style › Colour schemes, where the owner's own schemes live. */
   onOwnSchemes: () => void;
+  /** The colour versions of the starter the website is built on (none for an older look: the palettes show). */
+  starterStyles?: StarterStyle[];
+  /** Every page of the shop, so a colour version reaches them all as Online store's does. */
+  surfaceIds?: string[];
 }) {
   const paletteNow = currentPalette(design);
   const fontsNow = currentPairing(design);
   const own = hasOwnSchemes(design);
+  const starter = starterStyles.length > 1 ? libraryLook(design?.themeBase?.id) : null;
+  const styleNow = starterStyles.some((s) => s.id === design?.themeBase?.style) ? design.themeBase.style : starterStyles[0]?.id;
   const card = (on: boolean) => ({ role: "radio" as const, "aria-checked": on, className: "studio-library-card studio-make-card" });
   const headingFont = design?.headingFont ? `"${design.headingFont}", serif` : undefined;
 
@@ -36,7 +46,16 @@ export function StudioSiteStyles({ design, change, onClose, onOwnSchemes }: {
             Your own colour schemes stay as they are.{" "}
             <button type="button" className="studio-text-button" onClick={onOwnSchemes}>See your schemes</button>
           </p>}
-          <div className="studio-library-grid" role="radiogroup" aria-label="Colours">
+          {starter ? <div className="studio-library-grid" role="radiogroup" aria-label={`Colours of ${starter.name}`}>
+            {starterStyles.map((s) => <button key={s.id} type="button" {...card(styleNow === s.id)} data-starter-style={s.id}
+              onClick={() => change((d) => applyLook(d, withStyle(starter, s.id), surfaceIds), { label: `Use ${starter.name} ${s.name}` })}>
+              <span className="studio-make-swatch studio-site-swatch" aria-hidden style={{ background: s.swatches[0], color: s.swatches[1], fontFamily: headingFont }}>
+                <b>Aa</b><i style={{ background: s.swatches[2] }} /><i style={{ background: s.swatches[1] }} />
+              </span>
+              <span className="studio-library-name">{s.name}</span>
+            </button>)}
+          </div>
+          : <div className="studio-library-grid" role="radiogroup" aria-label="Colours">
             {SITE_PALETTES.map((p) => <button key={p.id} type="button" {...card(paletteNow === p.id)} data-site-palette={p.id}
               onClick={() => change((d) => applyPalette(d, p), { label: `Use the ${p.label} colours` })}>
               <span className="studio-make-swatch studio-site-swatch" aria-hidden style={{ background: p.bg, color: p.text, fontFamily: headingFont }}>
@@ -44,7 +63,7 @@ export function StudioSiteStyles({ design, change, onClose, onOwnSchemes }: {
               </span>
               <span className="studio-library-name">{p.label}</span>
             </button>)}
-          </div>
+          </div>}
         </section>
         <section className="studio-library-group" aria-labelledby="site-styles-fonts">
           <h3 id="site-styles-fonts">Fonts</h3>

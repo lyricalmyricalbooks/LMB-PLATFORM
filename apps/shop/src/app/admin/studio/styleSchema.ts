@@ -23,7 +23,7 @@ export type StyleField =
 export type StyleGroup = { id: string; title: string; hint?: string; fields: StyleField[] };
 
 /** "No scheme": the part keeps the theme's own colours. */
-export const NO_SCHEME = { value: "", label: "Theme colours (no scheme)" };
+export const NO_SCHEME = { value: "", label: "Website colours (no scheme)" };
 /** A colour-scheme select (Style › Colour schemes) with the design's current schemes as choices. */
 export function schemeFieldOptions(field: StyleField, schemes: { id: string; name: string }[]): StyleField {
   if (!field.key.startsWith("elementSchemes.") || field.kind !== "select") return field;
@@ -91,7 +91,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
         field("LineHeight", "Line height", { kind: "number", min: 0.5, max: 3, step: 0.05 }),
         field("LetterSpacing", "Letter spacing", { kind: "number", min: -5, max: 20, step: 0.1, suffix: "px" }),
         field("Weight", "Text weight", { kind: "select", options: [{ value: "", label: "Inherit layout" }, ...weights] }),
-        field("Font", "Font", { kind: "select", options: [{ value: "", label: "Inherit theme font" }, ...FONT_SELECT_OPTIONS] }),
+        field("Font", "Font", { kind: "select", options: [{ value: "", label: "Use the website's font" }, ...FONT_SELECT_OPTIONS] }),
         field("Case", "Letter case", { kind: "select", options: [{ value: "", label: "Inherit layout" }, ...opts("none", "uppercase", "lowercase", "capitalize")] }),
         field("Align", "Text alignment", { kind: "select", options: [{ value: "", label: "Inherit layout" }, ...opts("left", "center", "right")] }),
         ...(region.grid ? [field("Columns", "Columns", { kind: "number", min: 1, max: 6 })] : []),
@@ -151,7 +151,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "bodyFont", label: "Body font (Google Fonts)", kind: "select", options: FONT_SELECT_OPTIONS },
       { key: "navFont", label: "Header & menu font (Google Fonts)", kind: "select", options: [{ value: "", label: "Same as body font" }, ...FONT_SELECT_OPTIONS] },
       { key: "wordmarkFont", label: "Logo wordmark font (Google Fonts)", kind: "select", options: [{ value: "", label: "Same as heading font" }, ...FONT_SELECT_OPTIONS] },
-      { key: "font", label: "Theme font (overrides body font — clear it to use Body font)", kind: "text" },
+      { key: "font", label: "Website font (overrides body font — clear it to use Body font)", kind: "text" },
       { key: "baseFontSize", label: "Base text size", kind: "range", min: 12, max: 22, step: 1, suffix: "px" },
       { key: "lineHeight", label: "Line height", kind: "range", min: 1, max: 2.4, step: 0.05 },
       { key: "headingWeight", label: "Heading weight", kind: "select", options: weights },
@@ -421,7 +421,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "footerDividerColor", label: "Divider line colour", kind: "color" },
       { key: "showFooterAccentLine", label: "Show a coloured line along the top of the footer", kind: "toggle", defaultValue: true },
       { key: "footerAccentLineWidth", label: "Top line thickness", kind: "range", defaultValue: 3, min: 1, max: 12, step: 1, suffix: "px" },
-      { key: "footerAccentColor", label: "Footer accent colour (top line & group headings; blank = theme accent)", kind: "color" },
+      { key: "footerAccentColor", label: "Footer accent colour (top line & group headings; blank = website accent)", kind: "color" },
       { key: "footerGroupHeadingsAccent", label: "Colour the link-group headings with the accent", kind: "toggle", defaultValue: true },
       { key: "footerBrandAlign", label: "Logo & shop name position", kind: "select", defaultValue: "center", options: [{ value: "center", label: "Centred in its own area" }, { value: "start", label: "Top left" }] },
       { key: "footerBrandVAlign", label: "Centred logo: line up with the links' middle or top", kind: "select", defaultValue: "middle", options: [{ value: "middle", label: "Middle" }, { value: "top", label: "Top" }] },
@@ -614,7 +614,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
   {
     id: "productCard",
     title: "Book page · buy box & details",
-    hint: "The bordered buy card, photo rail and caption, breadcrumb and the Description / Details / Reviews tabs. Leave a colour empty to follow the theme.",
+    hint: "The bordered buy card, photo rail and caption, breadcrumb and the Description / Details / Reviews tabs. Leave a colour empty to follow your website's colours.",
     fields: [
       { key: "pdpShowBackLink", label: "Show “Back” link above the breadcrumb", kind: "toggle" },
       { key: "pdpShowBackArrow", label: "Show the arrow before the “Back” link", kind: "toggle", defaultValue: true },

@@ -133,7 +133,7 @@ describe("Text & labels home", () => {
 describe("Style bands and Show on page", () => {
   it("opens with the parts of the shop top to bottom, then the whole-site look, then advanced tools", () => {
     expect(THEME_HEADINGS.filter(h => h.band).map(h => h.band)).toEqual(["Parts of your shop, top to bottom", "Whole-site look", "Advanced"]);
-    expect(THEME_HEADINGS.find(h => h.id === "system")!.groups[0]).toBe("themeLook");
+    expect(THEME_HEADINGS.find(h => h.id === "system")!.groups[0]).toBe("colors");
     expect(THEME_HEADINGS.filter(h => h.advanced).every(h => THEME_HEADINGS.indexOf(h) > THEME_HEADINGS.findIndex(x => x.band === "Advanced") - 1)).toBe(true);
   });
   it("can show every part-of-the-shop category on a page", () => {

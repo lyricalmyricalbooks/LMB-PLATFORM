@@ -5,10 +5,7 @@ import { REGION_GROUPS, REGION_SUFFIXES, REGION_DEVICE_LABELS, regionFieldDevice
 import { canInlineFormat } from "./richText";
 import { applyContextAction, applySpacing, contextCapabilities, GAP_KEYS, PADDING_KEYS } from "./canvasTools";
 import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { Sparkles,
-  ArrowLeft, ChevronDown, Clock, ChevronUp, Clipboard, Copy, Eye, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone,
-  Download, Globe, ListChecks, Pencil, Tablet, Trash2, Undo2, Upload,
-} from "lucide-react";
+import { Sparkles, ArrowLeft, ChevronDown, Clock, ChevronUp, Clipboard, Copy, Eye, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone, Download, Globe, ListChecks, Pencil, Tablet, Trash2, Undo2, Link2 } from "lucide-react";
 import { adminApi } from "../api";
 import { uploadStudioImage } from "./mediaUpload";
 import {
@@ -36,20 +33,13 @@ import { StudioPages } from "./StudioPages";
 import { StudioCategories } from "./StudioCategories";
 import { categoryNavOrder } from "./categoryManager";
 import { PREVIEW_BRIDGE_SOURCE } from "./previewBridge";
-import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
-import { addSavedTheme, duplicateSavedTheme, keptDesignName, parseThemeFile, removeSavedTheme, renameSavedTheme, savedThemeLimitProblem, serializeThemeFile, themeFileName, themeNamed, type SavedTheme } from "./savedThemes";
+import { type SavedTheme } from "./savedThemes";
 import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/paymentBadges";
-import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
-import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, sampleSectionsLeft, starterSampleBooks, wordedSettings } from "./presetContent";
-import { applyStarter, starterForShop } from "./starterDesign";
+import { sampleSectionsLeft } from "./presetContent";
 import { styledName } from "./starterStyles";
 import { useCatalogWords, useShopSells, useShopWords } from "../shopWords";
 import { starterPhotos } from "./starterPhotos";
-import { applyThemeKeysToSurfaces } from "../themeScope";
-import { STARTER_SITES, builtLooks, libraryLook, newStarters, offeredStarters, offeredStyles, ownBooks, pressNameOf } from "../lookGallery";
-import { usePlatformStarters } from "../platformStarters";
-import { applyLook, bringBack, ownEdits, resetToLook, starterUpdate, switchSummary, themeSwitchReport, updateLookKeepingEdits, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
-import { importedThemeProblems } from "./themeCheck";
+import { ownEdits, resetToLook, starterUpdate, updateLookKeepingEdits, type SwitchItem } from "./themeSwitch";
 import { ESSENTIALS, essentialCopyField, essentialStyleField } from "./essentials";
 import { StudioMakeItYours } from "./StudioMakeItYours";
 import { StudioSiteStyles } from "./StudioSiteStyles";
@@ -69,7 +59,6 @@ import { applyCanvasAction, applyPageStyle, buildPreviewState, deliverPreviewSta
 import { sectionStyleFields, SPACING_CARD_KEYS } from "./sectionStyleSchema";
 import type { OutlineActions } from "./StudioOutline";
 import { useStudioPersistence } from "./useStudioPersistence";
-import { friendlyError } from "./friendlyError";
 import { toastDuration } from "./toastTiming";
 import { ActionMenu, Dialog, PrimaryButton, SecondaryButton, useConfirm, usePrompt } from "../riso/components";
 import { applyInlineText, INLINE_STYLE_KEYS } from "./inlineText";
@@ -79,13 +68,17 @@ import { CATEGORY_PAGES, EXTRA_STYLE_CATEGORIES, SHOP_MAP, textSubsectionsFor, T
 import { CategoryHeader, PreviewClickHint, SettingsHome, SettingsSubsection, type HomeHeading } from "./StudioSettingsHome";
 import { StudioTour } from "./StudioTour";
 
-import { saveSavedThemes, type Workspace } from "../themeStore";
+import { type Workspace } from "../themeStore";
 import { writeDesignValue } from "../../features/site/designModel";
 import { StudioPageOverrides, fieldPageOverride, shown as shownValue } from "./StudioPageOverrides";
 import { fineTuneConflict } from "./fineTuneConflicts";
 import { Group as PanelGroup, Panel, Separator, useDefaultLayout, type LayoutStorage } from "react-resizable-panels";
 import { StudioRail, WORKSPACES, WorkspaceSwitch, railHome, workspaceLabel } from "./StudioRail";
 import { MediaPickerDialog, StudioMediaPanel, useMediaLibrary } from "./StudioMedia";
+import { StudioShareLink } from "./StudioShareLink";
+import { offeredStyles } from "../lookGallery";
+import { usePlatformStarters } from "../platformStarters";
+import { OwnEditsPanel } from "./StarterChanges";
 import { StudioHistory, versionName, type ThemeVersion } from "./StudioHistory";
 import { HealthFindings, StudioHealth } from "./StudioHealth";
 import { SiteHealthPanel, useSiteHealth } from "./StudioSiteHealth";
@@ -94,7 +87,6 @@ import { StudioWorkbench, type ChangeRow, type WorkbenchTab } from "./StudioWork
 import { setupChecklist, type SetupItem } from "./setupChecklist";
 import { StudioBreadcrumb } from "./StudioBreadcrumb";
 import { describePlace, EMPTY_PLACES, goBack, normalizePlace, peekBack, placeCrumbs, placeKey, settlePlace, visitPlace, type Place, type PlaceHistory, type PlaceLabels } from "./placeHistory";
-import { StudioThemes } from "./StudioThemes";
 import { StudioSchedule } from "./StudioSchedule";
 import { POLICY_KEYS, policySlug } from "../../features/site/policyPages";
 import { shopLanguageOf } from "../../features/site/shopLanguage";
@@ -133,7 +125,7 @@ import { templateDetailsLine, templateDetailsSet, templateOnlyNote } from "./tem
 import "./studio.css";
 import { productHref } from "../../lib/productHref";
 
-type LeftTab = "essentials" | "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
+type LeftTab = "essentials" | "sections" | "style" | "text" | "menus" | "pages" | "media";
 /** `expect`: the design the toast's Undo belongs to (filled in once the change lands); see `undoAction`. */
 type ToastAction = { label: string; run: () => void; expect?: { present?: any; past?: any[] } };
 /** "ok" fades by itself (and waits while hovered or focused); "warn" and "err" stay until dismissed. */
@@ -447,8 +439,6 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [books, setBooks] = useState<any[]>([]);
   const booksRef = useRef(books); booksRef.current = books;
   // Link / book / category / page pickers search what Studio already loaded (StudioPickers.tsx).
-  // The press's own covers for the Themes cards, so each look is drawn on their products.
-  const themeProducts = useMemo(() => ownBooks(books, 2), [books]);
   const pickerData = useMemo(() => ({ books, pages, categories: design?.categories || [] }), [books, pages, design?.categories]);
   // The page open in Studio › Pages with unsaved edits — shown in the preview only, never saved from here.
   const [draftPage, setDraftPage] = useState<any | null>(null);
@@ -522,13 +512,16 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [previewStatus, setPreviewStatus] = useState<"loading" | "ready" | "error">("loading");
   const [previewRevision, setPreviewRevision] = useState(0);
   const [versions, setVersions] = useState<ThemeVersion[]>([]);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  // Online store's "new version is ready" (`starter=1`) and Studio's own notice open Version history on Compare with the starter.
+  const [historyOpen, setHistoryOpen] = useState(initialLocation?.starter === true);
+  const [historyOnStarter, setHistoryOnStarter] = useState(initialLocation?.starter === true);
+  // ⋯ › Share a preview link: the draft as it is when the dialog opens.
+  const [shareDraft, setShareDraft] = useState<{ name: string; design: any } | null>(null);
   const [historyPreview, setHistoryPreview] = useState<ThemeVersion | null>(null);
   // Studio › Designs › Preview: a whole theme shown in the canvas without touching the draft.
   const [themePreview, setThemePreview] = useState<{ id: string; label: string; design: any; books?: any[] } | null>(null);
   // The last theme switch's report (Themes › What carried over), kept until dismissed or another look replaces it.
-  const [switchReport, setSwitchReport] = useState<ThemeSwitchReport | null>(null);
-  // Theme actions › Schedule publishing (3.5); a saved theme can be pre-selected from Themes.
+  // Studio actions › Schedule publishing (3.5); a saved theme can be pre-selected from Themes.
   const [schedule, setSchedule] = useState<{ themeId: string | null } | null>(null);
   const [confirmAction, setConfirmAction] = useState<"publish" | "discard" | null>(null);
   const [checksOpen, setChecksOpen] = useState(false);
@@ -554,9 +547,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [siteStylesOn, setSiteStyles] = useState(false);
   useEffect(() => {
     // Opened once from the link: a reload opens Studio as usual.
-    if (initialLocation?.yours && typeof window !== "undefined" && /[?&]yours=1/.test(window.location.hash)) {
-      try { window.history.replaceState(null, "", window.location.hash.replace(/([?&])yours=1&?/, "$1").replace(/[?&]$/, "")); } catch { /* the panel still opened */ }
+    if (typeof window === "undefined") return;
+    for (const flag of ["yours", "starter"] as const) {
+      if (!initialLocation?.[flag] || !new RegExp(`[?&]${flag}=1`).test(window.location.hash)) continue;
+      try { window.history.replaceState(null, "", window.location.hash.replace(new RegExp(`([?&])${flag}=1&?`), "$1").replace(/[?&]$/, "")); } catch { /* the panel still opened */ }
     }
+    if (initialLocation?.starter) loadVersions();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Switching workspace closes the brand kit (and its preview); its choices are not saved until Apply.
   const brandTabRef = useRef<string | null>(null);
@@ -596,9 +592,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // Studio › Media (2.4): the image library, also behind every image field's "Choose from library".
   const mediaLib = useMediaLibrary();
   const [copyFilter, setCopyFilter] = useState("");
-  const [savedThemes, setSavedThemes] = useState<SavedTheme[]>(() => (Array.isArray(settings?.savedThemes) ? settings.savedThemes : []));
-  // Which whole-website starters the control room offers, in its order, with New tags (control-room/starterSites.js).
+  // Saved designs stay readable for Media's "where it's used" (the owner manages them on Online store).
+  // Which colour versions of each starter the control room offers (control-room/starterSites.js), for Site styles.
   const starterChoice = usePlatformStarters(!beforeShop);
+  const [savedThemes] = useState<SavedTheme[]>(() => (Array.isArray(settings?.savedThemes) ? settings.savedThemes : []));
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const postPreview = (message: any) => { try { iframeRef.current?.contentWindow?.postMessage(message, window.location.origin); } catch { /* preview not ready */ } };
   const designRef = useRef(design);
@@ -678,7 +675,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         // The same step may have absorbed a follow-up edit of the same field (coalescing keeps `past` as it was), e.g. the
         // rich-text editor rewriting the HTML into its own form: that is still the change this toast names.
         if (expect.present === undefined || !h.past.length || (h.present !== expect.present && h.past !== expect.past)) {
-          say("err", "That change is no longer the latest one. Use Undo (Ctrl+Z) step by step, or Theme actions › Version history.");
+          say("err", "That change is no longer the latest one. Use Undo (Ctrl+Z) step by step, or Studio actions › Version history.");
           return;
         }
         setHist(cur => cur.present === expect.present ? undo(cur) : cur);
@@ -798,19 +795,6 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     change((d) => withShopLanguage(d, language), { label: language === "fr" ? "Switch the shop to French" : "Switch the shop to English" });
     say("ok", language === "fr" ? "French words added to the draft. Publish to make them live." : "French words taken out of the draft. Words you rewrote are kept.", undoAction());
   };
-  const applyNoirLook = () => {
-    change((d) => applyThemeKeysToSurfaces(d, { ...RISO_NOIR_TOKENS, themeLibraryPreset: RISO_NOIR_ID }, surfaceIds), { label: "Apply Riso Noir look" });
-    say("ok", "Riso Noir applied to the draft — Publish to make it live.", undoAction());
-  };
-  const installNoirHome = () => {
-    const tpl = HOME_LAYOUT_TEMPLATES.find((t) => t.id === RISO_NOIR_ID);
-    if (!tpl) return;
-    change((d) => setSections(d, { kind: "template", id: "heroPage" }, tpl.sections.map((s) =>
-      makeSection(s.type, wordedSettings({ ...(getSectionMeta(s.type)?.defaults || {}), ...(s.settings || {}) }, shopWords)))), { label: "Install Riso Noir home layout" });
-    setTemplateId("heroPage");
-    setShowGlobal(false);
-    say("ok", "Noir homepage layout installed on the draft.", undoAction());
-  };
   // Brand kit (3.0 phase 6): open the panel beside the preview; Apply writes every choice as one undoable change.
   const openBrandKit = () => {
     setAdding(null); setBlockPicker(null); setThemePreview(null); setHistoryPreview(null);
@@ -822,62 +806,18 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (choice.home === "starter") { setTemplateId("heroPage"); setShowGlobal(false); }
     say("ok", "Brand kit applied to the draft — Publish to make it live.", undoAction());
   };
-  const applyLibraryTheme = async (theme: any) => {
-    // themeLook.ts: the palette's full colour set (cards, footer, bag, small print…), then the theme's own keys.
-    // What carried over (themeSwitch.ts): worked out from the draft as it is now, shown in Themes until dismissed.
-    const before = designRef.current;
-    // applyLook also stores the look as the design's `themeBase`, so the press's own edits stay apart from it (plan 3.5).
-    const report = themeSwitchReport(before, applyLook(before, theme, surfaceIds), defaults, theme);
-    change((d) => applyLook(d, theme, surfaceIds), { label: `Apply “${theme.name}” look` });
-    setSwitchReport(report);
-    say("ok", `“${theme.name}” applied to the draft (sections and text kept). ${switchSummary(report)} Publish to make it live.`, undoAction());
-    // A preset can also hold section lists and starter pages (presetContent.ts). They are offered, never applied with the
-    // look: Cancel keeps only the look.
-    if (!hasPresetContent(theme)) return;
-    const summary = presetContentSummary(designRef.current, theme, pages);
-    const ok = await askConfirm({
-      title: `Also use “${theme.name}” layout and starter pages?`,
-      message: `The look is in your draft. ${summary.join(". ")}. Cancel keeps only the look.`,
-      confirmLabel: "Use layout and pages",
-    });
-    if (!ok) return;
-    const sectionTemplates = Object.keys(presetSections(theme));
-    if (sectionTemplates.length) change((d) => applyPresetSections(d, starterForShop(theme, shopSells), getSectionMeta, shopWords, starterPhotos(shopSells)), { label: `Use “${theme.name}” layout` });
-    let added = 0;
-    try {
-      // Each page saves straight away as a draft, like Pages › New page; a page whose address is taken is skipped, so
-      // trying again after an error never doubles one.
-      for (const page of presetPagesToAdd(theme, pages)) {
-        const created = await adminApi.createPage(page);
-        setPages((prev) => [...prev, created]);
-        added++;
-      }
-    } catch (err: any) {
-      say("err", friendlyError(err, "add the starter pages"));
-      return;
-    }
-    if (sectionTemplates.includes("heroPage")) { setTemplateId("heroPage"); setShowGlobal(false); }
-    const pagesNote = added ? ` ${added} draft page${added === 1 ? "" : "s"} added under Pages (not shown to shoppers until you publish them).` : "";
-    say("ok", `“${theme.name}” layout is in the draft — Publish to make it live.${pagesNote}`, sectionTemplates.length ? undoAction() : undefined);
-  };
-  /** Themes › What carried over › Bring back: put replaced edits back over the new look, as one undoable change. */
-  const bringBackEdits = (items: SwitchItem[]) => {
-    if (!items.length) return;
-    change((d) => bringBack(d, items), { label: items.length === 1 ? `Bring back ${items[0].label}` : `Bring back ${items.length} of my changes` });
-    const keys = new Set(items);
-    setSwitchReport((r) => r && { ...r, replaced: r.replaced.filter((i) => !keys.has(i)), kept: [...r.kept, ...items] });
-    say("ok", items.length === 1 ? `Brought back “${items[0].label}”.` : `Brought back ${items.length} of your changes.`, undoAction());
-  };
-  // The press's own edits over their look, listed in Themes (worked out only while Themes is open).
-  const ownEditsList = useMemo(() => (leftTab === "themes" ? ownEdits(design, defaults) : []), [leftTab, design, defaults]);
-  /** Themes › Your changes › Use the theme's: undo own edits back to the look they started from (plan 3.5). */
+  // The press's own edits over their starter, listed in Version history › Compare with the starter (worked out only while it is open).
+  const ownEditsList = useMemo(() => (historyOpen ? ownEdits(design, defaults) : []), [historyOpen, design, defaults]);
+  /** Version history › Compare with the starter › Use the starter's: undo own edits back to the starter (plan 3.5). */
   const resetOwnEdits = (items: SwitchItem[]) => {
     if (!items.length) return;
-    change((d) => resetToLook(d, items), { label: items.length === 1 ? `Use the theme's ${items[0].label}` : `Use the theme's settings for ${items.length} changes` });
-    say("ok", items.length === 1 ? `“${items[0].label}” is the theme's again.` : `${items.length} settings are the theme's again.`, undoAction());
+    change((d) => resetToLook(d, items), { label: items.length === 1 ? `Use the starter's ${items[0].label}` : `Use the starter's settings for ${items.length} changes` });
+    say("ok", items.length === 1 ? `“${items[0].label}” is the starter's again.` : `${items.length} settings are the starter's again.`, undoAction());
   };
   /** A release changed the press's starter (starterVersions.ts): the newer version, its notes and the version numbers. */
   const lookUpdate = useMemo(() => starterUpdate(design), [design]);
+  /** The starter (or older look) the website began from, named for Compare with the starter. */
+  const starterName: string = typeof design?.themeBase?.name === "string" ? design.themeBase.name.trim() : "";
   const [lookUpdateSeen, setLookUpdateSeen] = useState(false);
   /** Themes › Preview it: the newer version with every own edit on top, in the canvas only; the draft doesn't change. */
   const previewLookUpdate = (on: boolean) => {
@@ -889,82 +829,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const kept = ownEdits(designRef.current, defaults).length;
     const name = styledName(theme);
     setThemePreview(null);
-    change((d) => updateLookKeepingEdits(d, defaults, theme, surfaceIds), { label: `Update “${name}” look` });
-    setSwitchReport(null);
+    change((d) => updateLookKeepingEdits(d, defaults, theme, surfaceIds), { label: `Update “${name}”` });
     say("ok", `“${name}” updated in the draft${kept ? `; your ${kept} change${kept === 1 ? "" : "s"} stayed on top` : ""}. Publish to make it live.`, undoAction());
   };
-  // One My themes write at a time: a double-click on Duplicate would otherwise save from a stale list and leave an orphan copy.
-  const themesBusyRef = useRef(false);
-  const persistThemes = async (next: SavedTheme[], okText: string | null): Promise<boolean> => {
-    if (themesBusyRef.current) { say("err", "Still saving My themes — try again in a moment."); return false; }
-    themesBusyRef.current = true;
-    try { await saveSavedThemes(workspace, savedThemes, next); setSavedThemes(next); if (okText) say("ok", okText); return true; }
-    catch (err: any) { say("err", friendlyError(err, "save your themes")); return false; }
-    finally { themesBusyRef.current = false; }
-  };
-  /**
-   * Themes › Try this starter (starters rethink, step 5): the design as it is now is kept in My themes first, then the
-   * whole starter (its layouts, sample photos and starter pages) goes into the draft. Nothing the press made is lost:
-   * Undo, or Customize on the kept theme, brings it back, and the shop doesn't change until Publish.
-   */
-  const tryStarter = async (theme: any) => {
-    setThemePreview(null);
-    const name = styledName(theme);
-    const keptName = keptDesignName(savedThemes, name);
-    const problem = savedThemeLimitProblem(savedThemes, keptName);
-    if (problem) { say("err", `${problem} Studio keeps your current design there before trying a starter.`); return; }
-    if (!(await persistThemes(addSavedTheme(savedThemes, keptName, designRef.current), null))) return;
-    change((d) => applyStarter(d, starterForShop(theme, shopSells), getSectionMeta, shopWords, starterPhotos(shopSells)), { label: `Try “${name}”` });
-    setSwitchReport(null);
-    setTemplateId("heroPage"); setShowGlobal(false);
-    let added = 0;
-    try {
-      for (const page of presetPagesToAdd(theme, pages)) {
-        const created = await adminApi.createPage(page);
-        setPages((prev) => [...prev, created]);
-        added++;
-      }
-    } catch (err: any) {
-      say("err", `“${name}” is in your draft, but ${friendlyError(err, "add its starter pages").replace(/^./, (c) => c.toLowerCase())}`);
-      return;
-    }
-    const pagesNote = added ? ` ${added} draft page${added === 1 ? "" : "s"} added under Pages.` : "";
-    say("ok", `Trying “${name}” in your draft. Your design before it is saved in My themes as “${keptName}”.${pagesNote} Your shop doesn't change until you Publish.`, undoAction());
-  };
-  /** Saving or renaming onto another theme's name replaces that theme: ask first. */
-  const confirmThemeName = async (name: string, exceptId?: string) => {
-    const other = themeNamed(savedThemes, name, exceptId);
-    return !other || askConfirm({ title: "Replace saved theme?", message: `“${other.name}” is already in My themes and will be replaced. This can't be undone.`, confirmLabel: "Replace theme" });
-  };
-  /** Adds a theme unless My themes is full (adding would silently drop the oldest one). */
-  const addTheme = async (name: string, design: any, okText: string) => {
-    const problem = savedThemeLimitProblem(savedThemes, name);
-    if (problem) { say("err", problem); return; }
-    if (!(await confirmThemeName(name))) return;
-    await persistThemes(addSavedTheme(savedThemes, name, design), okText);
-  };
-  const saveCurrentAsTheme = async () => {
-    const name = await askText({ title: "Save to My themes", label: "Theme name (it saves the whole design: style, text, menus and sections)", confirmLabel: "Save theme" });
-    if (name === null) return;
-    await addTheme(name, designRef.current, `Saved “${name.trim() || "Untitled theme"}” to My themes.`);
-  };
-  const duplicateTheme = (t: SavedTheme) => {
-    const next = duplicateSavedTheme(savedThemes, t.id);
-    const problem = next[0] && next[0].id !== savedThemes[0]?.id ? savedThemeLimitProblem(savedThemes, next[0].name) : null;
-    if (problem) { say("err", problem); return; }
-    void persistThemes(next, "Theme duplicated.");
-  };
-  const applySavedTheme = (t: SavedTheme) => {
-    change(() => normalizeDesign(JSON.parse(JSON.stringify(t.design)), defaults), { label: `Load “${t.name}”` });
-    say("ok", `“${t.name}” loaded into the draft — Publish to make it live.`, undoAction());
-  };
-  // Themes › Publish…: load the theme into the draft, then the usual Publish confirmation (with its summary).
-  const publishSavedTheme = (t: SavedTheme) => {
-    setThemePreview(null);
-    applySavedTheme(t);
-    setTimeout(() => setConfirmAction("publish"), 0);
-  };
-  useEffect(() => { if (leftTab !== "themes") setThemePreview(null); }, [leftTab]);
   useEffect(() => {
     if (brandTabRef.current !== null && brandTabRef.current !== leftTab) { setBrandKit(false); setMakeIt(false); }
     brandTabRef.current = leftTab;
@@ -978,38 +845,6 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setThemePreview(null);
     setHistoryPreview(null);
   }, [design]);
-  const renameTheme = async (t: SavedTheme) => {
-    const name = await askText({ title: "Rename theme", label: "Theme name", defaultValue: t.name, confirmLabel: "Rename" });
-    if (name === null || !name.trim()) return;
-    if (!(await confirmThemeName(name, t.id))) return;
-    persistThemes(renameSavedTheme(savedThemes, t.id, name), "Theme renamed.");
-  };
-  const exportTheme = (t: SavedTheme) => {
-    const url = URL.createObjectURL(new Blob([serializeThemeFile(t)], { type: "application/json" }));
-    const a = document.createElement("a");
-    a.href = url; a.download = themeFileName(t); a.click();
-    URL.revokeObjectURL(url);
-  };
-  const importTheme = async (file?: File | null) => {
-    if (!file) return;
-    const parsed = parseThemeFile(await file.text());
-    if ("error" in parsed) { say("err", parsed.error); return; }
-    // Anything in the file Studio couldn't change afterwards is named before the theme is added (themeCheck.ts).
-    const problems = importedThemeProblems(parsed.design, Object.keys(defaults || {}));
-    if (problems.length) {
-      const ok = await askConfirm({
-        title: `Import “${parsed.name}” anyway?`,
-        message: `${problems.join(" ")} The rest of the theme works as usual. Import it to My themes anyway?`,
-        confirmLabel: "Import anyway",
-      });
-      if (!ok) { say("ok", `“${parsed.name}” was not imported.`); return; }
-    }
-    await addTheme(parsed.name, parsed.design,
-      parsed.strippedCustomCode?.length
-        ? `Imported “${parsed.name}” into My themes without its custom code (${parsed.strippedCustomCode.join(", ")}). Add code yourself under Style › Custom code only if you trust it.`
-        : `Imported “${parsed.name}” into My themes.`);
-  };
-  const riso = design.themeStyle === "riso";
 
   const setScopedStyle = (group: string, path: string, value: any) => {
     if (WIDTH_KEYS.has(path) && device === "desktop" && value != null) setDesktopWidth(w => screenForWidth(w, Number(value)));
@@ -1144,15 +979,6 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const tabSeenRef = useRef(false);
   const draftStatusRef = useRef<"unsaved" | "draft" | "live">("live");
   draftStatusRef.current = dirtyDraft ? "unsaved" : unpublished ? "draft" : "live";
-  // A whole-website starter previews as its own finished sample shop: its layouts on every page and its sample
-  // products with their photos, never the press's real products (Julian, 23 November 2026). Nothing is saved.
-  const starterPreview = (entry: { id: string; label: string; design: any } | null) => {
-    const id = entry?.id.startsWith("preset:") ? entry.id.slice(7) : "";
-    const theme: any = id && STARTER_SITES.includes(id) ? libraryLook(id) : null;
-    if (!entry || !theme) return entry;
-    const samples = starterSampleBooks(theme);
-    return { ...entry, design: applyStarter(designRef.current, starterForShop(theme, shopSells), getSectionMeta, shopWords, starterPhotos(shopSells)), books: samples.length ? samples : undefined };
-  };
   const sendPreviewState = useCallback(() => {
     if (inlineEditingRef.current) return;
     const current = designRef.current;
@@ -1363,7 +1189,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setHealthRun(n => n + 1);
   };
   const openWorkbench = (tab: WorkbenchTab) => {
-    if (narrow) { if (tab === "health") setChecksOpen(true); else say("ok", "The Workbench is shown on tablets and computers. Studio Health is in Theme actions."); return; }
+    if (narrow) { if (tab === "health") setChecksOpen(true); else say("ok", "The Workbench is shown on tablets and computers. Studio Health is in Studio actions."); return; }
     setWorkbench({ open: true, tab });
     if (tab === "health") setHealthRun(n => n + 1);
   };
@@ -2364,7 +2190,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             <strong>{workspaceLabel(railHome(leftTab))}</strong>
             <WorkspaceSwitch active={leftTab} onSelect={selectRail} />
             <span>{leftTab === "sections" ? (showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label) + ` · ${sections.length} ${sections.length === 1 ? "section" : "sections"}` : `Previewing: ${showGlobal ? groupLabel(globalGroup) : template.label}`}</span>
-            <small>{leftTab === "essentials" ? "The first things to set. Every setting holds the rest." : leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : leftTab === "media" ? "Upload images, describe them and see where each is used." : leftTab === "themes" ? "Save, compare, share and switch whole designs." : "Create pages and edit their content or layout."}</small>
+            <small>{leftTab === "essentials" ? "The first things to set. Every setting holds the rest." : leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : leftTab === "media" ? "Upload images, describe them and see where each is used." : "Create pages and edit their content or layout."}</small>
           </div>
           <div className="flex-1 overflow-auto" ref={sidebarScrollRef} onScroll={e => { tabScroll.current[leftTab] = e.currentTarget.scrollTop; }}>
             {brandKit && <StudioBrandKit design={design} onPreview={setBrandChoice} onApply={applyBrandKit} onClose={() => setBrandKit(false)} />}
@@ -2374,12 +2200,13 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               logoField={(() => { const hit = essentialStyleField("logoUrl"); return hit ? renderStyleField(hit.group, hit.field) : null; })()}
               nextFour={makeItNext} onGo={item => goSetup(item)} onClose={() => setMakeIt(false)} />}
             {siteStyles && !brandKit && !makeIt && <StudioSiteStyles design={design} change={change} onClose={() => setSiteStyles(false)}
+              starterStyles={design.themeBase?.id ? offeredStyles(design.themeBase.id, starterChoice) : []} surfaceIds={surfaceIds}
               onOwnSchemes={() => { setSiteStyles(false); openTarget("style:schemes", "Colour schemes"); }} />}
-            {/* A release changed the press's starter: one line at the top of the panel, with the way to Designs (starterVersions.ts). */}
-            {lookUpdate && leftTab !== "themes" && !lookUpdateSeen && !brandKit && !makeIt && !siteStyles && <div className="studio-panel-notice" role="status" data-studio-look-update>
+            {/* A release changed the press's starter: one line at the top of the panel, with the way to Compare with the starter (starterVersions.ts). */}
+            {lookUpdate && !lookUpdateSeen && !brandKit && !makeIt && !siteStyles && <div className="studio-panel-notice" role="status" data-studio-look-update>
               <span>A new version of {lookUpdate.name} is ready. Your own changes stay on top.</span>
               <span className="studio-panel-notice-actions">
-                <button type="button" className="studio-text-button" onClick={() => { setLeftTab("themes"); setMobilePanel("outline"); setLookUpdateSeen(true); }}>See what's new</button>
+                <button type="button" className="studio-text-button" onClick={() => { setHistoryOnStarter(true); setHistoryOpen(true); loadVersions(); setLookUpdateSeen(true); }}>See what's new</button>
                 <button type="button" className="studio-text-button" onClick={() => setLookUpdateSeen(true)}>Not now</button>
               </span>
             </div>}
@@ -2530,47 +2357,6 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   <CategoryHeader title={isChangedView ? "What I've changed" : extra?.title || group?.title || styleCategory}
                     blurb={isChangedView ? undefined : blurbFor(group, styleCategory)} backLabel="All style settings"
                     onBack={() => setStyleCategory(null)} extra={<p className="studio-scope-note">{scopeNote}</p>} />
-                  {styleCategory === "themeLook" && <div className="px-4 pb-4 space-y-4">
-                    <button type="button" className={`${btn} w-full justify-center`} onClick={() => setLeftTab("themes")}>Open Designs (thumbnails, preview, share links)</button>
-                    <p className="studio-hint">Current look: {design.themeLibraryPreset === RISO_NOIR_ID ? "Riso Noir" : riso ? "Riso Press" : "Standard / custom"}. One click sets every colour, font and print detail; you can still change each one afterwards.</p>
-
-                <button type="button" className={`${btnPrimary} w-full justify-center`} onClick={applyNoirLook}>Apply Riso Noir (black &amp; white)</button>
-                <button type="button" className={`${btn} w-full justify-center`} onClick={installNoirHome}>Also install the Noir homepage layout</button>
-                <button type="button" className={`${btn} w-full justify-center`} disabled={!riso} onClick={() => setStyle("themeStyle", "default")}>Turn off Riso print style</button>
-                <div className="pt-2 border-t border-neutral-200 space-y-2">
-                  <p className="text-[10px] font-black tracking-widest uppercase text-neutral-500">My themes</p>
-                  <button type="button" className={`${btn} w-full justify-center`} onClick={saveCurrentAsTheme}>Save current design as a theme…</button>
-                  <label className={`${btn} w-full justify-center cursor-pointer`}>
-                    <Upload size={14} /> Import a theme file…
-                    <input type="file" accept="application/json,.json" className="sr-only" aria-label="Import a theme file"
-                      onChange={(e) => { importTheme(e.target.files?.[0]); e.target.value = ""; }} />
-                  </label>
-                  {savedThemes.map((t) => (
-                    <div key={t.id} className="flex items-stretch gap-1">
-                      <button type="button" onClick={() => applySavedTheme(t)} className="flex-1 text-left border border-neutral-200 rounded-lg px-3 py-2 hover:bg-neutral-50">
-                        <span className="block text-xs font-bold">{t.name}</span>
-                        <span className="block text-[11px] text-neutral-500">Saved {new Date(t.savedAt).toLocaleDateString()}</span>
-                      </button>
-                      <button type="button" aria-label={`Rename ${t.name}`} title="Rename" className={iconBtn} onClick={() => renameTheme(t)}><Pencil size={14} /></button>
-                      <button type="button" aria-label={`Duplicate ${t.name}`} title="Duplicate" className={iconBtn}
-                        onClick={() => duplicateTheme(t)}><Copy size={14} /></button>
-                      <button type="button" aria-label={`Download ${t.name} as a file`} title="Download file" className={iconBtn} onClick={() => exportTheme(t)}><Download size={14} /></button>
-                      <button type="button" aria-label={`Delete ${t.name}`} className={iconBtn}
-                        onClick={() => { void askConfirm({ title: "Delete saved theme?", message: `“${t.name}” will be removed from My themes. This can't be undone.`, confirmLabel: "Delete theme" }).then(ok => { if (ok) persistThemes(removeSavedTheme(savedThemes, t.id), "Theme deleted."); }); }}><Trash2 size={14} /></button>
-                    </div>
-                  ))}
-                </div>
-                <div className="pt-2 border-t border-neutral-200 space-y-2">
-                  <p className="text-[10px] font-black tracking-widest uppercase text-neutral-500">Theme library</p>
-                  {builtLooks(starterChoice).map((t: any) => (
-                    <button key={t.id} type="button" onClick={() => applyLibraryTheme(t)}
-                      className="w-full text-left border border-neutral-200 rounded-lg px-3 py-2 hover:bg-neutral-50">
-                      <span className="block text-xs font-bold">{t.name}{design.themeLibraryPreset === t.id ? "  ✓ current" : ""}</span>
-                      <span className="block text-[11px] text-neutral-500">{shopWords(t.mood || "")}</span>
-                    </button>
-                  ))}
-                </div>
-                  </div>}
                   {styleCategory === "header" && <div className="px-4 pb-4">
                     <StudioAnnouncements design={design} change={change}
                       onNotice={(text, canUndo) => say("ok", text, canUndo ? undoAction() : undefined)} />
@@ -2766,27 +2552,6 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 onEditSections={(slug) => { setShowGlobal(false); setTemplateId(`page:${slug}`); setSelectedId(null); setLeftTab("sections"); }} />
             </div>
 
-            {leftTab === "themes" && (
-              <StudioThemes design={design} published={published} unpublished={unpublished || dirtyDraft} savedThemes={savedThemes}
-                presets={builtLooks(starterChoice) as any[]} currentPresetId={design.themeLibraryPreset} products={themeProducts} pressName={pressNameOf(settings)}
-                templateDetails={templateDetailsLine(design)} onResetTemplateDetails={resetTemplateDetails}
-                previewingId={themePreview?.id || null} onPreview={(entry, onPhone) => { setThemePreview(starterPreview(entry)); if (entry && onPhone) setDevice(onPhone); }}
-                onSaveCurrent={saveCurrentAsTheme} onImport={file => importTheme(file)}
-                onLoad={t => { setThemePreview(null); applySavedTheme(t); }} onPublish={publishSavedTheme}
-                onRename={renameTheme} onDuplicate={duplicateTheme}
-                onDownload={exportTheme} onSchedule={t => setSchedule({ themeId: t.id })}
-                onDelete={t => { void askConfirm({ title: "Delete saved theme?", message: `“${t.name}” will be removed from My themes. This can't be undone.`, confirmLabel: "Delete theme" }).then(ok => { if (ok) persistThemes(removeSavedTheme(savedThemes, t.id), "Theme deleted."); }); }}
-                onApplyPreset={preset => { setThemePreview(null); applyLibraryTheme(preset); }}
-                starterIds={offeredStarters(starterChoice)} newStarterIds={newStarters(starterChoice)} onTryStarter={preset => { void tryStarter(preset); }}
-                stylesOf={id => offeredStyles(id, starterChoice)} currentStyleId={design.themeBase?.style}
-                switchReport={switchReport && design.themeLibraryPreset === switchReport.themeId ? switchReport : null}
-                onBringBack={bringBackEdits} onDismissSwitch={() => setSwitchReport(null)}
-                ownEdits={ownEditsList} lookUpdate={lookUpdate} previewingUpdate={themePreview?.id === LOOK_UPDATE_PREVIEW} onPreviewUpdate={previewLookUpdate}
-                onResetEdits={resetOwnEdits} onUpdateLook={updateOwnLook}
-                links={{ create: (d, name, days) => adminApi.createPreviewLink(d, name, days), list: () => adminApi.listPreviewLinks(), revoke: token => adminApi.revokePreviewLink(token) }}
-                askConfirm={askConfirm} say={(kind, text) => say(kind, text)} />
-            )}
-
             {leftTab === "media" && (
               <StudioMediaPanel lib={mediaLib} design={design} published={published} pages={pages} names={mediaNames}
                 savedThemes={savedThemes} getVersions={fetchVersions} getStoredDesigns={fetchStoredDesigns}
@@ -2944,10 +2709,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             ? <strong>{dirtyDraft || busy === "draft" ? "Saving…" : "Saved"}</strong>
             : <><strong>{dirtyDraft ? "Not saved yet" : unpublished ? "Saved as draft" : "Live"}</strong><span className="studio-status-sep"> · </span><span>{dirtyDraft || unpublished ? "shop unchanged" : "the shop shows this"}</span></>}
         </span>
-        <div className="studio-tools-menu"><span>Theme actions</span><ActionMenu label="Theme actions" actions={[
+        <div className="studio-tools-menu"><span>Studio actions</span><ActionMenu label="Studio actions" actions={[
           ...(!beforeShop ? [{ label: "View website", icon: <Eye size={14} />, onSelect: openPreviewTab }] : []),
           { label: "Find anything", icon: <Search size={14} />, onSelect: () => setFindOpen(true) },
-          { label: "Version history", icon: <History size={14} />, onSelect: () => { setHistoryOpen(true); loadVersions(); } },
+          { label: "Version history", icon: <History size={14} />, onSelect: () => { setHistoryOnStarter(false); setHistoryOpen(true); loadVersions(); } },
+          ...(!beforeShop ? [{ label: "Share a preview link…", icon: <Link2 size={14} />, onSelect: () => setShareDraft({ name: "Your draft", design: designRef.current }) }] : []),
           { label: "Brand kit…", icon: <Sparkles size={14} />, onSelect: openBrandKit },
           ...(beforeShop ? [] : [{ label: "Schedule publishing…", icon: <Clock size={14} />, onSelect: () => setSchedule({ themeId: null }) }]),
           { label: "Studio Health", icon: <ShieldCheck size={14} />, onSelect: openHealth },
@@ -2970,6 +2736,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       {liveSyncPaused && <div className="studio-recovery" role="status" data-studio-live-sync-paused><span>Live updates from other tabs are paused. Reload Studio before publishing to be safe.</span></div>}
       {themePreview && <div className="studio-recovery studio-incoming" role="status" data-studio-theme-preview>
         <span>Previewing “{themePreview.label}” in the canvas. Your draft hasn't changed.</span>
+        {themePreview.id === LOOK_UPDATE_PREVIEW && <SecondaryButton size="sm" onClick={() => { setThemePreview(null); setHistoryOnStarter(true); setHistoryOpen(true); }}>Back to the update</SecondaryButton>}
         <SecondaryButton size="sm" onClick={() => setThemePreview(null)}>Stop preview</SecondaryButton>
       </div>}
       {incoming && <div className="studio-recovery studio-incoming" role="status" data-studio-incoming>
@@ -2981,7 +2748,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         </span>
         <PrimaryButton size="sm" onClick={() => resolveIncoming("combine")}>{incoming.paths.length ? "Bring in theirs, keep mine" : "Bring in their changes"}</PrimaryButton>
         <SecondaryButton size="sm" onClick={async () => {
-          const ok = await askConfirm({ title: "Use their version?", message: "Your unsaved edits in this tab will be replaced by the version saved in the other tab or device. To keep a copy first, use Theme actions › Version history › Save checkpoint.", confirmLabel: "Use their version" });
+          const ok = await askConfirm({ title: "Use their version?", message: "Your unsaved edits in this tab will be replaced by the version saved in the other tab or device. To keep a copy first, use Studio actions › Version history › Save checkpoint.", confirmLabel: "Use their version" });
           if (ok) resolveIncoming("theirs");
         }}>Use their version</SecondaryButton>
         <SecondaryButton size="sm" onClick={() => resolveIncoming("later")}>Later</SecondaryButton>
@@ -3058,7 +2825,13 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         </div>}
       </Dialog>
       <StudioSearch open={findOpen} onClose={() => setFindOpen(false)} index={searchIndex} context={paletteContext} onPick={goToResult} />
-      <StudioHistory open={historyOpen} onClose={() => { setHistoryOpen(false); setHistoryPreview(null); }}
+      <StudioShareLink share={shareDraft} onClose={() => setShareDraft(null)}
+        links={{ create: (d, name, days) => adminApi.createPreviewLink(d, name, days), list: () => adminApi.listPreviewLinks(), revoke: token => adminApi.revokePreviewLink(token) }}
+        askConfirm={askConfirm} say={(kind, text) => say(kind, text)} />
+      <StudioHistory open={historyOpen} onClose={() => { setHistoryOpen(false); setHistoryOnStarter(false); setHistoryPreview(null); setThemePreview(null); }}
+        openOnStarter={historyOnStarter}
+        starter={starterName ? <OwnEditsPanel lookName={starterName} edits={ownEditsList} update={lookUpdate} previewing={themePreview?.id === LOOK_UPDATE_PREVIEW}
+          onPreview={(on) => { previewLookUpdate(on); if (on) { setHistoryOpen(false); setHistoryOnStarter(false); } }} onReset={resetOwnEdits} onUpdate={updateOwnLook} /> : null}
         versions={versions} reload={loadVersions} draft={design} published={published} normalize={normalizeForDiff} ctx={diffContext}
         previewingId={historyPreview?.id || null} onPreview={setHistoryPreview}
         onRestoreAll={(v) => {
@@ -3089,7 +2862,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           })()}
           {liveCheckFailed && <p className="text-sm font-bold studio-dialog-warn" role="status" data-publish-live-check-failed>Couldn't check the live shop just now. The list above compares with the last version Studio saw, so it may miss changes made elsewhere.</p>}
           {confirmAction === "publish" && !publishHealth && <p className="studio-health-publish" data-publish-health-pending>
-            <ShieldCheck size={14} aria-hidden /> {publishHealthState === "failed" ? "Studio Health couldn't check this page just now. Open Theme actions › Studio Health to try again." : "Checking the page…"}</p>}
+            <ShieldCheck size={14} aria-hidden /> {publishHealthState === "failed" ? "Studio Health couldn't check this page just now. Open Studio actions › Studio Health to try again." : "Checking the page…"}</p>}
           {confirmAction === "publish" && publishHealth && <p className="studio-health-publish" data-publish-health>
             <ShieldCheck size={14} aria-hidden /> {site.report && site.complete && site.ranAt?.device === device && !site.running
               ? <>Studio Health checked {template.label} on {REGION_DEVICE_LABELS[device].toLowerCase()}: {publishHealth.text}. Check every page at {new Date(site.ranAt.at).toLocaleTimeString()} ({site.report.totals.checked} pages, before any later edits): {site.report.totals.issues ? `${site.report.totals.issues} to fix` : "nothing to fix"}{site.report.totals.failed ? `, ${site.report.totals.failed} not checked` : ""}.</>

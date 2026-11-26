@@ -14,7 +14,6 @@ import { STOREFRONT_FEATURES } from "../../features/site/extras/registry";
 
 /** Studio-only categories that are not STYLE_GROUPS (they have bespoke panels in StudioEditor). */
 export const EXTRA_STYLE_CATEGORIES: Record<string, { title: string; blurb: string }> = {
-  themeLook: { title: "Theme presets & saved themes", blurb: "One-click looks, the Riso Noir style, and designs you've saved or downloaded." },
   paymentIcons: { title: "Payment icons", blurb: "Which card and wallet logos the footer shows." },
 };
 
@@ -47,7 +46,7 @@ export const THEME_HEADINGS: SettingsHeading[] = [
   { id: "popups", title: "Pop-ups & notices", blurb: "Windows and little messages that appear on top of the page.",
     groups: ["popup", "toasts"] },
   { id: "system", band: "Whole-site look", title: "", blurb: "Presets, colours, fonts, buttons and spacing used on every page. One change restyles the whole shop.",
-    groups: ["themeLook", "colors", "schemes", "type", "buttons", "layout", "effects", "riso", "tokens", "smallPrint"] },
+    groups: ["colors", "schemes", "type", "buttons", "layout", "effects", "riso", "tokens", "smallPrint"] },
   { id: "elements", band: "Advanced", title: "Fine-tune one element at a time", advanced: true,
     blurb: "Spacing, size, borders and visibility for a single element, per screen size. Quicker: click the element in the preview.",
     groups: REGION_IDS },

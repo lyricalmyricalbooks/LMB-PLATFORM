@@ -35,9 +35,7 @@ describe("imported theme files carry no code (#118)", () => {
     expect(parseThemeFile(serializeThemeFile({ name: "Autumn", design: { a: [1] } }))).toEqual({ name: "Autumn", design: { a: [1] } });
   });
 
-  it("Studio's import tells the owner what was left out", () => {
-    expect(read("src/app/admin/studio/StudioEditor.tsx")).toMatch(/without its custom code/);
-  });
+  // Studio's theme import was removed on 26 November 2026 (no Designs); the parser still strips code for any caller.
 });
 
 describe("connected book details are escaped inside HTML fields (#119)", () => {

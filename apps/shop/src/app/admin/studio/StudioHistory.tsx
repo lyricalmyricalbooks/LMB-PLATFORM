@@ -1,8 +1,9 @@
-// Theme actions › Version history (Studio 3.1): every Publish (last 30), the latest saved draft and the owner's
+// Studio actions › Version history (Studio 3.1): every Publish (last 30), the latest saved draft and the owner's
 // named checkpoints, which are pinned and never age out. Compare any version with the current draft, the live
 // design or another version, in Studio's own words (designDiff.ts), and take back one change at a time — each
-// restore is one named, undoable draft change. Nothing here publishes.
-import { useMemo, useState } from "react";
+// restore is one named, undoable draft change. Nothing here publishes. Compare with the starter (one website picker
+// plan, step 3) lists the owner's own changes over the starter the website began from (StarterChanges.tsx).
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowLeft, GitCompare, Pin } from "lucide-react";
 import { ActionMenu, Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "../riso/components";
 import { diffDesigns, groupByArea, type DiffContext, type DiffItem } from "./designDiff";
@@ -34,6 +35,10 @@ type Props = {
   askText: (opts: { title: string; label: string; defaultValue?: string; confirmLabel?: string }) => Promise<string | null>;
   askConfirm: (opts: { title: string; message: string; confirmLabel?: string }) => Promise<boolean>;
   say: (kind: "ok" | "err", text: string) => void;
+  /** Compare with the starter: the owner's changes over the starter (none for a website not built on one). */
+  starter?: ReactNode;
+  /** Open straight on Compare with the starter (the "new version is ready" notice does). */
+  openOnStarter?: boolean;
 };
 
 export const versionName = (v: ThemeVersion) => v.name || v.label || "Version";
@@ -53,6 +58,8 @@ export function StudioHistory(p: Props) {
   const [comparing, setComparing] = useState<string | null>(null);
   const [against, setAgainst] = useState<string>("draft");
   const [busy, setBusy] = useState(false);
+  const [onStarter, setOnStarter] = useState(false);
+  useEffect(() => { if (p.open) setOnStarter(!!(p.openOnStarter && p.starter)); }, [p.open, p.openOnStarter]); // eslint-disable-line react-hooks/exhaustive-deps
   const version = p.versions.find(v => v.id === comparing) || null;
   const shown = p.versions.filter(v => filter === "all" || v.kind === filter || (filter === "checkpoint" && v.pinned));
 
@@ -92,16 +99,24 @@ export function StudioHistory(p: Props) {
     if (p.previewingId === v.id) p.onPreview(null);
     await run(() => p.actions.remove(v.id), "Version deleted.");
   };
-  const close = () => { setComparing(null); p.onClose(); };
+  const close = () => { setComparing(null); setOnStarter(false); p.onClose(); };
+  const starterView = onStarter && p.starter;
 
   return (
-    <Dialog open={p.open} onClose={close} size="lg" title={version ? `Compare “${versionName(version)}”` : "Version history"}
-      description={version ? "Each line is something that differs. Previewing never changes your draft."
+    <Dialog open={p.open} onClose={close} size="lg" title={starterView ? "Compare with the starter" : version ? `Compare “${versionName(version)}”` : "Version history"}
+      description={starterView ? "Your own changes, kept apart from the starter your website began from. Nothing goes live until you Publish." : version ? "Each line is something that differs. Previewing never changes your draft."
         : "Each Publish is kept (the last 30), plus your latest saved draft and any checkpoints you pin. Previewing never changes your draft."}>
       <div className="studio-history" data-studio-panel="history">
-        {!version && <>
+        {starterView && <>
+          <div className="studio-history-bar">
+            <SecondaryButton size="sm" onClick={() => setOnStarter(false)}><ArrowLeft size={13} aria-hidden /> All versions</SecondaryButton>
+          </div>
+          {p.starter}
+        </>}
+        {!starterView && !version && <>
           <div className="studio-history-bar">
             <PrimaryButton size="sm" disabled={busy} onClick={saveCheckpoint}>Save checkpoint…</PrimaryButton>
+            {p.starter && <SecondaryButton size="sm" data-history-starter onClick={() => setOnStarter(true)}><GitCompare size={13} aria-hidden /> Compare with the starter</SecondaryButton>}
             <div className="studio-history-filter" role="group" aria-label="Show">
               {(["all", "published", "checkpoint"] as Filter[]).map(f => (
                 <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)}>{f === "all" ? "All" : f === "published" ? "Published" : "Checkpoints"}</button>
@@ -133,7 +148,7 @@ export function StudioHistory(p: Props) {
           </ul>
           {p.previewingId && <p className="studio-history-note" role="status">Previewing “{versionName(p.versions.find(v => v.id === p.previewingId) || { label: "a version" } as any)}”. Stop the preview or close History to see your draft again.</p>}
         </>}
-        {version && <>
+        {!starterView && version && <>
           <div className="studio-history-bar">
             <SecondaryButton size="sm" onClick={() => setComparing(null)}><ArrowLeft size={13} aria-hidden /> All versions</SecondaryButton>
             <label className="studio-history-against">Compare with

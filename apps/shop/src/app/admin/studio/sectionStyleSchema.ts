@@ -88,7 +88,7 @@ export function sectionStyleFields(colorSchemes: { id: string; name: string }[] 
 
     style("Shape & pattern", { key: "bgPattern", label: "Background pattern", kind: "select", options: BG_PATTERN_OPTIONS, hint: "Drawn over the background colour." }),
     style("Shape & pattern", { key: "patternColor", label: "Pattern colour", kind: "color", hint: "Blank = the pattern's own soft ink." }),
-    style("Shape & pattern", { key: "panelFill", label: "Panel fill", kind: "select", options: PANEL_FILL_OPTIONS, hint: "Fills the section with the theme's box colour, for a card that sits on the page." }),
+    style("Shape & pattern", { key: "panelFill", label: "Panel fill", kind: "select", options: PANEL_FILL_OPTIONS, hint: "Fills the section with your website's box colour, for a card that sits on the page." }),
     style("Shape & pattern", { key: "outlineWidth", label: "Outline thickness", kind: "range", min: 0, max: 16, suffix: "px" }),
     style("Shape & pattern", { key: "outlineColor", label: "Outline colour", kind: "color", hint: "Blank = the text colour." }),
     style("Shape & pattern", { key: "tilt", label: "Tilt", kind: "select", options: TILT_OPTIONS }),

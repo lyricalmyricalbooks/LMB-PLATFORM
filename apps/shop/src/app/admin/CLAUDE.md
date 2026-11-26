@@ -116,3 +116,4 @@ Details of each feature live in [`docs/agent-notes/admin.md`](../../../docs/agen
 - Guided start (24 November 2026, next starters plan phase 3)
 - Shop types: Product shop, Services or Both (26 November 2026, plan https://claude.ai/artifact/7nZNMBxFoF3bYzNMga37DJ)
 - One website picker (26 November 2026, plan https://claude.ai/artifact/Rfj5WFBC58QyUsgMyXbU9J, step 2)
+- Choose your website (26 November 2026, one website picker plan step 4)

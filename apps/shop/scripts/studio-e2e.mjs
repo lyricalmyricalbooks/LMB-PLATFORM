@@ -86,7 +86,7 @@ const calls = page => page.evaluate(() => window.__studioFixture.calls);
 const mod = process.platform === "darwin" ? "Meta" : "Control";
 const desktop = { width: 1440, height: 900 };
 
-// The rail's workspace buttons (Page, Style, Pages, Designs, then Text & labels and Media under More).
+// The rail's workspace buttons (Page, Style, Pages, then Text & labels and Media under More).
 const rail = (page, name) => page.locator(`nav[aria-label="Studio workspaces"] button[aria-label="${name}"]`);
 // Basics opens inside Style and Menus inside Pages, through the switch at the top of the panel.
 const openView = async (page, home, view) => {
@@ -100,22 +100,19 @@ const showList = async (page) => {
   await page.locator(".studio-sidebar .studio-panel-context").first().waitFor({ timeout: 5000 });
 };
 
-await check("Studio opens in Style › Basics: name, logo, colours and fonts first, on a rail of Page, Style, Pages and Designs", desktop, async page => {
+await check("Studio opens in Style › Basics: name, logo, colours and fonts first, on a rail of Page, Style and Pages", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const panel = page.locator('[data-studio-panel="essentials"]');
   await panel.waitFor({ timeout: 10000 });
   if (await rail(page, "Style").getAttribute("aria-pressed") !== "true") throw new Error("Style is not the open workspace");
   if ((await page.locator("[data-studio-workspace-switch] button[aria-pressed=true]").textContent()) !== "Basics") throw new Error("Basics is not the open view");
   const railNames = await page.locator('nav[aria-label="Studio workspaces"] button').evaluateAll(bs => bs.map(b => b.getAttribute("aria-label")));
-  if (railNames.slice(0, 4).join(",") !== "Page,Style,Pages,Designs") throw new Error(`the rail reads ${railNames.join(", ")}`);
+  if (railNames.slice(0, 3).join(",") !== "Page,Style,Pages" || railNames.includes("Designs")) throw new Error(`the rail reads ${railNames.join(", ")}`);
   // The shop's name here is the same word as Text & labels › Site name.
   const name = panel.locator('[data-copy-key="siteName"]').locator("input, textarea").first();
   await name.fill("Harbour Press");
   const frame = page.frameLocator('iframe[title="Live preview"]');
   await frame.getByText("Harbour").first().waitFor({ timeout: 10000 });
-  // A step's button opens its workspace.
-  await panel.getByRole("button", { name: "Browse looks" }).click();
-  if (await rail(page, "Designs").getAttribute("aria-pressed") !== "true") throw new Error("Browse looks did not open Designs");
 }, FIRST_VISIT);
 
 await check("preview connects with the unsaved design", desktop, async page => {
@@ -681,7 +678,7 @@ await check("Brand kit: a logo's colour becomes a palette, the canvas previews i
     await page.waitForTimeout(400);
     return (await calls(page)).filter(c => c.method === "saveDesign").pop().args[0].design;
   };
-  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
   await page.getByRole("menuitem", { name: "Brand kit…" }).click();
   const kit = page.locator("[data-studio-brand-kit]");
   await kit.waitFor({ timeout: 5000 });
@@ -1088,7 +1085,7 @@ await check("Version history compares a version with the draft and takes one sec
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();
   await expectText(page, "Home · 1 section");
-  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
   await page.getByRole("menuitem", { name: "Version history" }).click();
   const dialog = page.getByRole("dialog", { name: "Version history" });
   await dialog.waitFor({ timeout: 5000 });
@@ -1177,7 +1174,7 @@ await check("Studio Health checks the previewed page, shows a finding and opens 
     part.innerHTML = '<button type="button" data-e2e-health style="width:12px;height:12px;padding:0;border:0"></button>';
     footer.appendChild(part);
   });
-  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
   await page.getByRole("menuitem", { name: "Studio Health" }).click();
   // On a computer Health opens in the Workbench docked under the preview (3.0 phase 1), not a dialog.
   const dialog = page.locator("[data-studio-workbench]");
@@ -1204,7 +1201,7 @@ await check("Studio Health checks the previewed page, shows a finding and opens 
 
 await check("Check every page: audits each kind of page in a hidden preview, Stop works, Open this page switches the canvas", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
-  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
   await page.getByRole("menuitem", { name: "Studio Health" }).click();
   const wb = page.locator("[data-studio-workbench]");
   const panel = wb.locator("[data-studio-site-health-panel]");
@@ -1244,7 +1241,7 @@ await check("Check every page scrolls through so sections that fade in lower dow
     f.remoteSave({ ...draft, showHero: true, heroPage: { sections: [...filler, { id: "lowest", type: "RichTextSection", settings: { animation: "fade-up", html: '<p><a href="#">Go nowhere</a></p>' } }] } });
   });
   await page.frameLocator('iframe[title="Live preview"]').getByText("Go nowhere").first().waitFor({ state: "attached", timeout: 15000 });
-  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
   await page.getByRole("menuitem", { name: "Studio Health" }).click();
   const panel = page.locator("[data-studio-site-health-panel]");
   await panel.getByRole("button", { name: "Check every page" }).click();
@@ -1390,44 +1387,10 @@ await check("Workbench: W opens it, Changes jumps back through edits, To-dos' Sh
   await page.locator('.studio-rail button[aria-pressed="true"]', { hasText: "Style" }).waitFor({ timeout: 5000 });
 });
 
-await check("importing a theme file warns in plain words about settings Studio can't change, and Cancel adds nothing", desktop, async page => {
+await check("⋯ › Share a preview link creates a private link of the draft and turns it off", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
-  const file = JSON.stringify({ kind: "press-theme", version: 1, name: "Odd one", design: { backgroundColor: "#ffffff", sparkleCursor: true, copy: { secretSlogan: "Hi" } } });
-  const input = page.locator('input[aria-label="Import a theme file"]');
-  await input.setInputFiles({ name: "odd.theme.json", mimeType: "application/json", buffer: Buffer.from(file) });
-  const dialog = page.getByRole("dialog");
-  await dialog.getByText("no control in Studio").first().waitFor({ timeout: 10000 });
-  await dialog.getByText("“sparkleCursor”").first().waitFor();
-  await dialog.getByText("“secretSlogan”").first().waitFor();
-  await dialog.getByRole("button", { name: "Cancel" }).click();
-  await expectText(page, "“Odd one” was not imported.");
-  await input.setInputFiles({ name: "odd.theme.json", mimeType: "application/json", buffer: Buffer.from(file) });
-  await page.getByRole("button", { name: "Import anyway" }).click();
-  await expectText(page, "Imported “Odd one” into My themes.");
-}, "#designer?tab=themes");
-
-await check("Themes saves the draft as a theme, previews a look without changing the draft, and creates a share link", desktop, async page => {
-  await expectText(page, "Preview connected", 30000);
-  await rail(page, "Designs").click();
-  const panel = page.locator("[data-studio-panel='themes']");
-  await panel.locator("[data-theme-card='live']").waitFor({ timeout: 5000 });
-  // Save as a theme.
-  await panel.getByRole("button", { name: "Save as a theme…" }).click();
-  const ask = page.getByRole("dialog", { name: "Save to My themes" });
-  await ask.getByRole("textbox").fill("Autumn test");
-  await ask.getByRole("button", { name: "Save theme" }).click();
-  await panel.getByText("Autumn test").waitFor({ timeout: 5000 });
-  // Preview a ready-made look: the canvas changes, the draft doesn't.
-  const before = JSON.stringify((await page.evaluate(() => window.__studioFixture.calls)).filter(c => c.method === "saveDesign"));
-  const preset = panel.locator("[data-theme-card^='preset:']").first();
-  await preset.getByRole("button", { name: "Preview", exact: true }).click();
-  await page.locator("[data-studio-theme-preview]").waitFor({ timeout: 5000 });
-  if (await page.locator("[data-studio-status=\"unsaved\"]").isVisible()) throw new Error("previewing a look changed the draft");
-  await page.locator("[data-studio-theme-preview]").getByRole("button", { name: "Stop preview" }).click();
-  await page.locator("[data-studio-theme-preview]").waitFor({ state: "detached", timeout: 5000 });
-  if (JSON.stringify((await page.evaluate(() => window.__studioFixture.calls)).filter(c => c.method === "saveDesign")) !== before) throw new Error("preview saved something");
-  // Share a preview link of the draft.
-  await panel.locator("[data-theme-card='draft']").getByRole("button", { name: "Share a preview link" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
+  await page.getByRole("menuitem", { name: "Share a preview link…" }).click();
   const share = page.getByRole("dialog", { name: /Share a preview/ });
   await share.getByRole("button", { name: "Create link" }).click();
   const link = await share.locator("[data-share-link] input").inputValue();
@@ -1438,81 +1401,42 @@ await check("Themes saves the draft as a theme, previews a look without changing
   await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "revokePreviewLink"));
 });
 
-await check("a ready-made look offers its layout and starter pages after the look, and adds only pages the shop lacks", desktop, async page => {
+await check("Site styles shows the starter's own colour versions, a hidden one isn't offered, and one click puts it on the shop", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
-  await rail(page, "Designs").click();
-  const panel = page.locator("[data-studio-panel='themes']");
-  const card = panel.locator("[data-theme-card='preset:press-marquee']");
-  await card.locator("[data-preset-content]").waitFor({ timeout: 5000 });
-  if (!/Home layout/.test(await card.locator("[data-preset-content]").innerText())) throw new Error("the card doesn't say it comes with a Home layout");
-  // Skipping keeps only the look: no page is made.
-  await card.getByRole("button", { name: "Use this look" }).click();
-  const ask = page.getByRole("dialog", { name: /Also use “Marquee” layout and starter pages\?/ });
-  await ask.waitFor({ timeout: 5000 });
-  if (!/Kept as they are: your own About page/.test(await ask.innerText())) throw new Error("the dialog doesn't say the shop's own About page is kept");
-  await ask.getByRole("button", { name: "Cancel" }).click();
-  if ((await calls(page)).some(c => c.method === "createPage")) throw new Error("skipping the layout still made pages");
-  // Accepting replaces Home's sections in the draft and adds the missing pages as drafts.
-  await card.getByRole("button", { name: "Use this look" }).click();
-  await ask.waitFor({ timeout: 5000 });
-  await ask.getByRole("button", { name: "Use layout and pages" }).click();
-  await page.waitForFunction(() => window.__studioFixture.calls.filter(c => c.method === "createPage").length === 2, null, { timeout: 10000 });
-  const made = (await calls(page)).filter(c => c.method === "createPage").map(c => c.args[0]);
-  if (made.map(p => p.slug).join() !== "shipping-returns,contact") throw new Error(`made pages ${made.map(p => p.slug).join()}`);
-  if (made.some(p => p.status !== "draft")) throw new Error("a starter page was published straight away");
-  await page.locator("[data-studio-status=\"unsaved\"]").waitFor({ timeout: 5000 });
-  const frame = page.frameLocator("iframe").first();
-  await frame.locator("[data-section]").first().waitFor({ timeout: 10000 });
-});
-
-await check("Try this starter keeps the design as it was in My themes, then puts the whole starter in the draft", desktop, async page => {
-  await expectText(page, "Preview connected", 30000);
-  await rail(page, "Designs").click();
-  const panel = page.locator("[data-studio-panel='themes']");
-  const card = panel.locator("[data-theme-card='preset:juniper-slow-season']");
-  await card.getByRole("button", { name: "Try this starter" }).click();
-  await expectText(page, "Your design before it is saved in My themes");
-  const saved = (await calls(page)).filter(c => c.method === "saveThemes").pop();
-  if (!saved || !saved.args[0].some(t => /^Before /.test(t.name))) throw new Error("the design before the starter wasn't kept in My themes");
-  if (await page.getByRole("dialog").count()) throw new Error("Try this starter asked a question first");
-  await page.locator("[data-studio-status=\"unsaved\"]").waitFor({ timeout: 5000 });
-  await panel.locator("[data-theme-card]", { hasText: "Before " }).first().waitFor({ timeout: 5000 });
-});
-
-await check("a starter's styles: picking a swatch redraws the card, Try puts that style in the draft, and a hidden style isn't offered", desktop, async page => {
-  await expectText(page, "Preview connected", 30000);
-  const card = page.locator("[data-studio-panel='themes'] [data-theme-card='preset:aurel-editorial']");
-  await card.scrollIntoViewIfNeeded();
-  const styles = card.locator("[data-starter-style]");
-  const ids = await styles.evaluateAll(els => els.map(e => e.getAttribute("data-starter-style")));
-  if (ids.join() !== "aurel-editorial/cobalt,aurel-editorial/night") throw new Error(`the hidden Sand style is still offered (${ids.join()})`);
-  await card.locator("[data-starter-style='aurel-editorial/night']").click();
-  if (await card.locator("[data-starter-style='aurel-editorial/night']").getAttribute("aria-checked") !== "true") throw new Error("the picked style isn't marked");
-  await card.getByText("Aurel Night", { exact: true }).waitFor({ timeout: 3000 });
-  await card.getByRole("button", { name: "Try this starter" }).click();
-  await expectText(page, "Trying “Aurel Night” in your draft");
+  await page.locator("[data-open-site-styles]").click();
+  await page.locator("[data-studio-site-styles]").waitFor();
+  const colours = page.locator("[data-studio-site-styles] [role=radiogroup]").first();
+  const ids = await colours.locator("[data-starter-style]").evaluateAll(els => els.map(e => e.getAttribute("data-starter-style")));
+  if (ids.join() !== "cobalt,night") throw new Error(`the colours offered are ${ids.join()} (Sand is hidden)`);
+  if (await page.locator("[data-site-palette]").count()) throw new Error("the separate palettes still show for a starter website");
+  await colours.locator("[data-starter-style='night']").click();
+  await colours.locator("[data-starter-style='night'][aria-checked=true]").waitFor({ timeout: 5000 });
   await page.locator("[data-studio-status=\"unsaved\"]").waitFor({ timeout: 5000 });
   const f = page.frames().find(fr => fr !== page.mainFrame() && fr.url().includes("preview=true"));
   await page.waitForTimeout(1500);
   const bg = await f.evaluate(() => getComputedStyle(document.querySelector("[data-fm-store]") || document.body).backgroundColor);
   if (bg !== "rgb(18, 23, 34)") throw new Error(`the preview isn't in the Night colours (${bg})`);
-  if (!(await card.getByText("Current").count())) throw new Error("the card doesn't show Aurel Night as current");
-}, "?hiddenStyles=aurel-editorial/sand#designer?tab=themes");
+}, "?starter=aurel-editorial&hiddenStyles=aurel-editorial/sand#designer?tab=essentials");
 
-// Starter updates that keep the owner's edits (next starters plan, phase 4): a shop on an older Aurel Sand (with its own
-// button corners) is told a new version is ready, can preview it without changing the draft, and Update keeps the corners.
 await check("a new version of the shop's starter: told once, previewed in the canvas only, and Update keeps the owner's change", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.locator("[data-studio-look-update]").waitFor({ timeout: 5000 });
   await page.locator("[data-studio-look-update]").getByRole("button", { name: "See what's new" }).click();
+  // It opens Version history › Compare with the starter.
+  await page.getByRole("dialog", { name: "Compare with the starter" }).waitFor({ timeout: 5000 });
   const panel = page.locator("[data-look-update]");
   await panel.waitFor({ timeout: 5000 });
   if (!(await panel.textContent()).includes("A new version of Aurel Sand is ready")) throw new Error("the update doesn't name the starter in its style");
-  if (await page.locator("[data-studio-look-update]").count()) throw new Error("the message stayed up after opening Designs");
+  if (await page.locator("[data-studio-look-update]").count()) throw new Error("the message stayed up after opening Compare with the starter");
+  // Preview it closes the window so the canvas shows the new version; the draft doesn't change.
   await panel.locator("[data-look-update-preview]").click();
   await page.locator("[data-studio-theme-preview]").waitFor({ timeout: 3000 });
+  if (await page.getByRole("dialog", { name: "Compare with the starter" }).count()) throw new Error("the window stayed over the preview");
   if (await page.locator("[data-studio-status=\"unsaved\"]").count()) throw new Error("previewing the new version changed the draft");
-  await panel.locator("[data-look-update-preview]").click();
+  await page.locator("[data-studio-theme-preview]").getByRole("button", { name: "Stop preview" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
+  await page.getByRole("menuitem", { name: "Version history" }).click();
+  await page.locator("[data-history-starter]").click();
   await panel.getByRole("button", { name: "Update Aurel Sand" }).click();
   await expectText(page, "“Aurel Sand” updated in the draft; your 1 change stayed on top");
   if (await page.locator("[data-look-update]").count()) throw new Error("the update is still offered after taking it");
@@ -1520,17 +1444,13 @@ await check("a new version of the shop's starter: told once, previewed in the ca
 }, "?olderStarter=aurel-editorial/sand#designer");
 
 // Every starter on every kind of shop (next starters plan, phase 1): a starter listed in lookGallery.ts STARTER_SITES is
-// tried as a bookshop, a clothing shop and a salon, at desktop and phone. Its look must load, nothing may scroll
+// opened in the draft (`?starter=`) as a bookshop, a clothing shop and a salon, at desktop and phone. Its look must load, nothing may scroll
 // sideways, the shop name must stay clear of the header's buttons, and a shop that sells no books must not show the
 // books menu. A new starter is checked here by being listed, with nothing to add.
 const STARTERS = JSON.parse(/export const STARTER_SITES = (\[[^\]]*\])/.exec(readFileSync(new URL("../src/app/admin/lookGallery.ts", import.meta.url), "utf8"))[1]);
 for (const starter of STARTERS) for (const sells of ["books", "clothing", "hair"]) {
   await check(`starter ${starter} as a ${sells} shop: styled, no sideways scroll, name clear of the buttons, the right menu`, desktop, async page => {
     await expectText(page, "Preview connected", 30000);
-    const card = page.locator(`[data-studio-panel='themes'] [data-theme-card='preset:${starter}']`);
-    await card.scrollIntoViewIfNeeded();
-    await card.getByRole("button", { name: "Try this starter" }).click();
-    await page.locator("[data-studio-status=\"unsaved\"]").waitFor({ timeout: 10000 });
     const frame = page.frameLocator("iframe").first();
     await frame.locator(".fm-hdr-row").first().waitFor({ timeout: 10000 });
     await page.waitForTimeout(1500);
@@ -1561,69 +1481,26 @@ for (const starter of STARTERS) for (const sells of ["books", "clothing", "hair"
     await page.getByRole("button", { name: "Phone preview" }).click();
     await page.waitForTimeout(1500);
     await look("phone");
-  }, `?starters=${STARTERS.join(",")}&sells=${sells}#designer?tab=themes`);
+  }, `?starter=${starter}&sells=${sells}#designer`);
 }
 
-await check("switching looks lists what carried over, Bring back restores a replaced change, and Done closes the list", desktop, async page => {
-  await expectText(page, "Preview connected", 30000);
-  // An own edit in Essentials that Marquee replaces (the title font), then open Themes.
-  const essentials = page.locator('[data-studio-panel="essentials"]');
-  await essentials.locator('[data-style-key="headingFont"] select').selectOption("Oswald");
-  await essentials.getByRole("button", { name: "Browse looks" }).click();
-  const panel = page.locator("[data-studio-panel='themes']");
-  const card = panel.locator("[data-theme-card='preset:press-marquee']");
-  await card.getByRole("button", { name: "Use this look" }).click();
-  const ask = page.getByRole("dialog", { name: /Also use “Marquee” layout and starter pages\?/ });
-  await ask.waitFor({ timeout: 5000 });
-  await ask.getByRole("button", { name: "Cancel" }).click();
-  const report = panel.locator("[data-switch-report]");
-  await report.waitFor({ timeout: 5000 });
-  const summary = await report.locator(".studio-switch-summary").innerText();
-  if (!/carried over|replaced nothing/.test(summary)) throw new Error(`summary reads "${summary}"`);
-  if (!/sections, menus and pages were not touched/.test(await report.innerText())) throw new Error("the list doesn't say sections and pages were kept");
-  const font = report.locator("[data-switch-replaced] li", { hasText: "Heading font" });
-  await font.waitFor({ timeout: 5000 });
-  if (!/Oswald/.test(await font.innerText())) throw new Error("the replaced title font doesn't show the press's own choice");
-  await font.getByRole("button", { name: /^Bring back / }).click();
-  await expectText(page, "Brought back");
-  await font.waitFor({ state: "detached", timeout: 5000 });
-  if (await essentials.count()) throw new Error("Essentials is still open behind Themes");
-  await openView(page, "Style", "Basics");
-  if (await essentials.locator('[data-style-key="headingFont"] select').inputValue() !== "Oswald") throw new Error("Bring back didn't restore the title font");
-  await rail(page, "Designs").click();
-  // Switching to Atlas replaces the list with Atlas's own.
-  await panel.locator("[data-theme-card='preset:press-atlas']").getByRole("button", { name: "Use this look" }).click();
-  await page.getByRole("dialog", { name: /Also use “Atlas” layout/ }).getByRole("button", { name: "Cancel" }).click();
-  await report.getByText("After switching to Atlas").waitFor({ timeout: 5000 });
-  await report.getByRole("button", { name: "Done" }).click();
-  await report.waitFor({ state: "detached", timeout: 5000 });
-}, FIRST_VISIT);
-
-await check("Themes keeps the press's own changes apart from their look, and Use the theme's puts one back", desktop, async page => {
+await check("Version history › Compare with the starter keeps the owner's own changes apart, and Use the starter's puts one back", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const essentials = page.locator('[data-studio-panel="essentials"]');
-  await essentials.getByRole("button", { name: "Browse looks" }).click();
-  const panel = page.locator("[data-studio-panel='themes']");
-  await panel.locator("[data-theme-card='preset:press-marquee']").getByRole("button", { name: "Use this look" }).click();
-  await page.getByRole("dialog", { name: /Also use “Marquee” layout/ }).getByRole("button", { name: "Cancel" }).click();
-  await panel.locator("[data-switch-report]").getByRole("button", { name: "Done" }).click();
-  const own = panel.locator("[data-own-edits]");
-  await own.getByText("Your changes to Marquee").waitFor({ timeout: 5000 });
-  if (!/Nothing changed yet/.test(await own.innerText())) throw new Error("a fresh look already lists changes");
-  // Change the title font in Essentials: Themes now lists it as the press's own.
-  await openView(page, "Style", "Basics");
   await essentials.locator('[data-style-key="headingFont"] select').selectOption("Oswald");
-  await rail(page, "Designs").click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
+  await page.getByRole("menuitem", { name: "Version history" }).click();
+  await page.locator("[data-history-starter]").click();
+  const own = page.locator("[data-own-edits]");
+  await own.getByText("Your changes to Aurel").waitFor({ timeout: 5000 });
   await own.getByText("1 setting is yours").waitFor({ timeout: 5000 });
   await own.getByText("Show your changes (1)").click();
   const item = own.locator("[data-own-edit-list] li", { hasText: "Heading font" });
-  if (!/Big Shoulders Display[\s\S]*Oswald/.test(await item.innerText())) throw new Error("the change doesn't show the theme's font and the press's");
-  await item.getByRole("button", { name: /^Use the theme's / }).click();
-  await expectText(page, "is the theme's again");
+  if (!/Oswald/.test(await item.innerText())) throw new Error("the change doesn't show the owner's font");
+  await item.getByRole("button", { name: /^Use the starter's / }).click();
+  await expectText(page, "is the starter's again");
   await own.getByText("Nothing changed yet").waitFor({ timeout: 5000 });
-  await openView(page, "Style", "Basics");
-  if (await essentials.locator('[data-style-key="headingFont"] select').inputValue() !== "Big Shoulders Display") throw new Error("Use the theme's didn't restore Marquee's title font");
-}, FIRST_VISIT);
+}, "?starter=aurel-editorial#designer?tab=essentials");
 
 await check("the hero's Height control (found by the theme check) changes the hero in the preview", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
@@ -1658,23 +1535,6 @@ await check("Schedule publishing saves a campaign in Toronto time and lists it, 
   await dialog.locator("[data-schedule-id]").first().getByRole("button", { name: "Cancel" }).click();
   await page.getByRole("dialog", { name: /^Cancel “/ }).getByRole("button", { name: "Cancel schedule" }).click();
   await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "cancelThemeSchedule"));
-});
-
-await check("an edit while a theme preview is showing ends the preview, and the canvas shows the edit", desktop, async page => {
-  await expectText(page, "Preview connected", 30000);
-  await page.getByRole("button", { name: "Add section" }).first().click();
-  await page.getByRole("button", { name: /^Newsletter/ }).first().click();
-  await expectText(page, "Home · 1 section");
-  await rail(page, "Designs").click();
-  const panel = page.locator("[data-studio-panel='themes']");
-  await panel.locator("[data-theme-card^='preset:']").first().getByRole("button", { name: "Preview", exact: true }).click();
-  await page.locator("[data-studio-theme-preview]").waitFor({ timeout: 5000 });
-  // Undo changes the draft: the canvas must stop showing the previewed look and follow the draft.
-  await page.locator("[data-studio-theme-preview]").click({ position: { x: 4, y: 4 } });
-  await page.keyboard.press(`${mod}+z`);
-  await page.locator("[data-studio-theme-preview]").waitFor({ state: "detached", timeout: 5000 });
-  await rail(page, "Page").click();
-  await expectText(page, "Home · 0 sections");
 });
 
 await check("Pages shows the page being edited in the canvas, with unsaved words", desktop, async page => {
@@ -2052,7 +1912,7 @@ await check("View website opens the shop in a new tab with the draft and says wh
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();
   await expectText(page, "Home · 1 section");
-  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
   const [tab] = await Promise.all([page.context().waitForEvent("page"), page.getByRole("menuitem", { name: "View website" }).click()]);
   if (!/[?&]preview=true/.test(tab.url())) throw new Error(`View website opened ${tab.url()}`);
   await tab.locator('[data-draft-preview-banner="unsaved"]').waitFor({ timeout: 30000 });
@@ -2177,7 +2037,7 @@ await check("in night mode Navigation's chosen menu tab can be read and Shop cat
 }, "?night=1#designer?tab=menus");
 
 // The phone top bar used to wrap to five rows and push the preview half off the screen.
-await check("on a phone the top bar is two rows of full-size buttons, with View website under Theme actions", { width: 390, height: 844 }, async page => {
+await check("on a phone the top bar is two rows of full-size buttons, with View website under Studio actions", { width: 390, height: 844 }, async page => {
   const bar = await page.evaluate(() => {
     const top = document.querySelector(".studio-topbar");
     const shown = [...top.querySelectorAll("button")].filter(b => b.getBoundingClientRect().width > 0);
@@ -2187,7 +2047,7 @@ await check("on a phone the top bar is two rows of full-size buttons, with View 
   if (bar.height > 120) throw new Error(`the phone top bar is ${bar.height}px tall`);
   if (bar.small.length) throw new Error(`small tap targets in the top bar: ${bar.small.join(", ")}`);
   if (bar.unnamed) throw new Error(`${bar.unnamed} top bar buttons have no name`);
-  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
   await page.getByRole("menuitem", { name: "View website" }).waitFor({ timeout: 5000 });
 });
 
@@ -2214,7 +2074,7 @@ await check("calmer Studio: slim top bar, path in the left panel, a four-stop to
   await expectText(page, "Preview connected", 30000);
   await page.waitForTimeout(1200);
   if (await page.locator("[data-studio-tour]").count()) throw new Error("the tour came back after it was finished");
-  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
   await page.getByRole("menuitem", { name: "Take the tour" }).click();
   await page.locator("[data-studio-tour='1']").waitFor({ timeout: 5000 });
 }, "?tour=1#designer?tab=sections");
@@ -2292,13 +2152,13 @@ await check("a computer opens on the computer preview", desktop, async page => {
   if (pressed !== "true") throw new Error("a computer did not open on the computer preview");
 }, FIRST_VISIT);
 
-// On a phone the workspaces are one sideways row; the open one (Themes is the last) used to sit off screen.
+// On a phone the workspaces are one sideways row; the open one (Media is the last) used to sit off screen.
 await check("on a phone the open workspace is in sight in the workspace row", { width: 390, height: 844 }, async page => {
   await page.getByRole("tab", { name: "Sections" }).click();
   await page.waitForTimeout(400);
   const box = await page.locator(".studio-rail button[aria-pressed=true]").boundingBox();
   if (!box || box.x < 0 || box.x + box.width > 390) throw new Error(`the open workspace is off screen (${JSON.stringify(box)})`);
-}, "#designer?tab=themes");
+}, "#designer?tab=media");
 
 // A shop that sells clothing or candles used to read "Book cards", "Book page" and "author" all through Studio.
 // `?sells=clothing` opens the fixture as such a shop; {tokens} keep their spelling because the shop fills them in.
@@ -2332,14 +2192,11 @@ await check("a shop that doesn't sell books reads its own words in Text & labels
   await noBookWords(page, "Text & labels");
 }, "?sells=clothing#designer?tab=text");
 
-await check("a shop that doesn't sell books reads its own words in Basics, Menus and Designs", desktop, async page => {
+await check("a shop that doesn't sell books reads its own words in Basics and Menus", desktop, async page => {
   await noBookWords(page, "Basics");
   await openView(page, "Pages", "Menus");
   await expectText(page, "directly assigned products");
   await noBookWords(page, "Menus");
-  await rail(page, "Designs").click();
-  await expectText(page, "Marquee");
-  await noBookWords(page, "Designs");
 }, "?sells=clothing#designer?tab=essentials");
 
 await check("a shop that doesn't sell books: Find and Reset to default use its own words", desktop, async page => {

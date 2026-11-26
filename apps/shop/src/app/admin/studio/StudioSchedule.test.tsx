@@ -23,7 +23,7 @@ const set = (el: HTMLInputElement | HTMLSelectElement, value: string) => act(asy
 });
 afterEach(async () => { await act(async () => root?.unmount()); root = null; document.body.innerHTML = ""; });
 
-describe("Theme actions › Schedule publishing", () => {
+describe("Studio actions › Schedule publishing", () => {
   it("shows and loads nothing while closed, then opens with the list and a fresh start time", async () => {
     const a = api();
     await mount({ api: a, open: false });
