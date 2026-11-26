@@ -44,8 +44,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 1, date: "2026-11-25", note: "The first version, in Linen, Stone and Night." },
       { version: 2, date: "2026-11-26", note: "Your name now sits in the middle of the header, above a photo that fills the screen." },
       { version: 3, date: "2026-11-26", note: "A new frame: links behind a Menu button, a big photo on top of each product page, centred product names, a staggered shop page and a centred footer." },
+      { version: 4, date: "2026-11-26", note: "A redesign: words in light type over the opening photo, two products shown large then three smaller, an open product page with your photos side by side, and a slim announcement bar." },
     ],
-    looks: { linen: "uxwjhf", stone: "8232jx", night: "ai06py" },
+    looks: { linen: "mj6y2x", stone: "urc9mb", night: "19oqe24" },
   },
   "starter-warehouse": {
     releases: [

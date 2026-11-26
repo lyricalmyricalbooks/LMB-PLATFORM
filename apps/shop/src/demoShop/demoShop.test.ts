@@ -21,6 +21,15 @@ describe("live demo shops", () => {
     expect(demoDesign({ starter: STARTER_SITES[0], style: "", sells: "clothing" }, "/demo/", "Moth & Moon").design.copy.siteName).toBe("Moth & Moon");
   });
 
+  it("fills the menu with the starter's own pages, published, so no header or side menu is empty", () => {
+    for (const starter of STARTER_SITES) {
+      const { pages } = demoDesign({ starter, style: "", sells: "clothing" });
+      expect(pages.length, starter).toBeGreaterThan(0);
+      for (const page of pages) expect(page, starter).toMatchObject({ status: "published", showInNav: true });
+      expect(new Set(pages.map((p: any) => p.slug)).size, starter).toBe(pages.length);
+    }
+  });
+
   it("puts the demo's folder in front of the starter pictures", () => {
     expect(underBase({ a: "/starters/aurel/hero.webp", b: ["/starters/x.webp"], c: "/other.webp" }, "/demo/")).toEqual({ a: "/demo/starters/aurel/hero.webp", b: ["/demo/starters/x.webp"], c: "/other.webp" });
     const same = { a: "/starters/x.webp" };

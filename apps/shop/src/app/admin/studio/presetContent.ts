@@ -36,7 +36,7 @@ export function starterSampleBooks(preset: any): any[] {
     id: `starter-sample-${i + 1}`, slug: sampleSlug(p.title), title: p.title, authorName: p.maker || "", author: p.maker || "",
     retailPrice: p.price, stockLevel: 8, status: "published", isFeatured: i < 4, featured: i < 4,
     categories: [p.maker || "Featured"], photos: [{ id: `s${i + 1}`, url: p.photo, alt: p.title }],
-    description: "<p>A sample product. Your own products take its place once you add them.</p>",
+    description: "A sample product. Your own products take its place once you add them.",
     createdAt: new Date(Date.UTC(2026, 10, 20 - i)).toISOString(), sample: true,
   }));
 }

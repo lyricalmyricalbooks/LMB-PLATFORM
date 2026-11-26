@@ -3,7 +3,7 @@ import { m, useMotionValue, useSpring } from "motion/react";
 import { quickAddChoice } from "../features/site/buyable";
 import { notForSale } from "../features/site/comingSoon";
 import { displayPrice, showsSale } from "../features/site/displayPrice";
-import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
+import { type CSSProperties, createContext, useContext, useEffect, useId, useRef, useState } from "react";
 import { Send, ChevronLeft, ChevronRight, MapPin, Clock, Users, Navigation } from "lucide-react";
 import { useCurrency } from "../CurrencyContext";
 import { useCart } from "../CartContext";
@@ -455,6 +455,30 @@ const BANNER_POSITIONS: Record<string, string> = {
   "bottom-right": "items-end justify-end",
 };
 
+/** Where a "Behind the words only" shade comes from: dark where the words sit, clear across the rest of the photo. */
+const BANNER_FADE: Record<string, string> = {
+  "top-left": "linear-gradient(160deg, SHADE 0%, CLEAR 60%)",
+  "top-center": "linear-gradient(180deg, SHADE 0%, CLEAR 60%)",
+  "top-right": "linear-gradient(200deg, SHADE 0%, CLEAR 60%)",
+  "center-left": "linear-gradient(90deg, SHADE 0%, CLEAR 65%)",
+  "center-center": "radial-gradient(ellipse at center, SHADE 0%, CLEAR 70%)",
+  "center-right": "linear-gradient(270deg, SHADE 0%, CLEAR 65%)",
+  "bottom-left": "linear-gradient(0deg, SHADE 0%, CLEAR 72%)",
+  "bottom-center": "linear-gradient(0deg, SHADE 0%, CLEAR 72%)",
+  "bottom-right": "linear-gradient(0deg, SHADE 0%, CLEAR 72%)",
+};
+
+/** The banner's shade: an even layer over the whole photo (the default) or a fade behind the words only. */
+export function bannerShadeStyle(settings: any): CSSProperties {
+  const opacity = settings.overlayOpacity ?? 0.4;
+  if (settings.overlayStyle !== "fade") return { backgroundColor: "rgb(var(--overlay-rgb, 0, 0, 0))", opacity };
+  // The fade is the colour behind the words (the section's colour scheme), so light words get a dark fade and dark
+  // words a light one: pick Studio › the section › Colour scheme to choose which.
+  const strength = Math.round(Math.min(0.9, opacity * 1.8) * 100);
+  const fade = BANNER_FADE[settings.contentPosition] || BANNER_FADE["center-center"];
+  return { backgroundImage: fade.replace("SHADE", `color-mix(in srgb, var(--bg-color, #000000) ${strength}%, transparent)`).replace("CLEAR", "transparent") };
+}
+
 /** A product with no photo shows the shop's stand-in picture (Studio › Style, `placeholderImageUrl`), as
  *  the shop grid and the product page do, never an empty box. */
 function NoPhoto({ title }: { title?: string }) {
@@ -523,7 +547,7 @@ export function ImageBannerSection({ settings, onCtaClick, enableAnimations }: a
           Add a banner image
         </div>
       ) : null}
-      <div className="absolute inset-0" style={{ backgroundColor: "rgb(var(--overlay-rgb, 0, 0, 0))", opacity: settings.overlayOpacity ?? 0.4 }} />
+      <div className="absolute inset-0" style={bannerShadeStyle(settings)} />
       <div className={`relative z-10 flex w-full p-6 md:p-12 ${position}`}>
         <AnimationContainer enabled={enableAnimations}>
           <div className={`${mw(settings, "max-w-2xl")} ${textAlignClass} text-white`}>
