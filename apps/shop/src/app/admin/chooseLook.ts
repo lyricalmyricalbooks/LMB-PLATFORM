@@ -11,7 +11,11 @@ import { applyStarter, starterForShop, starterPagesToAdd } from "./studio/starte
 import { wordsFor } from "../../shared/shopSells";
 // Only Choose your look loads this file, on a click (ChooseLookWelcome imports it lazily), so the section list stays out of Home.
 import { getSectionMeta } from "./ThemeEditorExtensions";
-import { openWorkspace, saveDraft, ThemeConflictError } from "./themeStore";
+import { openWorkspace, saveDraft, saveSavedThemes, ThemeConflictError } from "./themeStore";
+import { applyLook } from "./studio/themeSwitch";
+import { styledName } from "./studio/starterStyles";
+import type { LeadSide, StarterKind } from "./studio/starterDesign";
+import { currentWebsite, switchBackEntry, switchBackOffer, withSwitchBack } from "./websiteChoice";
 import { withStarterWords } from "./sells";
 import { adminApi } from "./api";
 import { emailThemeFor } from "./lookGallery";
@@ -25,7 +29,7 @@ export * from "./lookGallery";
  * draft again and tries once more, so nothing that tab saved is lost. Applying the same look twice gives the same draft.
  * A shop that doesn't sell books also gets its starter words (sells.ts, plan 10.1) under any words the owner wrote.
  */
-export async function applyChosenLook(theme: LibraryTheme, settings: any, publishes?: string | null, extra: { logo?: File | null } = {}): Promise<void> {
+export async function applyChosenLook(theme: LibraryTheme, settings: any, publishes?: string | null, extra: { logo?: File | null; kind?: StarterKind; lead?: LeadSide; keepBefore?: boolean } = {}): Promise<void> {
   const w = wordsFor(publishes);
   // The guided start's logo goes up first and into the header (brandKit's `logoUrl`). Best effort: a failed upload keeps
   // the shop name in the header, and the logo can be added in Studio › Style › Header.
@@ -33,10 +37,16 @@ export async function applyChosenLook(theme: LibraryTheme, settings: any, publis
   if (extra.logo) {
     try { logoUrl = await (await import("./studio/mediaUpload")).uploadStudioImage(extra.logo); } catch { logoUrl = ""; }
   }
+  let kept = false;
   for (let attempt = 0; ; attempt++) {
     const ws = await openWorkspace(settings);
     try {
-      const next = withStarterWords(applyStarter(ws.draft || {}, starterForShop(theme, publishes), getSectionMeta, w, starterPhotos(publishes)), publishes);
+      // Online store's Use this keeps the design as it was, so the owner can switch back for 30 days (websiteChoice.ts).
+      if (extra.keepBefore && !kept) {
+        await saveSavedThemes(ws, ws.savedThemes, withSwitchBack(ws.savedThemes, switchBackEntry(ws.draft, currentWebsite(ws.draft).name, styledName(theme))));
+        kept = true;
+      }
+      const next = withStarterWords(applyStarter(ws.draft || {}, starterForShop(theme, extra.kind ?? publishes, extra.lead), getSectionMeta, w, starterPhotos(publishes)), publishes);
       await saveDraft(ws, logoUrl ? { ...next, logoUrl } : next, ws.rev);
       break;
     } catch (error) {
@@ -71,4 +81,27 @@ export async function followEmailTheme(themeId: string): Promise<void> {
     const emailTheme = emailThemeFor(themeId, current);
     if (emailTheme && emailTheme !== current) await adminApi.setEmailTheme(emailTheme);
   } catch { /* the email colours can still be set in Settings */ }
+}
+
+/**
+ * Online store › Switch back: the design from before the last website change goes back into the draft, and the design it
+ * replaces is kept in its place, so switching back can itself be undone the same way. Nothing is published.
+ */
+export async function switchBackWebsite(settings: any): Promise<string | null> {
+  const ws = await openWorkspace(settings);
+  const entry = switchBackOffer(ws.savedThemes);
+  if (!entry) return null;
+  const now = currentWebsite(ws.draft).name;
+  await saveDraft(ws, entry.design, ws.rev);
+  await saveSavedThemes(ws, ws.savedThemes, withSwitchBack(ws.savedThemes, switchBackEntry(ws.draft, now, entry.from)));
+  return entry.from;
+}
+
+/** Online store › Colours: another colour version of the same starter, in the draft; layouts, words and edits stay. */
+export async function applyColours(theme: LibraryTheme, settings: any): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    const ws = await openWorkspace(settings);
+    try { await saveDraft(ws, applyLook(ws.draft || {}, theme), ws.rev); return; }
+    catch (error) { if (!(error instanceof ThemeConflictError) || attempt >= 1) throw error; }
+  }
 }

@@ -219,12 +219,12 @@ export const PAGE_HELP: Record<string, PageHelpEntry> = {
     ],
   },
   design: {
-    intro: "How your website looks: the theme that's live, changes waiting to go live, and your pages.",
+    intro: "Your website: choose it, pick its colours, change to another one, and edit its pages.",
     parts: [
-      { title: "Live theme", text: "The look shoppers see now.", at: ["Live theme"] },
-      { title: "Unpublished changes", text: "Changes you made in Studio that aren't live yet.", at: ["Unpublished changes"] },
+      { title: "Live now", text: "The website shoppers see, and how many changes wait to be published.", at: ["Live now"] },
+      { title: "Your website", text: "The one you're working on, with its colours. Edit in Studio or Preview it.", at: ["Your website"] },
+      { title: "Change your website", text: "Other websites, each with its own layout. You can switch back for 30 days.", at: ["Change your website"] },
       { title: "Pages", text: "Your website's pages. Click one to edit it in Studio.", at: ["Pages"] },
-      { title: "Open Studio", text: "Change colours, words and pages. Nothing changes for shoppers until you publish.", at: ["Open Studio"] },
       { title: "URL redirects", text: "Send old addresses to new pages, so old links never break.", at: ["URL redirects"] },
     ],
   },

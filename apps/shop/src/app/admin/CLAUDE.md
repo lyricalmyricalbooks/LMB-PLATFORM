@@ -115,3 +115,4 @@ Details of each feature live in [`docs/agent-notes/admin.md`](../../../docs/agen
 - Adding products, round 3 (24 November 2026, plan https://claude.ai/artifact/MEmMDYot4WY3S1c8cRDRaL)
 - Guided start (24 November 2026, next starters plan phase 3)
 - Shop types: Product shop, Services or Both (26 November 2026, plan https://claude.ai/artifact/7nZNMBxFoF3bYzNMga37DJ)
+- One website picker (26 November 2026, plan https://claude.ai/artifact/Rfj5WFBC58QyUsgMyXbU9J, step 2)

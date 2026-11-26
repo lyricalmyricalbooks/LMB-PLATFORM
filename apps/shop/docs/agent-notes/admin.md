@@ -1688,3 +1688,21 @@ Orders search and Studio categories no longer say "ISBN" to a shop without books
 first step and Settings end every kinds-of-things list in Something else with a box (`otherSells`), and Other services
 asks what people book (`otherService`); both at most 80 characters (`offerStage.ts` `otherWords`, rules, emulator).
 New choice lists the owner answers about their business need the same: an other option and a box for their words.
+
+## One website picker (26 November 2026, plan https://claude.ai/artifact/Rfj5WFBC58QyUsgMyXbU9J, step 2)
+
+Online store (`DesignHome.tsx`) is the one place a shop chooses its website. `WebsitePicker.tsx` draws it; the rules live
+in `websiteChoice.ts` (tests in `websiteChoice.test.ts`).
+- **Your website**: the draft's starter when it differs from the live one (badge "In your draft, not live yet"), else the
+  live one; an older look (`themeBase.id` not in `STARTER_SITES`) shows its name with no picture. Colour chips call
+  `applyColours` (chooseLook.ts: `applyLook` into the draft, layouts and words stay).
+- **Change your website**: `startersForKind(kind, choice)` (made-for kinds first, `MADE_FOR`), kind from
+  `shopKindOf(firstWeek)` and the Both lead from `leadSideOf`. Use this = `applyChosenLook(..., { kind, lead, keepBefore: true })`.
+- **Pictures** are real screenshots, `public/starters/thumbs/<id>-<style>.jpg` (720×450). After a starter's look or a
+  colour version changes, run `node scripts/starter-thumbs.mjs` with `pnpm dev` running; the test fails on a missing one.
+- **Preview** (`StarterPreview.tsx`, lazy): the shop's own storefront in an iframe (`/?preview=true`), handed the starter
+  through `buildPreviewState`/`deliverPreviewState` like Studio's draft; nothing is saved. Show as products/services/both.
+- **Switch back**: `applyChosenLook` with `keepBefore` stores the design it replaces as saved design id `switch-back`
+  (one only, 30 days, `switchBackOffer`); `switchBackWebsite` swaps it back and keeps the replaced one the same way.
+  `ownSavedDesigns` leaves it out of "You have N saved designs".
+- Fixture: `admin-fixture.html?page=design&site=starter-gallery&style=stone&back=1` (all starters offered, two New).

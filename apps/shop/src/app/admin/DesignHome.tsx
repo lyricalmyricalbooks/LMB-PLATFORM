@@ -6,6 +6,8 @@ import { normalizeDesign } from "./studio/studioModel";
 import { liveLookName, pageRows, publishedLine, waitingWhere, type PageRow } from "./designPageWords";
 import { PageActions, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
 import { RedirectsCard } from "./RedirectsCard";
+import { WebsitePicker } from "./WebsitePicker";
+import { currentWebsite } from "./websiteChoice";
 import type { StudioLocation } from "../lib/studioLocation";
 
 type Props = {
@@ -23,9 +25,9 @@ const PLACES = [
 ];
 
 /**
- * Design (redesign, 11 November 2026, mockup "Online store"): two tiles (the live look, what's waiting to be published)
- * and the shop's pages, with Open Studio and View site by the title. Everything is designed in Studio; this page only
- * says where things stand and opens it.
+ * Design (redesign, 11 November 2026, mockup "Online store"): two tiles (the live website, what's waiting to be
+ * published), the website picker (your website, its colours and the other starters, WebsitePicker.tsx) and the shop's
+ * pages, with Open Studio and View site by the title. Editing happens in Studio.
  */
 export function DesignHome({ settings, onOpenStudio, onViewSite }: Props) {
   const [waiting, setWaiting] = useState<DiffItem[] | null>(null);
@@ -45,6 +47,8 @@ export function DesignHome({ settings, onOpenStudio, onViewSite }: Props) {
   }, []);
 
   const published = publishedLine(settings?.designPublishedAt);
+  // A starter is named as the picker names it; an older look keeps the name it was saved with.
+  const liveSite = currentWebsite(settings?.design);
   const count = waiting?.length ?? 0;
   return (
     <div className="rp-stack" data-testid="design-home">
@@ -55,8 +59,8 @@ export function DesignHome({ settings, onOpenStudio, onViewSite }: Props) {
 
       <div className="rp-tiles">
         <div className="rp-tile" data-tone="mint">
-          <span className="rp-tile-label">Live theme</span>
-          <span className="rp-tile-value">{liveLookName(settings?.design)}</span>
+          <span className="rp-tile-label">Live now</span>
+          <span className="rp-tile-value">{liveSite.id ? liveSite.name : liveLookName(settings?.design)}</span>
           {published && <span className="rp-tile-sub">{published}</span>}
         </div>
         <div className="rp-tile" data-tone={count ? "apricot" : undefined} aria-busy={waiting === null || undefined}>
@@ -65,6 +69,9 @@ export function DesignHome({ settings, onOpenStudio, onViewSite }: Props) {
           <span className="rp-tile-sub">{waiting === null ? "Open Studio to see them" : count ? waitingWhere(waiting) : "Everything is live"}</span>
         </div>
       </div>
+
+      {/* One website picker (26 November 2026): the shop's website, its colours and the other starters live here. */}
+      <WebsitePicker settings={settings} onOpenStudio={onOpenStudio} />
 
       <section className="rp-cardbox" aria-labelledby="design-pages">
         <h2 id="design-pages" className="rp-cardbox-title">Pages</h2>
