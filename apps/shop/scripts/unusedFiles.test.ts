@@ -18,6 +18,7 @@ const KEPT: Record<string, string> = {
   "src/shared/documentKit.ts": "tested shared document rules, not wired yet",
   "src/app/admin/stockroom/moneyDue.ts": "tested money-due list for the cash flow forecast and balance sheet, read by those pages once built",
   "src/app/admin/studio/themeReadability.ts": "test helper: the theme readability sweep",
+  "src/app/admin/studio/themeCheck.ts": "test helper: every look and starter only sets keys Studio can change (Import a theme file left on 26 November 2026)",
   "src/app/features/site/storefrontColorScan.ts": "test helper: the storefront colour scan",
   "src/app/admin/studio/studioPerf.bench.ts": "benchmark, run by hand",
   "src/shared/membershipRules.ts": "memberships rules the server uses now; the Members and Membership pages read it in M1c",

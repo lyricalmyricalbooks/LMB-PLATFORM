@@ -281,7 +281,7 @@ function MediaDetails({ item, usage, lib, onBack, savedThemes, getVersions, getS
 
       <section className="studio-media-usage" aria-label="Where it's used">
         <h4>Where it's used</h4>
-        {!used ? <p className="studio-hint">Not used anywhere yet — not in your draft, the live site, a page, My themes or Version history.</p> : <ul>
+        {!used ? <p className="studio-hint">Not used anywhere yet — not in your draft, the live site, a page, your saved designs (Online store) or Version history.</p> : <ul>
           {usage.draft.map(p => place(p, false))}
           {usage.liveOnly.map(p => place(p, true))}
           {usage.snapshots.map(label => <li key={`snap:${label}`}><span>{label}<small> — saved copy of your design</small></span></li>)}

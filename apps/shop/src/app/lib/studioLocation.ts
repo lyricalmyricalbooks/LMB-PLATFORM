@@ -3,14 +3,16 @@
 
 export type StudioLocation = {
   templateId?: string; showGlobal?: boolean; productSlug?: string; collectionSlug?: string;
-  leftTab?: "essentials" | "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes"; device?: "desktop" | "tablet" | "mobile";
+  leftTab?: "essentials" | "sections" | "style" | "text" | "menus" | "pages" | "media"; device?: "desktop" | "tablet" | "mobile";
   /** Open on Make it yours, the four steps after a new shop picks its starter (`yours=1`). */
   yours?: boolean;
+  /** Open on Version history › Compare with the starter, where a new version of the starter is offered (`starter=1`). */
+  starter?: boolean;
 };
 
-const TABS = new Set(["essentials", "sections", "style", "text", "menus", "pages", "media", "themes"]);
+const TABS = new Set(["essentials", "sections", "style", "text", "menus", "pages", "media"]);
 // The old Shared layout tab became Page's Header / Footer groups (Studio 2.0 · 1.5).
-const RETIRED_TABS: Record<string, StudioLocation["leftTab"]> = { shared: "sections" };
+const RETIRED_TABS: Record<string, StudioLocation["leftTab"]> = { shared: "sections", themes: "style" };
 const DEVICES = new Set(["desktop", "tablet", "mobile"]);
 const TEMPLATE = /^(heroPage|storefront|productPage|collectionPage|cartPage|page|page404|wishlistPage|accountPage|trackingPage|bookingsPage|eventsPage|classesPage|supportPage|membershipPage|rentalsPage|page:[\w-]{1,120})$/;
 const SLUG = /^[\w-]{1,160}$/;
@@ -28,6 +30,7 @@ export function parseStudioLocation(hashOrQuery: string): StudioLocation | null 
   const tab = q.get("tab"); if (tab && TABS.has(tab)) loc.leftTab = tab as StudioLocation["leftTab"]; else if (tab && RETIRED_TABS[tab]) loc.leftTab = RETIRED_TABS[tab];
   const d = q.get("d"); if (d && DEVICES.has(d)) loc.device = d as StudioLocation["device"];
   if (q.get("yours") === "1") loc.yours = true;
+  if (q.get("starter") === "1") loc.starter = true;
   return loc;
 }
 
@@ -40,6 +43,7 @@ export function studioHash(loc: StudioLocation): string {
   if (loc.leftTab) q.set("tab", loc.leftTab);
   if (loc.device) q.set("d", loc.device);
   if (loc.yours) q.set("yours", "1");
+  if (loc.starter) q.set("starter", "1");
   const query = q.toString();
   return `#designer${query ? "?" + query : ""}`;
 }

@@ -97,6 +97,22 @@ export async function switchBackWebsite(settings: any): Promise<string | null> {
   return entry.from;
 }
 
+/**
+ * Online store › Bring one back: a design the owner saved before (My themes, retired 26 November 2026) goes into the
+ * draft, and the design it replaces is kept for switching back. Nothing is published.
+ */
+export async function bringBackSaved(saved: { name: string; design: any }, settings: any): Promise<void> {
+  const ws = await openWorkspace(settings);
+  await saveSavedThemes(ws, ws.savedThemes, withSwitchBack(ws.savedThemes, switchBackEntry(ws.draft, currentWebsite(ws.draft).name, saved.name)));
+  await saveDraft(ws, JSON.parse(JSON.stringify(saved.design ?? {})), ws.rev);
+}
+
+/** Online store › Your saved designs › Remove: the design is deleted for good (its pictures can then be deleted in Media). */
+export async function removeSaved(id: string, settings: any): Promise<void> {
+  const ws = await openWorkspace(settings);
+  await saveSavedThemes(ws, ws.savedThemes, (ws.savedThemes || []).filter((t) => t.id !== id));
+}
+
 /** Online store › Colours: another colour version of the same starter, in the draft; layouts, words and edits stay. */
 export async function applyColours(theme: LibraryTheme, settings: any): Promise<void> {
   for (let attempt = 0; ; attempt++) {

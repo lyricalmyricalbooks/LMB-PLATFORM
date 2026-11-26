@@ -7,8 +7,10 @@ import { openWorkspace } from "./themeStore";
 import { usePlatformStarters } from "./platformStarters";
 import { newStarters } from "./lookGallery";
 import { leadSideOf, shopKindOf } from "./servicesSetup";
-import { PrimaryButton, SecondaryButton, StatusBadge, useRisoToast } from "./riso/components";
+import { Dialog, PrimaryButton, SecondaryButton, StatusBadge, useRisoToast } from "./riso/components";
+import type { SavedTheme } from "./studio/savedThemes";
 import { styledName } from "./studio/starterStyles";
+import { starterUpdate, type StarterUpdate } from "./studio/themeSwitch";
 import type { StarterKind } from "./studio/starterDesign";
 import type { StudioLocation } from "../lib/studioLocation";
 import {
@@ -51,8 +53,10 @@ export function WebsitePicker({ settings, onOpenStudio }: Props) {
   const choice = usePlatformStarters();
   const live = currentWebsite(settings?.design);
   const [draft, setDraft] = useState<CurrentWebsite | null>(null);
+  const [update, setUpdate] = useState<StarterUpdate | null>(null);
   const [switchBack, setSwitchBack] = useState<SwitchBack | null>(null);
-  const [savedCount, setSavedCount] = useState(0);
+  const [saved, setSaved] = useState<SavedTheme[]>([]);
+  const [savedOpen, setSavedOpen] = useState(false);
   const [kind, setKind] = useState<StarterKind>("products");
   const [lead, setLead] = useState<ShowAs["lead"]>();
   const [sells, setSells] = useState<string | null>(null);
@@ -62,8 +66,9 @@ export function WebsitePicker({ settings, onOpenStudio }: Props) {
 
   const load = () => openWorkspace(settings).then((ws) => {
     setDraft(currentWebsite(ws.draft));
+    setUpdate(ws.draft ? starterUpdate(ws.draft) : null);
     setSwitchBack(switchBackOffer(ws.savedThemes));
-    setSavedCount(ownSavedDesigns(ws.savedThemes).length);
+    setSaved(ownSavedDesigns(ws.savedThemes));
   }).catch(() => {});
   useEffect(() => {
     void load();
@@ -124,6 +129,34 @@ export function WebsitePicker({ settings, onOpenStudio }: Props) {
     } finally { setBusy(null); }
   };
 
+  // Online store › Bring one back: a design saved before My themes was retired goes back into the draft.
+  const bringBack = async (t: SavedTheme) => {
+    if (busy) return;
+    setBusy(`saved:${t.id}`);
+    try {
+      await (await actions()).bringBackSaved(t, settings);
+      await load();
+      setSavedOpen(false);
+      toast?.(`${t.name} is back in your draft. Look it over in Studio, then Publish when you're happy.`, { tone: "ok" });
+    } catch {
+      toast?.("That design couldn't be put in your draft. Nothing changed. Try again in a moment.", { tone: "err" });
+    } finally { setBusy(null); }
+  };
+  // Remove asks once on the row itself ("Remove for good"), then deletes the saved design.
+  const [removing, setRemoving] = useState<string | null>(null);
+  const remove = async (t: SavedTheme) => {
+    if (removing !== t.id) { setRemoving(t.id); return; }
+    setBusy(`remove:${t.id}`);
+    try {
+      await (await actions()).removeSaved(t.id, settings);
+      await load();
+      toast?.(`${t.name} was removed.`, { tone: "ok" });
+    } catch {
+      toast?.("That design couldn't be removed. Try again in a moment.", { tone: "err" });
+    } finally { setBusy(null); setRemoving(null); }
+  };
+  const savedCount = saved.length;
+
   return (
     <>
       <section className="rp-cardbox rp-website-mine" aria-labelledby="website-mine" data-testid="your-website">
@@ -131,6 +164,12 @@ export function WebsitePicker({ settings, onOpenStudio }: Props) {
           <div className="rp-website-back" role="status">
             <span>You changed to {switchBack.to}. You can switch back to {switchBack.from} until {switchBackUntil(switchBack)}.</span>
             <SecondaryButton size="sm" onClick={goBack} disabled={!!busy}>{busy === "back" ? "Switching back…" : `Switch back to ${switchBack.from}`}</SecondaryButton>
+          </div>
+        )}
+        {update && (
+          <div className="rp-website-back" role="status" data-testid="website-update">
+            <span>A new version of {update.name} is ready. {update.releases[0]?.note} Your own changes stay on top.</span>
+            <SecondaryButton size="sm" onClick={() => onOpenStudio({ starter: true })}>See what's new</SecondaryButton>
           </div>
         )}
         <div className="rp-website-mine-grid" data-own={!mine.id || undefined}>
@@ -189,10 +228,27 @@ export function WebsitePicker({ settings, onOpenStudio }: Props) {
         </ul>
         {savedCount > 0 && (
           <p className="rp-hint rp-website-saved">
-            You have {savedCount} saved design{savedCount === 1 ? "" : "s"}. <button type="button" className="rp-link" onClick={() => onOpenStudio({ leftTab: "themes" })}>Bring one back</button>
+            You have {savedCount} saved design{savedCount === 1 ? "" : "s"}. <button type="button" className="rp-link" onClick={() => setSavedOpen(true)}>Bring one back</button>
           </p>
         )}
       </section>
+
+      <Dialog open={savedOpen} onClose={() => setSavedOpen(false)} title="Your saved designs"
+        description="Designs you saved before. Use this puts one in your draft, and you can switch back for 30 days.">
+        {savedOpen && !savedCount && <p className="rp-hint">No saved designs left.</p>}
+        {savedOpen && savedCount > 0 && <ul className="rp-listcard" data-testid="saved-designs">
+          {saved.map((t) => (
+            <li key={t.id}>
+              <span className="rp-listcard-main"><span className="rp-listcard-name">{t.name}</span>
+                <span className="rp-hint">Saved {new Date(t.savedAt).toLocaleDateString("en-CA", { month: "long", day: "numeric", year: "numeric" })}</span></span>
+              <span className="rp-website-actions">
+                <SecondaryButton size="sm" onClick={() => remove(t)} disabled={!!busy}>{busy === `remove:${t.id}` ? "Removing…" : removing === t.id ? "Remove for good" : "Remove"}</SecondaryButton>
+                <PrimaryButton size="sm" onClick={() => bringBack(t)} disabled={!!busy}>{busy === `saved:${t.id}` ? "Putting it in your draft…" : "Use this"}</PrimaryButton>
+              </span>
+            </li>
+          ))}
+        </ul>}
+      </Dialog>
 
       {preview && (
         <Suspense fallback={<div className="rp rp-starter-preview" role="status"><p className="rp-starter-preview-loading">Opening the preview…</p></div>}>

@@ -140,7 +140,7 @@ describe("saved copies of the design", () => {
       [{ name: "Autumn", design: withIt }, { name: "Plain", design: {} }],
       [{ label: "Published", createdAt: "2026-10-01T00:00:00.000Z", design: withIt }, { label: "Draft", design: {} }]);
     expect(uses).toHaveLength(2);
-    expect(uses[0]).toBe("My themes › Autumn");
+    expect(uses[0]).toBe("Saved designs › Autumn");
     expect(uses[1]).toMatch(/^Version history › Published \(/);
     expect(snapshotUses(m, [], [])).toEqual([]);
   });

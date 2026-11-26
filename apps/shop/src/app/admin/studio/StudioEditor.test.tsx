@@ -62,7 +62,7 @@ const homeSections = (design: any) => (design?.heroPage?.sections || []).map((s:
 describe("Studio editor (mounted with an in-memory API)", () => {
   it("opens on the page outline with every workspace and lists draft pages as templates", async () => {
     await mount();
-    for (const tab of ["Page", "Style", "Pages", "Designs", "Text & labels", "Media"]) expect(buttons(tab).length).toBeGreaterThan(0);
+    for (const tab of ["Page", "Style", "Pages", "Text & labels", "Media"]) expect(buttons(tab).length).toBeGreaterThan(0);
     await click(buttons("Page to edit")[0]);
     const pagePicker = [...document.querySelectorAll("[role=option]")].map(o => o.querySelector("span")?.textContent);
     expect(pagePicker).toEqual(expect.arrayContaining(["Home", "About", "Open call (draft)", "Night Pages", "Header & footer sections (every page)"]));
@@ -284,7 +284,7 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     await mount();
     await click(buttons("Media")[0]);
     await click(document.querySelector("[data-media-id='m-riso-print']")!);
-    expect(host.textContent).toContain("My themes › Autumn");
+    expect(host.textContent).toContain("Saved designs › Autumn");
     expect(host.textContent).toContain("Version history › Published");
     await click(buttons("Delete image")[0]);
     expect(host.textContent).toContain("still in use");
