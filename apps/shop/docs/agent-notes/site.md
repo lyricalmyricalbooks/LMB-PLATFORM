@@ -1131,3 +1131,15 @@ became `/stockroom`, where those files resolve to `/assets/…` (404) and the st
 `redirects` now sends `/stockroom`, `/stockroom/` and `/stockroom/index.html` to `/stockroom/app` (its real address,
 rewritten to `stockroom/index.html`). The release's site check (`clients/shop.js` `siteCheckClient`) reads look files
 from the page's final address after redirects. This had stopped every test shop release since 24 November.
+
+## Product cards are links, and the shopping pages' empty states (26 November 2026)
+- Product cards in `ProductGridHeaderSection`, `ProductShowcaseGridSection` and `FeaturedCollectionSection` are real
+  `<a href>` links (`productCardHref` in `SectionComponents.tsx`, built on `productHref` and `siteHref`), so a card opens
+  in a new tab and search engines follow it. `followInPage` keeps a plain left click in the shop's own navigation
+  (`onProductClick`) and leaves Ctrl, Cmd, Shift and middle clicks to the browser. A card holding a button (the
+  showcase grid's "+" quick add) gets an empty link laid over the card (`z-[1]`, named by `sectionViewBook`) with the
+  button above it (`z-[2]`): never put a button inside a link. `sectionProductLinks.test.tsx` checks all three.
+- The product page leaves out the Description tab when the product has none (`noDescription` now shows only in Studio's
+  preview, so the owner can still pick that part).
+- The bag's shipping words (`cartEstimateNotice`, `cartEstimateNone`, `cartDeliveryNote`) and the empty bag
+  (`cartEmpty`, "Your bag is empty.") are plain words now, French twins too. Shops that typed their own keep theirs.

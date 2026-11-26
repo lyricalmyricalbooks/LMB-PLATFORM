@@ -24,7 +24,7 @@ vi.mock("./StoreFooter", () => ({ StoreFooter: () => null }));
 const { default: BookDetail } = await import("./BookDetail");
 const { CurrencyProvider } = await import("../../CurrencyContext");
 
-const design = { copy: { bookLoading: "Loading-copy", bookNotFound: "Missing-copy" } };
+const design = { copy: { bookLoading: "Loading-copy", bookNotFound: "Missing-copy", noDescription: "NoDesc-copy", tabDescription: "DescTab-copy" } };
 let root: Root | null = null;
 afterEach(async () => { if (root) await act(async () => root!.unmount()); root = null; });
 
@@ -57,5 +57,14 @@ describe("product page before the fresh catalog read", () => {
     const el = await open({ books: [{ id: "b1", slug: "brand-new", title: "Brand New Book", status: "published", stockLevel: 2, retailPrice: 20 }], loading: false, fresh: false });
     expect(el.textContent).toContain("Brand New Book");
     expect(el.textContent).not.toContain("Loading-copy");
+  });
+
+  // Designer agent run (26 November 2026): an empty "No description available." box read as an unfinished shop.
+  it("shows no Description tab to shoppers when the product has no description, and the text when it has one", async () => {
+    const bare = await open({ books: [{ id: "b1", slug: "brand-new", title: "Brand New Book", status: "published", stockLevel: 2, retailPrice: 20 }], loading: false, fresh: true });
+    expect(bare.textContent).not.toContain("NoDesc-copy");
+    expect(bare.textContent).not.toContain("DescTab-copy");
+    const described = await open({ books: [{ id: "b1", slug: "brand-new", title: "Brand New Book", description: "Hand-bound in Toronto.", status: "published", stockLevel: 2, retailPrice: 20 }], loading: false, fresh: true });
+    expect(described.textContent).toContain("Hand-bound in Toronto.");
   });
 });
