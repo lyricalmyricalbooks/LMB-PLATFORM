@@ -6,6 +6,8 @@ import { STATIC_SURFACES, writeDesignValue } from "../../features/site/designMod
 import { FONT_SELECT_OPTIONS } from "../../features/site/fonts";
 import { HEADER_LAYOUT_OPTIONS } from "../../features/site/headerLayout";
 import { FOOTER_DESIGN_OPTIONS } from "../../features/site/footerStyle";
+import { PDP_LAYOUT_OPTIONS } from "../../features/site/productPageStyle";
+import { CARD_DESIGN_OPTIONS, SHOP_PAGE_LAYOUT_OPTIONS } from "../../features/site/cardTypography";
 import { PHOTO_OUTLINE_OPTIONS, PHOTO_RATIO_OPTIONS } from "../../features/site/photoShapes";
 import { REGION_GROUPS, REGION_DEVICES, REGION_DEVICE_LABELS, REGION_SUFFIXES, regionKey, regionFieldDevice, type RegionDevice } from "../../features/site/storefrontRegions";
 import { ELEMENT_SCHEME_TARGETS } from "../../features/site/colorSchemes";
@@ -246,6 +248,8 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
     id: "products",
     title: "Book cards in the shop grid",
     fields: [
+      { key: "shopPageLayout", label: "Shop page layout", kind: "select", defaultValue: "", options: SHOP_PAGE_LAYOUT_OPTIONS },
+      { key: "cardDesign", label: "Card design", kind: "select", defaultValue: "", options: CARD_DESIGN_OPTIONS },
       { key: "productCardStyle", label: "Card style", kind: "select", options: opts("card", "minimal", "editorial") },
       { key: "placeholderImageUrl", label: "Image shown for books with no photo", kind: "image" },
       { key: "lowStockCardThreshold", label: "Show “low stock” when this many or fewer are left (cards)", kind: "number", min: 1, max: 100, step: 1 },
@@ -565,6 +569,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "showPdpArtistLinks", label: "Show artist website links in Details (Books › edit › Search (SEO) › Artist links)", kind: "toggle", defaultValue: true },
       { key: "lowStockProductThreshold", label: "Show “only N left” on the product page at or below", kind: "number", min: 1, max: 100, step: 1 },
       { key: "recentlyViewedCount", label: "Recently viewed: how many books", kind: "number", min: 1, max: 12, step: 1 },
+      { key: "pdpLayout", label: "Product page design", kind: "select", defaultValue: "", options: PDP_LAYOUT_OPTIONS },
       { key: "productImageLayout", label: "Image layout", kind: "select", options: [{ value: "slider", label: "Slider" }, { value: "grid", label: "Grid" }] },
       { key: "productContentPosition", label: "Details side", kind: "select", options: [{ value: "right", label: "Right" }, { value: "left", label: "Left" }] },
       { key: "productAlignment", label: "Text alignment", kind: "select", options: [{ value: "left", label: "Left" }, { value: "center", label: "Center" }] },
@@ -824,7 +829,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
     hint: "The bag that slides in when a shopper adds a book. Leave colours blank to follow the main palette; words are in Text & labels › Cart.",
     fields: [
       // Panel
-      { key: "cartDrawerSide", label: "Slides in from", kind: "select", defaultValue: "right", options: [{ value: "right", label: "Right" }, { value: "left", label: "Left" }] },
+      { key: "cartDrawerSide", label: "Slides in from", kind: "select", defaultValue: "right", options: [{ value: "right", label: "Right" }, { value: "left", label: "Left" }, { value: "full", label: "Whole screen (rises from the bottom)" }] },
       { key: "cartDrawerWidth", label: "Bag width", kind: "range", defaultValue: 460, min: 320, max: 640, step: 10, suffix: "px" },
       { key: "cartDrawerPadding", label: "Inner side spacing", kind: "range", defaultValue: 28, min: 12, max: 48, step: 2, suffix: "px" },
       { key: "cartAddAction", label: "After a shopper adds a book", kind: "select", defaultValue: "drawer", options: [{ value: "drawer", label: "Open the bag" }, { value: "notice", label: "Show a small “Added to your bag” notice in the corner (words: Text & labels › Cart)" }] },

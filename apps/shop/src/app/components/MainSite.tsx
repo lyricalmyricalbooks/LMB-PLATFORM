@@ -26,6 +26,7 @@ import { practiceHint } from "../lib/practiceHint";
 import { buildNavItems, categoryNames, parentOf } from "../features/site/navItems";
 import { RADIUS_SCALES } from "../features/site/designTokens";
 import { catalogHeaderMaxWidth, contentMaxWidth } from "../features/site/headerNav";
+import { shopPageLayout } from "../features/site/cardTypography";
 import { shopFilterBarCategories, shopFilterBarCounts, shopFilterBarInStock, showShopFilterBar } from "../features/site/shopFilterBar";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { StorefrontOverrides } from "../features/site/StorefrontOverrides";
@@ -965,7 +966,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
             </p>
           )}
 
-          <div data-ga-list={activeCategory && activeCategory !== "ALL" && catNameForSEO(activeCategory) ? `Shop · ${catNameForSEO(activeCategory)}` : "Shop"} data-studio-target="style:products|style:catalogLayout|copy:Catalog & empty states" data-studio-label="Product grid" className={`grid ${mobileColsClass} ${desktopColsClass}`} style={{ gap: storefrontGridGap, rowGap: Math.min(isReferenceCatalog ? Math.max(40, storefrontGridGap * 3) : shopSectionSpacing, storefrontGridGap * 1.5) }}>
+          <div data-ga-list={activeCategory && activeCategory !== "ALL" && catNameForSEO(activeCategory) ? `Shop · ${catNameForSEO(activeCategory)}` : "Shop"} data-studio-target="style:products|style:catalogLayout|copy:Catalog & empty states" data-studio-label="Product grid" data-shop-layout={shopPageLayout(storefrontDesign) || undefined} className={`fm-shop-grid grid ${mobileColsClass} ${desktopColsClass}`} style={{ gap: storefrontGridGap, rowGap: Math.min(isReferenceCatalog ? Math.max(40, storefrontGridGap * 3) : shopSectionSpacing, storefrontGridGap * 1.5) }}>
             {shownItems.map((item: any, index: number) => {
               const slug = getBookSlug(item);
               const stock = item.stockLevel ?? 999;

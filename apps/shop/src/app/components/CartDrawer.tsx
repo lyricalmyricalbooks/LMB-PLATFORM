@@ -196,6 +196,8 @@ export function CartDrawer() {
   // Style › Cart drawer › Total & checkout button › Ships-by line (off by default): only when every printed book can leave on schedule.
   const showShipBy = cartShipByOn(design) && bagShipsOnSchedule(cart, booksMap);
   const fromLeft = design.cartDrawerSide === "left";
+  // Style › Bag › Slides in from › "Whole screen" (frame designs): the bag rises over the whole page, its contents centred.
+  const fullBag = design.cartDrawerSide === "full";
   const grayscaleThumbs = design.cartDrawerGrayscaleThumbs ?? false;
   const showThumbs = design.cartDrawerShowThumbs ?? true;
   // Style › Cart drawer › Empty bag: the icon, the button and where the button goes.
@@ -307,10 +309,11 @@ export function CartDrawer() {
             tabIndex={-1}
             data-fm-store
             data-fm-checkout
-            initial={{ x: fromLeft ? "-100%" : "100%" }} animate={{ x: 0 }} exit={{ x: fromLeft ? "-100%" : "100%" }}
+            data-bag-full={fullBag ? "" : undefined}
+            initial={fullBag ? { y: "100%" } : { x: fromLeft ? "-100%" : "100%" }} animate={fullBag ? { y: 0 } : { x: 0 }} exit={fullBag ? { y: "100%" } : { x: fromLeft ? "-100%" : "100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 220 }}
-            className={`fm-bag fixed top-0 h-[100dvh] w-full z-[70] flex flex-col ${fromLeft ? "left-0" : "right-0"}`}
-            style={{ maxWidth: cartDrawerWidth(design) }}
+            className={`fm-bag fixed top-0 h-[100dvh] w-full z-[70] flex flex-col ${fromLeft || fullBag ? "left-0" : "right-0"}`}
+            style={{ maxWidth: fullBag ? "none" : cartDrawerWidth(design) }}
           >
             <StorefrontThemeStyle design={design} />
             <style>{cartDrawerCss(design)}</style>
