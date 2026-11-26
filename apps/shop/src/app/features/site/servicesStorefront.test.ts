@@ -10,6 +10,11 @@ describe("services storefront", () => {
     expect(isServicesStorefront("hair", 2)).toBe(false);
     expect(isServicesStorefront("books", 0)).toBe(false);
     expect(isServicesStorefront(undefined, 0)).toBe(false);
+    // A change of type (shop types plan): the type decides, whatever products the shop kept.
+    expect(isServicesStorefront("hair", 12, "services")).toBe(true);
+    expect(isServicesStorefront("hair", 0, "products")).toBe(false);
+    expect(isServicesStorefront("hair", 3, "both")).toBe(false);
+    expect(isServicesStorefront("hair", 0, "both")).toBe(true);
   });
 
   it("hides the bag, wishlist and currency picker until the owner sets them", () => {

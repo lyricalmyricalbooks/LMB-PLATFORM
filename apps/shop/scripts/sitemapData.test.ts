@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { sitemapArtifacts } from './sitemapData.mjs';
+import { listedProducts, sitemapArtifacts } from './sitemapData.mjs';
 it('retains legacy string parents whose published books belong to a child category', () => {
   const result = sitemapArtifacts('https://example.com/shop', [{ id: 'zine', title: 'Zine', status: 'published', categories: ['Zines'] }], [], [], { design: { categories: ['Books', { name: 'Zines', parentId: 'cat-0' }] } });
   expect(result.xml).toContain('/collections/books');
@@ -103,4 +103,19 @@ it('a shop that does not sell books lists no collections for the books shop star
   expect(books.xml).toContain('/collections/publications');
   const ownMenu = sitemapArtifacts('https://example.com', [], [], [], { sells: 'clothing', design: { categories: ['Shirts'] } }, { includeEmptyCollections: true });
   expect(ownMenu.xml).toContain('/collections/shirts');
+});
+
+it('a Services shop lists no products and no shipping or returns policy', () => {
+  const books = [{ id: 'b1', slug: 'mug', status: 'published' }];
+  const policies = { shipping: 'Ships fast', returns: '30 days', privacy: 'Private' };
+  const services = sitemapArtifacts('https://shop.example', books, [], [], { shopKind: 'services', policies }, { productBase: 'products' });
+  expect(services.xml).not.toContain('/products/mug');
+  expect(services.xml).not.toContain('policy-shipping');
+  expect(services.xml).not.toContain('policy-returns');
+  expect(services.xml).toContain('policy-privacy');
+  const both = sitemapArtifacts('https://shop.example', books, [], [], { shopKind: 'both', policies }, { productBase: 'products' });
+  expect(both.xml).toContain('/products/mug');
+  expect(both.xml).toContain('policy-shipping');
+  expect(listedProducts(books, { shopKind: 'services' })).toEqual([]);
+  expect(listedProducts(books, { shopKind: 'products' })).toBe(books);
 });

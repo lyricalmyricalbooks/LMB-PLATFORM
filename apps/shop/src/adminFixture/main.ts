@@ -1931,6 +1931,11 @@ if (new URLSearchParams(location.search).get("variants")) {
     shopTypeData.bookingsOn = async () => bookingsOn;
     shopTypeData.openBookings = async () => { calls.push(["openBookings"]); bookingsOn = true; };
     shopTypeData.cancelOne = async (b: any) => { calls.push(["cancelOne", b.id]); };
+    let pageOpen = offer !== "products";
+    shopTypeData.bookingPageOpen = async () => pageOpen;
+    shopTypeData.setBookingPage = async (live: boolean) => { calls.push(["setBookingPage", live]); pageOpen = live; };
+    shopTypeData.website = async () => (new URLSearchParams(location.search).get("own") ? { id: null, style: null, name: "Your own design" } : { id: "aurel", style: null, name: "Aurel" });
+    shopTypeData.followWebsite = async (kind: any, lead: any, sells: any) => { calls.push(["followWebsite", kind, lead ?? null, sells]); return !new URLSearchParams(location.search).get("own"); };
     if (new URLSearchParams(location.search).get("changed")) week.typeChange = { at: soon(-3), from: "products", to: offer, before: { sells: "clothing", sellsProducts: false, leadSide: "services" }, website: "follow" };
   }
 }

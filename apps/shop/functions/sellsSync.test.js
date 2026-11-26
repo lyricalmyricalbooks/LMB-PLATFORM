@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import sync from "./sellsSync";
-const { sellsAnswer, syncSells } = sync;
+const { sellsAnswer, shopKindAnswer, syncSells } = sync;
 
 function fakes(websiteSells = undefined) {
   const writes = { website: [], stockroom: [] };
@@ -44,5 +44,19 @@ describe("what the shop sells reaches the storefront and the stockroom (plan 12.
     const f = fakes("books");
     f.writeWebsiteSells = async () => { throw new Error("offline"); };
     expect(await syncSells({ before: { sells: "books" }, after: { sells: "shoes" }, ...f })).toEqual({ website: false, stockroom: true });
+  });
+
+  it("the shop's type reaches the website too, also when only the type changed (shop types plan)", async () => {
+    expect(shopKindAnswer({ sells: "clothing" })).toBe("products");
+    expect(shopKindAnswer({ sells: "hair" })).toBe("services");
+    expect(shopKindAnswer({ sells: "hair", sellsProducts: true })).toBe("both");
+    const kinds = [];
+    let saved = "services";
+    const f = fakes("hair");
+    await syncSells({ before: { sells: "hair" }, after: { sells: "hair", sellsProducts: true }, ...f, readWebsiteKind: async () => saved, writeWebsiteKind: async (k) => { kinds.push(k); saved = k; } });
+    expect(kinds).toEqual(["both"]);
+    expect(f.writes).toEqual({ website: [], stockroom: [] });
+    await syncSells({ before: { sells: "hair", sellsProducts: true }, after: { sells: "hair", sellsProducts: true }, ...f, readWebsiteKind: async () => saved, writeWebsiteKind: async (k) => { kinds.push(k); } });
+    expect(kinds).toEqual(["both"]);
   });
 });

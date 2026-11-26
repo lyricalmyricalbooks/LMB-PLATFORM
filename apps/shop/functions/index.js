@@ -3564,6 +3564,8 @@ exports.syncStockroomWords = onDocumentWritten("firstWeek/start", async event =>
     readWebsiteSells: async () => (await website.get()).get("sells"),
     writeWebsiteSells: answer => website.set({ sells: answer }, { merge: true }),
     writeStockroomWords: answer => require("./inventoryLinkStore").writeSellsWords(answer),
+    readWebsiteKind: async () => (await website.get()).get("shopKind"),
+    writeWebsiteKind: kind => website.set({ shopKind: kind }, { merge: true }),
   });
 });
 
