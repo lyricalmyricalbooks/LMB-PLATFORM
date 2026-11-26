@@ -1108,3 +1108,16 @@ Plan https://claude.ai/artifact/A5vVNJk14QrF2JjoUk6gER; Figma https://www.figma.
 - Gallery v4: minimal header, open product page with grid photos (no glow, bundle or share), plain cards, staggered shop,
   centred footer, slim dark announcement; home = banner (fade, inverse), big intro, two large then three small products
   (`productSort` priceHigh/priceLow with `productLimit`), shoppable photo with words right.
+
+## Starter design upgrade: Warehouse and the Search bar header (26 November 2026, plan step 3)
+
+- New header layout **"market"** (Studio label "Search bar"): logo left, a search box in the middle, icons right, links
+  always in a full row below (`HEADER_LAYOUTS`, `MARKET_HEADER_CSS` in `headerLayout.ts`; `HeaderSearchBox` in
+  `StoreHeader.tsx`, both the shop and page headers). The box shows Text & labels › `searchPlaceholder` (shop-type
+  worded) and opens the same search drawer; computers only, where it hides the search icon. Its accessible name starts
+  with `ariaSearch` (axe label-content-name-mismatch).
+- Warehouse v3 follows Figma: market header, Split opening (huge headline, `accentWord: ""` to drop the sample accent),
+  categories, black/yellow marquee, 8 framed products, promises, yellow Image with text story. Wide sections use the
+  section's own Content width "full".
+- Gallery also hides the Back link (`pdpShowBackLink: false`, breadcrumb only, as in Figma): at 70% opacity its muted
+  words failed contrast on the open product page.

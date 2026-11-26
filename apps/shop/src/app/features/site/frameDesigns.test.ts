@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FOOTER_DESIGN_OPTIONS, FOOTER_DESIGNS, footerDesign, footerDesignCss, giantNameSize } from "./footerStyle";
-import { HEADER_LAYOUT_OPTIONS, HEADER_LAYOUTS, headerLayout, RAIL_HEADER_CSS } from "./headerLayout";
+import { HEADER_LAYOUT_OPTIONS, HEADER_LAYOUTS, headerLayout, MARKET_HEADER_CSS, RAIL_HEADER_CSS } from "./headerLayout";
 import { PDP_LAYOUT_OPTIONS, PDP_LAYOUTS, productPageLayout, productPageLayoutCss } from "./productPageStyle";
 import { CARD_DESIGN_OPTIONS, CARD_DESIGNS, cardDesign, cardDesignCss, SHOP_PAGE_LAYOUT_OPTIONS, SHOP_PAGE_LAYOUTS, shopPageLayout, shopPageLayoutCss } from "./cardTypography";
 
@@ -25,6 +25,14 @@ describe("frame designs: header and footer", () => {
   it("sizes the big name to fit, short or long", () => {
     expect(giantNameSize("Ink")).toContain("37.50vw");
     expect(giantNameSize("A very long shop name indeed")).toContain("5.36vw");
+  });
+  it("offers the search bar header, with the box only on computers in place of the search icon", () => {
+    expect(HEADER_LAYOUT_OPTIONS.map(o => o.value)).toContain("market");
+    expect(headerLayout({ headerLayout: "market" })).toBe("market");
+    expect(MARKET_HEADER_CSS.startsWith(`header[data-hdr-layout="market"] .fm-hdr-searchbox{display:none;}`)).toBe(true);
+    expect(MARKET_HEADER_CSS).toContain("@media (min-width:768px)");
+    expect(MARKET_HEADER_CSS).toContain(".fm-hdr-search-icon{display:none !important;}");
+    expect(MARKET_HEADER_CSS).not.toMatch(/#[0-9a-f]{3,6}\b|rgb\(\d/i);
   });
   it("keeps the side menu to computers", () => {
     expect(RAIL_HEADER_CSS.startsWith("@media (min-width:1024px)")).toBe(true);
