@@ -1161,3 +1161,15 @@ name and products; `withOwnBanner` (sells.ts) swaps the starter's banner for the
 the before-shop designer, because a banner is not a section and carries no Sample mark. The changed banners shipped as a
 new release of Slow Season, Aurel, Gallery, Warehouse and Larder (`starterVersions.ts`, control room `starterSites.js`).
 `sampleShops.test.ts` replaced `neutralStarters.test.ts`.
+
+## Starter photo sets (26 November 2026, plan "Starters vs Shopify and Squarespace", step 3)
+
+Catalogue, Gallery, Warehouse, Larder and Commission each have their own photo folder under `public/starters/<name>/`,
+made with Figma's AI image generation in one backdrop and one light per starter (Catalogue: cool grey paper, hard side
+light; Gallery: limestone plaster, window light; Warehouse: folded flat on warm grey; Larder: oak table, morning light;
+Commission: pale oak floor and limewashed wall). Each photo shows the product named in `sampleProducts`. They no longer use
+the shared `public/samples/` sets, which stay for looks without a sample shop and for Salon and Workshop.
+`public/starters/README.md` lists where every folder came from; keep product photos under about 150 KB. Catalogue's old
+files were copies of Slow Season's and are gone. The rail header now wraps a long shop name (`RAIL_HEADER_CSS`), found
+with "Hollis & Pine Joinery". Pictures on Choose your website were regenerated with `scripts/starter-thumbs.mjs`
+(`CHROMIUM_PATH` set to the container's Chromium).
