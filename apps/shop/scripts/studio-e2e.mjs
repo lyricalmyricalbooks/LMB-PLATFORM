@@ -1587,6 +1587,14 @@ await check("Pop-ups opens the cookie banner in the preview even after it was an
   try { localStorage.setItem("lm:cookie-consent", JSON.stringify({ necessary: true, analytics: false, marketing: false, decidedAt: "2026-01-01T00:00:00.000Z" })); } catch { /* blocked */ }
 }));
 
+await check("Pop-ups lists the phone menu only while its full-screen switch is on (off in the live design)", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const panel = page.locator(".studio-structure");
+  await panel.locator("summary", { hasText: "Pop-ups" }).click();
+  await panel.locator(".studio-structure-row", { hasText: "Cookie banner" }).first().waitFor({ timeout: 8000 });
+  if (await panel.locator(".studio-structure-row", { hasText: "Phone menu" }).count()) throw new Error("Phone menu was offered while the design has no full-screen phone menu");
+});
+
 await check("a full-page link inside the preview moves Studio to that page", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.frames().find(f => f !== page.mainFrame()).evaluate(() => { location.assign("/page/about?preview=true"); });

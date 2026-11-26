@@ -31,15 +31,15 @@ import { PLANS } from "../setup/steps.js";
 
 /** The shop's starters, in the shop's own order (lookGallery.ts STARTER_SITES), with the names it shows. */
 export const STARTERS = Object.freeze([
-  { id: "juniper-slow-season", name: "Slow Season", version: 6, styles: [{ id: "terracotta", name: "Terracotta" }, { id: "sage", name: "Sage" }, { id: "night", name: "Night" }] },
-  { id: "juniper-catalogue", name: "Catalogue", version: 3, styles: [{ id: "acid", name: "Acid" }, { id: "blueprint", name: "Blueprint" }, { id: "night", name: "Night" }] },
-  { id: "aurel-editorial", name: "Aurel", version: 5, styles: [{ id: "cobalt", name: "Cobalt" }, { id: "sand", name: "Sand" }, { id: "night", name: "Night" }] },
-  { id: "starter-gallery", name: "Gallery", version: 7, styles: [{ id: "linen", name: "Linen" }, { id: "stone", name: "Stone" }, { id: "night", name: "Night" }] },
-  { id: "starter-warehouse", name: "Warehouse", version: 8, styles: [{ id: "signal", name: "Signal" }, { id: "cobalt", name: "Cobalt" }, { id: "night", name: "Night" }] },
-  { id: "starter-larder", name: "Larder", version: 8, styles: [{ id: "harvest", name: "Harvest" }, { id: "olive", name: "Olive" }, { id: "night", name: "Night" }] },
-  { id: "starter-salon", name: "Salon", version: 6, styles: [{ id: "blush", name: "Blush" }, { id: "sage", name: "Sage" }, { id: "night", name: "Night" }] },
-  { id: "starter-workshop", name: "Workshop", version: 6, styles: [{ id: "sunny", name: "Sunny" }, { id: "mint", name: "Mint" }, { id: "night", name: "Night" }] },
-  { id: "starter-commission", name: "Commission", version: 6, styles: [{ id: "walnut", name: "Walnut" }, { id: "chalk", name: "Chalk" }, { id: "night", name: "Night" }] },
+  { id: "juniper-slow-season", name: "Slow Season", version: 7, styles: [{ id: "terracotta", name: "Terracotta" }, { id: "sage", name: "Sage" }, { id: "night", name: "Night" }] },
+  { id: "juniper-catalogue", name: "Catalogue", version: 4, styles: [{ id: "acid", name: "Acid" }, { id: "blueprint", name: "Blueprint" }, { id: "night", name: "Night" }] },
+  { id: "aurel-editorial", name: "Aurel", version: 6, styles: [{ id: "cobalt", name: "Cobalt" }, { id: "sand", name: "Sand" }, { id: "night", name: "Night" }] },
+  { id: "starter-gallery", name: "Gallery", version: 8, styles: [{ id: "linen", name: "Linen" }, { id: "stone", name: "Stone" }, { id: "night", name: "Night" }] },
+  { id: "starter-warehouse", name: "Warehouse", version: 9, styles: [{ id: "signal", name: "Signal" }, { id: "cobalt", name: "Cobalt" }, { id: "night", name: "Night" }] },
+  { id: "starter-larder", name: "Larder", version: 9, styles: [{ id: "harvest", name: "Harvest" }, { id: "olive", name: "Olive" }, { id: "night", name: "Night" }] },
+  { id: "starter-salon", name: "Salon", version: 7, styles: [{ id: "blush", name: "Blush" }, { id: "sage", name: "Sage" }, { id: "night", name: "Night" }] },
+  { id: "starter-workshop", name: "Workshop", version: 7, styles: [{ id: "sunny", name: "Sunny" }, { id: "mint", name: "Mint" }, { id: "night", name: "Night" }] },
+  { id: "starter-commission", name: "Commission", version: 7, styles: [{ id: "walnut", name: "Walnut" }, { id: "chalk", name: "Chalk" }, { id: "night", name: "Night" }] },
 ]);
 /**
  * Starters added in round three (25 November 2026) wait for the owner's yes: with no saved record they show as

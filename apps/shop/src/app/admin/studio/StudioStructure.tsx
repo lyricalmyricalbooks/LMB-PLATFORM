@@ -24,6 +24,8 @@ type Props = {
   onHover: (key: string | null) => void;
   onOpen: (item: StructureItem) => void;
   onOverlay: (overlay: StudioOverlay | "close") => void;
+  /** Pop-overs this design doesn't draw (the full-screen phone menu while its switch is off). */
+  hiddenOverlays?: string[];
   onOpenTarget: (target: string, label: string) => void;
   regionState: (region: string) => RegionToggle;
   onToggleRegion: (region: string, visible: boolean) => void;
@@ -117,7 +119,7 @@ export function StudioStructure(p: Props) {
       <summary><MessageSquare size={14} /> Pop-ups</summary>
       <p className="studio-hint">Open one in the preview to see and style it.</p>
       {groupButton("overlaySections", "Pop-up sections")}
-      {STUDIO_OVERLAYS.map(o => <div key={o.id} className="studio-tree-row studio-structure-row">
+      {STUDIO_OVERLAYS.filter(o => !p.hiddenOverlays?.includes(o.id)).map(o => <div key={o.id} className="studio-tree-row studio-structure-row">
         <button className="studio-tree-label" onClick={() => p.onOpenTarget(o.target.split("|")[0], o.label)}>{o.label}<small>Settings</small></button>
         {actions(o.label, o.target, true)}
         <button className="studio-structure-open" onClick={() => p.onOverlay(o.id)}>Open in preview</button>

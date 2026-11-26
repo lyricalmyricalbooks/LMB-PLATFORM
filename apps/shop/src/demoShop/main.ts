@@ -37,7 +37,9 @@ async function showShop() {
   // status is set, so the shop shows no "your live shop" banner: there is no Studio behind a demo.
   // The snapshot is the whole shop: nothing is read from a database (features/site/useSiteData.ts readSiteData).
   win.__studioPreviewOnly = true;
-  win.__studioPreviewState = { settings: { design, sells, ...(choice.kind === "both" ? { sellsProducts: true } : {}), info: { name: shownName } }, books, pages, ...bookingSamples };
+  // A shop with services takes bookings, so its header, phone menu and footer show "Book a time" as a live one's do.
+  const takesBookings = bookingSamples.starterServices.length > 0 && choice.kind !== "products";
+  win.__studioPreviewState = { settings: { design, sells, ...(choice.kind === "both" ? { sellsProducts: true } : {}), ...(takesBookings ? { bookingsLive: true } : {}), info: { name: shownName } }, books, pages, ...bookingSamples };
 
   if (params.get("preview") !== "true") {
     const url = new URL(location.href);

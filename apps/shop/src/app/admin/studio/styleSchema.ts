@@ -340,6 +340,8 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "showMobileNavigation", label: "Show phone navigation", kind: "toggle", defaultValue: true },
       { key: "phoneCompactHeader", label: "Compact header on phones (thin announcement line, one-line logo, search & bag)", kind: "toggle", defaultValue: true },
       { key: "mobileNavStyle", label: "Phone navigation style", kind: "select", options: [{ value: "tabs", label: "Tabs across the top" }, { value: "menu", label: "Drop-down menu" }, { value: "icon", label: "Menu button beside the name (one row)" }], defaultValue: "tabs" },
+      { key: "phoneMenuFullScreen", label: "Menu button opens a full-screen panel with big links instead of a small box (with Phone navigation style › Menu button beside the name, or the Minimal header)", kind: "toggle", defaultValue: false },
+      { key: "navShopLink", label: "Shop link in the menu (words: Text & labels › Header; not on the Classic header)", kind: "select", options: [{ value: "off", label: "None" }, { value: "link", label: "A Shop link to every product" }, { value: "menu", label: "A Shop drop-down with your categories" }], defaultValue: "off" },
       { key: "mobileNavTabSize", label: "Phone tab text size", kind: "range", min: 11, max: 22, step: 1, suffix: "px", defaultValue: 14 },
       { key: "showSocialInMobileMenu", label: "Social media icons in the phone navigation (your accounts from Settings › Your shop › Social media)", kind: "toggle", defaultValue: true },
       { key: "showStoreChromeOnUtilityPages", label: "Show the shop header & footer on wishlist, account, order tracking and missing pages", kind: "toggle", defaultValue: true },

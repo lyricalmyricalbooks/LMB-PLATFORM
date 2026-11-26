@@ -28,7 +28,7 @@ export const PAGE_STARTERS: PageStarter[] = [
   },
   {
     id: "shipping", label: "Shipping & returns", summary: "Delivery times, costs and how returns work.", outline: ["Shipping", "Delivery times", "Returns", "Damaged or missing parcels"],
-    title: "Shipping & returns", slug: "shipping-returns", showInNav: false,
+    title: "Shipping & returns", slug: "shipping-returns", showInNav: false, showInFooter: true,
     body: [h2("Shipping"), p("[Where you ship to and how prices are worked out.]"), h2("Delivery times"), p("[How long parcels usually take, by region.]"), h2("Returns"), p("[How long shoppers have, what condition items must be in, and who pays return postage.]"), h2("Damaged or missing parcels"), p("[What to do and how to reach you.]")].join(""),
   },
   {

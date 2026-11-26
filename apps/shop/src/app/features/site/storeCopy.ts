@@ -466,6 +466,8 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "catalogLoadError", label: "Catalog load error", default: "The catalog could not be loaded. Please try again." },
       { key: "catalogRetry", label: "Catalog load error: Try again button", default: "Try again" },
       { key: "navMenu", label: "Mobile menu", default: "Menu" },
+      { key: "navMenuClose", label: "Phone menu panel: close button (read aloud)", default: "Close menu" },
+      { key: "navShopLabel", label: "Shop link (Style › Header layout › Shop link in the menu)", default: "Shop" },
       { key: "navSearch", label: "Nav: Search", default: "Search" },
       { key: "bookTimeNavLink", label: "Book a time (calendar icon and phone menu; shows while you take bookings)", default: "Book a time" },
       { key: "eventsNavLink", label: "Events (ticket icon and phone menu; shows while you have events coming up)", default: "Events" },

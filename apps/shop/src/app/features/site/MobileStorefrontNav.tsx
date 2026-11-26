@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
-import { Menu as MenuIcon } from "lucide-react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { Menu as MenuIcon, X } from "lucide-react";
 import { accountsEnabled } from "./customerAccounts";
 import { Link, useLocation } from "react-router";
 import { navActiveColor } from "./headerNav";
@@ -10,8 +11,9 @@ import { bookingsLinkShown, useBookingsLive } from "./bookingsLive";
 import { eventsLinkShown, useEventsLive } from "./eventsLive";
 import { classesLinkShown, useClassesLive } from "./classesLive";
 import { supportLinkShown, useGivingLive } from "./supportLive";
-import { splitNavigation, buildNavItems } from "./navItems";
+import { splitNavigation, buildNavItems, withShopLink, type NavItem } from "./navItems";
 import { getCopy } from "./storeCopy";
+import { useStudioOverlay } from "./studioOverlay";
 import { ThemeToggle } from "../../components/theme/ThemeToggle";
 import { useShopSocial } from "./shopSocial";
 import type { SocialLink } from "./socialAccounts";
@@ -38,15 +40,42 @@ export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle =
   const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
   if (d.showMobileNavigation === false && !everywhere) return null;
   const groups = splitNavigation(buildNavItems(d.categories || [], pages, d.navOrder), d);
+  const primary = withShopLink(groups.primary, d, getCopy(design, "navShopLabel"));
   const linkClass = "block min-h-11 px-6 py-3 hover:opacity-70";
   // The link for the page on screen wears Style › Navigation links › "Current page link color".
-  const here = (to: string) => pathname.endsWith(to) ? { "aria-current": "page" as const, style: { color: navActiveColor(d) } } : {};
+  const here = (to: string): { "aria-current"?: "page"; style?: CSSProperties } => pathname.endsWith(to) ? { "aria-current": "page", style: { color: navActiveColor(d) } } : {};
   // Style › Header layout › "Phone navigation style": tabs across the top (default) or the drop-down menu.
   // Header layout › Minimal: the Menu button holds every link on every screen size.
   const menuSocial = d.showSocialInMobileMenu !== false ? social : [];
   // "Menu button beside the name": the header draws this menu itself (PhoneHeaderMenu), so nothing below the header row.
   if (!everywhere && mobileNavStyle(d) === "icon") return null;
   if (!everywhere && mobileNavStyle(d) === "tabs") return <MobileNavTabs design={design} d={d} groups={groups} bookings={bookings} showThemeToggle={showThemeToggle} pathname={pathname} slug={slug} social={menuSocial} />;
+  // The menu's links, drawn by the drop-down and by the full-screen panel (`big` for the main links in the panel).
+  const links = (close: () => void, big?: { className: string; style: CSSProperties }) => <>
+    {primary.map(item => { const to = itemPath(item, slug); const own = here(to); return <div key={item.key}>
+      <Link className={big?.className || linkClass} onClick={close} to={to} {...own} style={{ ...big?.style, ...own.style }}>{item.label}</Link>
+      {item.kind !== "page" && item.children.filter(c => c.showInNav !== false).map(c => <Link key={c.id} className={`${linkClass} pl-10`} onClick={close} to={`/collections/${slug(c.name)}`} {...here(`/collections/${slug(c.name)}`)}>{c.name}</Link>)}
+    </div>; })}
+    {d.showSecondaryNavigation !== false && groups.secondary.length > 0 && <div role="group" aria-label={getCopy(design, "secondaryNavigationAria")} className="border-t border-current/20" data-studio-target="menus:header-order|style:header|copy:Header" data-studio-label="Publisher navigation">
+      {groups.secondary.map(item => item.kind === "page" && <Link key={item.key} className={linkClass} onClick={close} to={`/page/${item.page.slug}`} {...here(`/page/${item.page.slug}`)}>{item.label}</Link>)}
+    </div>}
+    {/* In the panel the rest sit in a quieter list under a rule; the bookings link stays big (it is a services shop's main door). */}
+    {big && <hr className="mx-6 my-3 border-current/15" />}
+    {bookingsLinkShown(bookings, d) && big && <Link className={big.className} style={big.style} onClick={close} to="/book" {...here("/book")}>{getCopy(design, "bookTimeNavLink")}</Link>}
+    {!d.hideHeaderSearch && <button className={`${linkClass} text-left`} onClick={() => { close(); onSearch(); }}>{getCopy(design, "navSearch")}</button>}
+    {bookingsLinkShown(bookings, d) && !big && <Link className={linkClass} onClick={close} to="/book" {...here("/book")}>{getCopy(design, "bookTimeNavLink")}</Link>}
+    {eventsLinkShown(events, d) && <Link className={linkClass} onClick={close} to="/events" {...here("/events")}>{getCopy(design, "eventsNavLink")}</Link>}
+    {classesLinkShown(classes, d) && <Link className={linkClass} onClick={close} to="/classes" {...here("/classes")}>{getCopy(design, "classesNavLink")}</Link>}
+    {supportLinkShown(giving, d) && <Link className={linkClass} onClick={close} to="/support" {...here("/support")}>{getCopy(design, "supportNavLink")}</Link>}
+    {!d.hideHeaderWishlist && <Link className={linkClass} onClick={close} to="/wishlist">{getCopy(design, "ariaWishlist")}</Link>}
+    {!d.hideHeaderAccount && accountsEnabled(design) && <Link className={linkClass} onClick={close} to="/account">{getCopy(design, "ariaAccount")}</Link>}
+    {!d.hideCurrencySelector && <div className="px-6 py-3 [&_select]:-my-3 [&_select]:py-3"><CurrencySelector label={getCopy(design, "currencyLabel")} ariaLabel={getCopy(design, "ariaCurrency")} /></div>}
+    {showThemeToggle && <div className="px-6 py-3"><ThemeToggle label={getCopy(design, "ariaThemeToggle")} /></div>}
+    {menuSocial.length > 0 && <MenuSocial design={design} links={menuSocial} />}
+  </>;
+  // Style › Header layout › "Menu button opens a full-screen panel": the whole screen, big links (Shopify and
+  // Squarespace phone menus), instead of the small box under the button.
+  if (everywhere && d.phoneMenuFullScreen === true) return <PhonePanelMenu design={design} links={links} />;
   return <details ref={ref} className={everywhere ? "relative shrink-0" : "md:hidden"} data-ga-menu="phone" data-studio-target="style:header|menus:categories|copy:Header" data-studio-label="Mobile navigation"
     onKeyDown={e => { if (e.key === "Escape") { close(); ref.current?.querySelector("summary")?.focus(); } }}>
     <summary className={everywhere ? "flex min-h-11 cursor-pointer list-none items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] [&::-webkit-details-marker]:hidden" : "min-h-11 cursor-pointer px-6 py-3 font-semibold"}>
@@ -54,26 +83,68 @@ export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle =
     </summary>
     <nav aria-label={getCopy(design, "ariaMainNavigation")} className={everywhere ? "absolute left-0 top-full z-50 mt-2 w-72 max-w-[85vw] border border-current/20 pb-4 shadow-lg" : "border-t border-current/20 pb-4"}
       style={everywhere ? { backgroundColor: "var(--bg-color, var(--background))" } : undefined}>
-      {groups.primary.map(item => <div key={item.key}>
-        <Link className={linkClass} onClick={close} to={item.kind === "page" ? `/page/${item.page.slug}` : `/collections/${slug(item.label)}`} {...here(item.kind === "page" ? `/page/${item.page.slug}` : `/collections/${slug(item.label)}`)}>{item.label}</Link>
-        {item.kind === "category" && item.children.filter(c => c.showInNav !== false).map(c => <Link key={c.id} className={`${linkClass} pl-10`} onClick={close} to={`/collections/${slug(c.name)}`} {...here(`/collections/${slug(c.name)}`)}>{c.name}</Link>)}
-      </div>)}
-      {d.showSecondaryNavigation !== false && groups.secondary.length > 0 && <div role="group" aria-label={getCopy(design, "secondaryNavigationAria")} className="border-t border-current/20" data-studio-target="menus:header-order|style:header|copy:Header" data-studio-label="Publisher navigation">
-        {groups.secondary.map(item => item.kind === "page" && <Link key={item.key} className={linkClass} onClick={close} to={`/page/${item.page.slug}`} {...here(`/page/${item.page.slug}`)}>{item.label}</Link>)}
-      </div>}
-      {!d.hideHeaderSearch && <button className={linkClass} onClick={() => { close(); onSearch(); }}>{getCopy(design, "navSearch")}</button>}
-      {bookingsLinkShown(bookings, d) && <Link className={linkClass} onClick={close} to="/book" {...here("/book")}>{getCopy(design, "bookTimeNavLink")}</Link>}
-      {eventsLinkShown(events, d) && <Link className={linkClass} onClick={close} to="/events" {...here("/events")}>{getCopy(design, "eventsNavLink")}</Link>}
-      {classesLinkShown(classes, d) && <Link className={linkClass} onClick={close} to="/classes" {...here("/classes")}>{getCopy(design, "classesNavLink")}</Link>}
-      {supportLinkShown(giving, d) && <Link className={linkClass} onClick={close} to="/support" {...here("/support")}>{getCopy(design, "supportNavLink")}</Link>}
-      {!d.hideHeaderWishlist && <Link className={linkClass} onClick={close} to="/wishlist">{getCopy(design, "ariaWishlist")}</Link>}
-      {!d.hideHeaderAccount && accountsEnabled(design) && <Link className={linkClass} onClick={close} to="/account">{getCopy(design, "ariaAccount")}</Link>}
-      {!d.hideCurrencySelector && <div className="px-6 py-3 [&_select]:-my-3 [&_select]:py-3"><CurrencySelector label={getCopy(design, "currencyLabel")} ariaLabel={getCopy(design, "ariaCurrency")} /></div>}
-      {showThemeToggle && <div className="px-6 py-3"><ThemeToggle label={getCopy(design, "ariaThemeToggle")} /></div>}
-      {menuSocial.length > 0 && <MenuSocial design={design} links={menuSocial} />}
+      {links(close)}
     </nav>
   </details>;
 }
+
+const PANEL_CSS = `@media (prefers-reduced-motion: no-preference){.fm-menu-panel{animation:fm-menu-panel-in .28s cubic-bezier(.2,.7,.2,1)}}
+@keyframes fm-menu-panel-in{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}`;
+
+/**
+ * The full-screen phone menu. It sits on the page itself (a portal): the header's blur would otherwise squeeze a
+ * fixed panel into the header's own box. The page behind stops scrolling while it is open.
+ */
+function PhonePanelMenu({ design, links }: { design: any; links: (close: () => void, big?: { className: string; style: CSSProperties }) => ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const close = () => { setOpen(false); button.current?.focus(); };
+  // Studio's page structure opens it in the phone preview so the owner can see and style it.
+  useStudioOverlay("menu", setOpen);
+  useEffect(() => {
+    if (!open) return;
+    const before = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    panel.current?.querySelector<HTMLElement>("button, a")?.focus();
+    return () => { document.body.style.overflow = before; };
+  }, [open]);
+  const big = { className: "block min-h-12 px-6 py-2.5 text-[1.75rem] leading-tight hover:opacity-70", style: { fontFamily: "var(--heading-font, inherit)" } };
+  return <div className="relative shrink-0" data-ga-menu="phone" data-studio-target="style:header|menus:categories|copy:Header" data-studio-label="Mobile navigation">
+    <button ref={button} type="button" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen(true)}
+      className="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em]">
+      <MenuIcon size={18} aria-hidden="true" /><span className="max-md:sr-only">{getCopy(design, "navMenu")}</span>
+    </button>
+    {open && typeof document !== "undefined" && createPortal(
+      <div ref={panel} role="dialog" aria-modal="true" aria-label={getCopy(design, "navMenu")} data-fm-store=""
+        className="fm-menu-panel fixed inset-0 z-[80] flex flex-col overflow-y-auto"
+        style={{ backgroundColor: "var(--bg-color, var(--background))", color: "var(--text-color, var(--text))", fontFamily: "var(--body-font, inherit)" }}
+        onKeyDown={e => {
+          if (e.key === "Escape") return close();
+          // Tab stays inside the open panel (it covers the page).
+          if (e.key !== "Tab") return;
+          const stops = [...(panel.current?.querySelectorAll<HTMLElement>("a[href], button, select") || [])];
+          const [first, last] = [stops[0], stops[stops.length - 1]];
+          if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+        }}>
+        <style>{PANEL_CSS}</style>
+        <div className="flex min-h-16 items-center justify-between gap-4 border-b border-current/15 pl-6 pr-3">
+          <span className="min-w-0 truncate text-sm font-semibold uppercase tracking-[0.2em]" style={{ fontFamily: "var(--heading-font, inherit)" }}>{getCopy(design, "siteName")}</span>
+          <button type="button" onClick={close} aria-label={getCopy(design, "navMenuClose")} className="inline-flex h-11 w-11 items-center justify-center hover:opacity-70">
+            <X size={22} aria-hidden="true" />
+          </button>
+        </div>
+        <nav aria-label={getCopy(design, "ariaMainNavigation")} className="fm-menu-panel-links flex flex-1 flex-col py-4 [&_button]:font-[inherit] [&_button]:opacity-80">
+          {links(close, big)}
+        </nav>
+      </div>, document.body)}
+  </div>;
+}
+
+/** Where a bar item goes: its page, its category's listing, or the Shop link's own address. */
+const itemPath = (item: NavItem, slug: (s: string) => string) =>
+  item.kind === "page" ? `/page/${item.page.slug}` : item.kind === "link" ? item.to : `/collections/${slug(item.label)}`;
 
 /** Style › Header layout › "Social media icons in the phone menu": the shop's accounts as a row at the menu's foot. */
 function MenuSocial({ design, links }: { design: any; links: SocialLink[] }) {
@@ -106,10 +177,10 @@ function MobileNavTabs({ design, d, groups, bookings, showThemeToggle, pathname,
   const rowRef = useRef<HTMLDivElement>(null);
   // A category with sub-categories opens a drop-down (All + each sub-category), like the desktop header.
   const tabs: { key: string; to: string; label: string; children?: { key: string; to: string; label: string }[] }[] = [];
-  for (const item of groups.primary) {
+  for (const item of withShopLink(groups.primary, d, getCopy(design, "navShopLabel"))) {
     if (item.kind === "page") { tabs.push({ key: item.key, to: `/page/${item.page.slug}`, label: item.label }); continue; }
     const children = item.children.filter(c => c.showInNav !== false).map(c => ({ key: `cat:${c.id}`, to: `/collections/${slug(c.name)}`, label: c.name }));
-    tabs.push({ key: item.key, to: `/collections/${slug(item.label)}`, label: item.label, children: children.length ? children : undefined });
+    tabs.push({ key: item.key, to: itemPath(item, slug), label: item.label, children: children.length ? children : undefined });
   }
   const secondary: typeof tabs = [];
   if (d.showSecondaryNavigation !== false) for (const item of groups.secondary) if (item.kind === "page") secondary.push({ key: item.key, to: `/page/${item.page.slug}`, label: item.label });
