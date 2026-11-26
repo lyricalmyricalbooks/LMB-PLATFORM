@@ -24,14 +24,16 @@ is loaded from Google, at one fixed version (`config.js`), for sign-in only.
 `form.js` holds the questions and checks; the page and the server use the same file.
 
 **The front door's design pass (25 November 2026, `join/`).** The live page is `join/` (email, code, then About your
-brand). It asks three things before the trial: brand name, kind of shop and country (a product shop also picks what it
-sells: six common chips, "Show N more" for the rest). "Selling somewhere already?" and "Anything else you'll sell?" are no
-longer asked there: Get started's step 2 asks where a shop sells now, and Settings › General › Ways to sell turns on the
-beta ways. Saved answers from before are kept (the page no longer sends those fields). On a wide screen "Your new store"
-shows from the email step on, with a real starter's home page (pictures in `join/starters/`, taken from the live demo
-shop; retake them when a starter's look changes) and, once a name is typed, the live demo with that name
-(`DEMO_URL` in `config.js`, empty in the walkthrough). Under 900px the tile is left out and a strip above the form gives
-the trial's facts. One main button; "Or design your shop first" sits under it, and Sign out is in the header.
+brand). It asks only what the shop needs to be made: brand name (with the web address it will get, shown under the
+name), kind of shop (Bookshop, Product shop, Services, built from `SHOP_TYPES` in `form.js`), country and the terms.
+**Nothing about the shop's look is asked here** (Julian, 25 November 2026 evening): no starter picture, no "Your shop
+starts as…", no "Or design your shop first", and no "What do you sell?" chips. A product shop is saved as `sells: "other"`
+(a press that already saved its kinds keeps them), and the look step in the shop's setup guide asks what it sells and
+shows the starter websites; Settings › What you sell changes the kinds later. Only a starter deliberately picked on a
+sample shop (Use this starter) travels with the answers (`look`/`lookStyle`). A services shop still says what it does.
+On a wide screen "Your new store" shows the brand, kind and address, a three-step "What happens next" (we make your shop,
+you pick its look, add your first things and open) and the trial's facts. Under 900px the tile is left out and a strip
+above the form gives the trial's facts. One main button; Sign out is in the header. Saved answers from before are kept.
 
 **No dead ends (25 November 2026, sign-up to open shop plan, move 1).** The front page's buttons say what they do: closed,
 every start button reads "Join the waitlist"; open, they read "Start your shop" and go to `join/`, and the note says
@@ -42,8 +44,8 @@ the waitlist" (`#view-invite`): `join/waitlist.js` adds the email to the front p
 starter as the source, and the saved answers carry on when the invite comes. "Start another shop" on the account page
 goes to `join/?another=1`, which makes a second empty press record once (`accountStart.js` `another`).
 
-**Never asked twice (25 November 2026, move 2).** Opening a shop saves the starter "Your new store" showed (picked on a
-sample shop, else the one that suits the kind of shop) as `look`/`lookStyle`, and the admin's first Get started step no
+**Never asked twice (25 November 2026, move 2).** Opening a shop saves a starter picked on a sample shop as
+`look`/`lookStyle` (the page picks none itself since that evening), and the admin's first Get started step no
 longer asks the brand name or country (`apps/shop/docs/agent-notes/admin.md`).
 
 **No wait, one sign-in (25 November 2026, move 3).** Open my shop starts the shop maker at once

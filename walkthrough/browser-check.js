@@ -84,11 +84,9 @@ async function checkFrontDoor(browser, walk, log) {
       await page.fill("#start-form input[name=pressName]", "Front Door Press");
       if ((await page.locator("#new-name").textContent()) !== "Front Door Press") throw new Error("Your new store doesn't show the brand's name");
       if (!/^front-door-[a-z]+\.web\.app$/.test(await page.locator("#new-address").textContent())) throw new Error("Your new store doesn't show its address");
-      // Bookshop or general shop comes first; only a general shop is asked what it sells.
-      if (await page.locator("#sells-group").isVisible()) throw new Error("What do you sell? shows before the shop type is picked");
+      // The kind of shop is picked first. What a product shop sells, and the shop's look, are asked after the shop exists.
       await page.click("#type-choices label.choice:has(input[value=books])");
       if ((await page.locator("#new-kind").textContent()) !== "Bookshop") throw new Error("Your new store doesn't say Bookshop");
-      if (await page.locator("#sells-group").isVisible()) throw new Error("a bookshop is asked what it sells");
       if (process.env.WALKTHROUGH_SHOTS) {
         await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "join-bookshop-phone.png"), fullPage: true });
         const phone = page.viewportSize();
@@ -97,19 +95,8 @@ async function checkFrontDoor(browser, walk, log) {
         if (phone) await page.setViewportSize(phone);
       }
       await page.click("#type-choices label.choice:has(input[value=general])");
-      await visible("#sells-group");
-      // A general shop that hasn't said what it sells is asked to.
-      await page.click("#start-form button[type=submit]");
-      await visible("#sells-error");
-      await page.click("#sells-choices label.choice:has(input[value=clothing])");
-      if ((await page.locator("#new-kind").textContent()) !== "Clothing") throw new Error("Your new store doesn't show what it sells");
-      // Several kinds can be picked; the preview names the first and counts the rest.
-      await page.click("#sells-choices label.choice:has(input[value=jewelry])");
-      if ((await page.locator("#new-kind").textContent()) !== "Clothing and 1 more") throw new Error("Your new store doesn't count a second kind");
-      // Six kinds show first; "Show N more" opens the rest.
-      if (await page.locator("#sells-choices label.choice:has(input[value=pets])").isVisible()) throw new Error("every kind shows before Show more");
-      await page.click("#sells-more");
-      await page.locator("#sells-choices label.choice:has(input[value=pets])").waitFor({ state: "visible", timeout: 5_000 });
+      if ((await page.locator("#new-kind").textContent()) !== "Product shop") throw new Error("Your new store doesn't say Product shop");
+      for (const asked of ["#sells-group", "#new-look", "#design-first", "#new-shot"]) if (await page.locator(asked).count()) throw new Error(`${asked} is back on the sign-up page: what it sells and its look are chosen after the shop exists`);
       // Sign out sits in the header once signed in.
       if (!(await page.locator("header #sign-out").isVisible())) throw new Error("Sign out isn't in the header");
       await page.selectOption("#country", "CA");
@@ -139,9 +126,9 @@ async function checkFrontDoor(browser, walk, log) {
         if (phone) await page.setViewportSize(phone);
       }
       const [saved] = await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`);
-      if (saved?.status !== "open" || saved?.plan !== "both" || saved?.pressName !== "Front Door Press" || saved?.sells !== "clothing" || saved?.sellingToday || saved?.country !== "CA") throw new Error(`saved ${JSON.stringify(saved)}`);
-      // The starter "Your new store" showed (clothing: Aurel) is the one the shop opens on (sign-up plan, move 2).
-      if (saved?.look !== "aurel-editorial" || saved?.lookStyle !== "cobalt") throw new Error(`the shown starter wasn't saved: ${saved?.look} ${saved?.lookStyle}`);
+      if (saved?.status !== "open" || saved?.plan !== "both" || saved?.pressName !== "Front Door Press" || saved?.sells !== "other" || saved?.sellingToday || saved?.country !== "CA") throw new Error(`saved ${JSON.stringify(saved)}`);
+      // Nothing picks a look at sign-up: it is chosen in the new shop's setup guide (25 November 2026, Julian).
+      if (saved?.look) throw new Error(`sign-up picked a look for the shop: ${saved.look}`);
       const row = await walk.world.stores.signups.get(saved.shopId);
       if (!row?.trialStartedAt || row?.plan !== "both") throw new Error(`the trial didn't start with both apps: ${JSON.stringify(row)}`);
     });
