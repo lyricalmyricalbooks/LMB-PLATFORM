@@ -68,6 +68,7 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
     releases: [
       { version: 1, date: "2026-11-25", note: "The first version, in Blush, Sage and Night." },
       { version: 2, date: "2026-11-26", note: "A new frame: a side menu on computers, a big photo on product pages, a centred footer, new type and a blush background." },
+      { version: 3, date: "2026-11-26", note: "A redesign: light words over a full photo, a wider price list, your space on a soft band and open times on a dark band." },
     ],
     looks: { blush: "ywxb1h", sage: "1npmds2", night: "1u79fip" },
   },
@@ -75,6 +76,7 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
     releases: [
       { version: 1, date: "2026-11-25", note: "The first version, in Sunny, Mint and Night." },
       { version: 2, date: "2026-11-26", note: "A new frame: half-and-half product pages, centred product names, a list shop page, your name huge in the footer, new type and a sunny background." },
+      { version: 3, date: "2026-11-26", note: "A redesign: what every class includes on a sunny band, and a dark newsletter band." },
     ],
     looks: { sunny: "158ym2", mint: "1rj76ra", night: "1gmivo4" },
   },
@@ -82,6 +84,7 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
     releases: [
       { version: 1, date: "2026-11-25", note: "The first version, in Walnut, Chalk and Night." },
       { version: 2, date: "2026-11-26", note: "A new frame: a side menu on computers, open product pages, numbered work, a staggered shop page, a one-line footer and new type." },
+      { version: 3, date: "2026-11-26", note: "A redesign: a big serif headline beside a tall photo, recent work in three, how it works on a dark band, four pieces and the enquiry form on a warm band." },
     ],
     looks: { walnut: "qq10jg", chalk: "1eiva9h", night: "4zfioj" },
   },
