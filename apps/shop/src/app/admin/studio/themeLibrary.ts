@@ -773,7 +773,7 @@ export const THEME_LIBRARY = [
   // websites, built only from Studio sections, each with its own sample shop from a licensed sample set
   // (public/samples). Shown to shops only once the platform owner turns them on in the control room.
   { id: "starter-gallery", name: "Gallery",
-    mood: "Big photos and few products: a full-photo opening, a quiet introduction, a shoppable photo, two products to a row and a wide closing photo, in a soft serif",
+    mood: "Big photos and few products: a photo that fills the screen, a quiet introduction, a shoppable photo, two products to a row and a row of photos edge to edge, in a soft serif",
     palettePreset: "gallery", font: "Inter", buttonStyle: "solid", productCardStyle: "minimal", productHoverEffect: "zoom", imageAspectRatio: "4:5",
     productColumnsDesktop: 2, productColumnsMobile: 1, cardRadius: 0, productCTA: "Add to bag", catalogLayoutStyle: "modern", showCatalogControls: false, homeLayoutTemplate: "starter-gallery",
     content: {
@@ -786,24 +786,28 @@ export const THEME_LIBRARY = [
       ],
       sections: {
         heroPage: [
-          { type: "PhotoOpeningSection", settings: { eyebrow: "A short line about your shop", title: "Your headline\nin a few words.", body: "Say what you make and why in a sentence or two.", ctaText: "See the collection", ctaUrl: "/collections/all", imageUrl: "/samples/home/opening.webp", imageAlt: "Your opening photo", captionLeft: "Your shop", captionRight: "A short caption" } },
+          { type: "ImageBannerSection", settings: { eyebrow: "A short line about your shop", title: "Your headline in a few words", body: "Say what you make and why in a sentence or two.", imageUrl: "/samples/home/opening.webp", imageAlt: "Your opening photo", height: "full", contentPosition: "bottom-left", textAlign: "left", overlayOpacity: 0.4, ctaText: "See the collection", ctaUrl: "/collections/all", secondaryCtaText: "" } },
           { type: "BigIntroSection", settings: { eyebrow: "About the shop", title: "Fewer things,\nchosen well", body: "Introduce your shop in a few lines: what you make, how you make it and who it's for." } },
           { type: "ShoppablePhotoSection", settings: { title: "Shop the photo", body: "Put your products in a photo of them at home. Shoppers tap a dot to see each one.", layout: "words-left", aspect: "portrait", imageUrl: "/samples/home/story.webp", imageAlt: "Your products together at home", items: [{ productSlug: "", x: 34, y: 58 }, { productSlug: "", x: 64, y: 44 }] } },
           { type: "ProductShowcaseGridSection", settings: { overlayOpacity: 0, eyebrow: "The collection", title: "A few things, shown large", columnsDesktop: 2, columnsMobile: 1, imageAspectRatio: "4:5", showCategoryTag: false, showQuickAdd: false, grainOpacity: 0 } },
-          { type: "ImageBannerSection", settings: { eyebrow: "Our story", title: "Your story, in one line", body: "A sentence about where your work comes from.", imageUrl: "/samples/home/banner.webp", imageAlt: "A wide photo of your work", height: "large", contentPosition: "bottom-left", textAlign: "left", overlayOpacity: 0.3, secondaryCtaText: "", ctaText: "Read our story", ctaUrl: "/page/about" } },
+          { type: "ImageCollageSection", settings: { title: "", layout: "strip", gap: 0, showCaptions: false, items: [
+            { imageUrl: "/samples/home/banner.webp", alt: "Your work", caption: "", linkUrl: "" },
+            { imageUrl: "/samples/home/story.webp", alt: "Your work", caption: "", linkUrl: "" },
+            { imageUrl: "/samples/home/about.webp", alt: "Your work", caption: "", linkUrl: "" },
+          ] } },
         ],
         globalSections: [{ type: "NewsletterSection", settings: { title: "Join our letter", description: "Tell shoppers what you send and how often.", align: "center" } }],
       },
       productBlocks: [{ type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
-    global: { themeStyle: "gallery", logoPosition: "left", navCentred: false, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 14, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "modern", announcementScrolling: false,
+    global: { themeStyle: "gallery", logoPosition: "center", navCentred: false, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 14, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "modern", announcementScrolling: false,
       backgroundColor: "#f7f6f3", textColor: "#161616", primaryColor: "#7d5a3c", secondaryColor: "#ecebe6", surfaceColor: "#ecebe6", mutedTextColor: "#55534f", borderColor: "#d6d4ce",
       headingFont: "Instrument Serif", bodyFont: "Inter", headingWeight: 400, lineHeight: 1.6,
       buttonColor: "#161616", buttonTextColor: "#f7f6f3", buttonHoverBgColor: "#7d5a3c", buttonHoverTextColor: "#ffffff", buttonRadius: 0, buttonUppercase: false,
       headerBg: "#f7f6f3", headerColor: "#161616", footerBg: "#161616", footerTextColor: "#f7f6f3", footerHeadingColor: "#f7f6f3", showAnnouncement: false,
       cartDrawerBg: "#f7f6f3", cartDrawerText: "#161616", checkoutAccentColor: "#161616", checkoutBgColor: "#f7f6f3", linkColorHover: "#7d5a3c", navLinkActiveColor: "#161616", catalogHeading: "The collection" } },
   { id: "starter-warehouse", name: "Warehouse",
-    mood: "Built for a big range: a notice strip, a split opening, categories first, four products to a row with quick add, and the promises shoppers look for",
+    mood: "Built for a big range: a notice strip, huge moving words over a row of photos, categories first, four products to a row with quick add, and the promises shoppers look for",
     palettePreset: "warehouse", font: "Archivo", buttonStyle: "solid", productCardStyle: "minimal", productHoverEffect: "zoom", imageAspectRatio: "3:4",
     productColumnsDesktop: 4, productColumnsMobile: 2, cardRadius: 0, productCTA: "Add", catalogLayoutStyle: "modern", showCatalogControls: true, homeLayoutTemplate: "starter-warehouse",
     content: {
@@ -820,7 +824,12 @@ export const THEME_LIBRARY = [
       ],
       sections: {
         heroPage: [
-          { type: "SplitOpeningSection", settings: { eyebrow: "New in this week", title: "Everything you sell,", accentWord: "easy to find.", body: "Say what you sell and what shoppers can expect, in a sentence or two.", imageUrl: "/samples/clothing/opening.webp", imageAlt: "Your opening photo", layout: "image-right", ctaText: "Shop everything", ctaUrl: "/collections/all", captionText: "A short caption" } },
+          { type: "MarqueeSection", settings: { text: "Everything you sell ✦ Easy to find ✦ New in this week", separator: "✦", still: false, fontSize: 96, speed: 40, uppercase: true, bold: true, letterSpacing: 0 } },
+          { type: "ImageCollageSection", settings: { title: "", layout: "strip", gap: 0, showCaptions: true, items: [
+            { imageUrl: "/samples/clothing/opening.webp", alt: "Your shop", caption: "New in", linkUrl: "/collections/all" },
+            { imageUrl: "/samples/clothing/banner.webp", alt: "Your range", caption: "Best sellers", linkUrl: "/collections/all" },
+            { imageUrl: "/samples/clothing/story.webp", alt: "Your shop up close", caption: "Last chance", linkUrl: "/collections/all" },
+          ] } },
           { type: "CollectionListSection", settings: { title: "Shop by category", columns: 4, align: "left" } },
           { type: "ProductShowcaseGridSection", settings: { overlayOpacity: 0, eyebrow: "New in", title: "Just arrived", columnsDesktop: 4, columnsMobile: 2, imageAspectRatio: "3:4", showCategoryTag: true, showQuickAdd: true, grainOpacity: 0 } },
           { type: "MulticolumnSection", settings: { title: "Why shop with us", columns: 3, align: "left", colorSchemeId: "scheme-accent", items: [
@@ -842,7 +851,7 @@ export const THEME_LIBRARY = [
       cartDrawerBg: "#f4f4f1", cartDrawerText: "#111111", checkoutAccentColor: "#111111", checkoutBgColor: "#f4f4f1", linkColorHover: "#d63f12", navLinkActiveColor: "#111111",
       showCategoryChips: true, categoryChipShowCounts: true, showCatalogCount: true, catalogHeading: "Everything" } },
   { id: "starter-larder", name: "Larder",
-    mood: "Warm and generous for food and drink: a split opening, a running line, four products to a row, how it's made and the questions people ask",
+    mood: "Warm and generous for food and drink: a centred headline on a big photo, a running line, four products to a row, how it's made in staggered photos and the questions people ask",
     palettePreset: "larder", font: "DM Sans", buttonStyle: "solid", productCardStyle: "minimal", productHoverEffect: "zoom", imageAspectRatio: "4:5",
     productColumnsDesktop: 4, productColumnsMobile: 2, cardRadius: 0, productCTA: "Add to bag", catalogLayoutStyle: "modern", showCatalogControls: true, homeLayoutTemplate: "starter-larder",
     content: {
@@ -859,10 +868,14 @@ export const THEME_LIBRARY = [
       ],
       sections: {
         heroPage: [
-          { type: "SplitOpeningSection", settings: { eyebrow: "A short line about your shop", title: "Your headline,", accentWord: "made by hand.", body: "Say what you make, where it comes from and how it reaches people.", imageUrl: "/samples/food/opening.webp", imageAlt: "Your opening photo", layout: "image-left", ctaText: "Shop the larder", ctaUrl: "/collections/all", captionText: "A short caption" } },
+          { type: "ImageBannerSection", settings: { eyebrow: "A short line about your shop", title: "Your headline, made by hand.", body: "Say what you make, where it comes from and how it reaches people.", imageUrl: "/samples/food/opening.webp", imageAlt: "Your opening photo", height: "large", contentPosition: "center-center", textAlign: "center", overlayOpacity: 0.6, ctaText: "Shop the larder", ctaUrl: "/collections/all", secondaryCtaText: "" } },
           { type: "MarqueeSection", settings: { text: "Your first message ✺ A second short line ✺ Something shoppers should know", separator: "✺", still: false, colorSchemeId: "scheme-accent", fontSize: 14, speed: 40, uppercase: false, bold: true, letterSpacing: 0 } },
           { type: "ProductShowcaseGridSection", settings: { overlayOpacity: 0, eyebrow: "This week", title: "In the larder", columnsDesktop: 4, columnsMobile: 2, imageAspectRatio: "4:5", showCategoryTag: false, showQuickAdd: true, grainOpacity: 0 } },
-          { type: "ImageWithTextSection", settings: { eyebrow: "How it's made", title: "Tell people how you make it", body: "Share where your ingredients come from, who makes everything and why it tastes the way it does.", imageUrl: "/samples/food/story.webp", imageAlt: "Your kitchen or workshop", layout: "image-left", ctaText: "Read our story", ctaUrl: "/page/about" } },
+          { type: "ImageCollageSection", settings: { title: "How it's made", layout: "stagger", gap: 16, showCaptions: true, items: [
+            { imageUrl: "/samples/food/story.webp", alt: "Your kitchen", caption: "Say where it's made", linkUrl: "" },
+            { imageUrl: "/samples/food/about.webp", alt: "Your ingredients", caption: "Say where it comes from", linkUrl: "" },
+            { imageUrl: "/samples/food/banner.webp", alt: "Your food on the table", caption: "Say how it's best eaten", linkUrl: "" },
+          ] } },
           { type: "FAQSection", settings: { title: "Good to know", showSearch: false, items: [
             { question: "When do you deliver?", answer: "Say which days you send orders and where you deliver." },
             { question: "How long does it keep?", answer: "Say how long your food keeps and how to store it." },
@@ -881,16 +894,16 @@ export const THEME_LIBRARY = [
       showAnnouncement: true, announcementText: "Write a short announcement here", announcementBg: "#2b1d14", announcementColor: "#fbf5ea",
       cartDrawerBg: "#fbf5ea", cartDrawerText: "#2b1d14", checkoutAccentColor: "#a8401f", checkoutBgColor: "#fbf5ea", linkColorHover: "#a8401f", navLinkActiveColor: "#a8401f", catalogHeading: "The larder" } },
   { id: "starter-salon", name: "Salon",
-    mood: "Calm and polished for appointments: a full-photo opening, the price list, the team, open times and a clear Book a time",
+    mood: "Calm and polished for appointments: words on a soft colour band beside a photo, the price list, the team, open times and a clear Book a time",
     palettePreset: "salon", font: "Manrope", buttonStyle: "solid", productCardStyle: "minimal", productHoverEffect: "zoom", imageAspectRatio: "4:5",
     productColumnsDesktop: 3, productColumnsMobile: 2, cardRadius: 0, productCTA: "Add to bag", catalogLayoutStyle: "modern", showCatalogControls: true, homeLayoutTemplate: "starter-salon",
     content: {
       starterPages: ["about", "contact"],
       sections: {
         heroPage: [
-          { type: "PhotoOpeningSection", settings: { eyebrow: "A short line about your business", title: "Your headline\nin a few words.", body: "Say what you offer and who it's for in a sentence or two.", ctaText: "Book a time", ctaUrl: "/book", imageUrl: "/samples/beauty/opening.webp", imageAlt: "Your opening photo", captionLeft: "Your business", captionRight: "Your neighbourhood" } },
+          { type: "ImageWithTextSection", settings: { eyebrow: "A short line about your business", title: "Your headline in a few words", body: "Say what you offer and who it's for in a sentence or two.", ctaText: "Book a time", ctaUrl: "/book", imageUrl: "/samples/beauty/opening.webp", imageAlt: "Your opening photo", layout: "text-left", colorSchemeId: "scheme-accent" } },
           { type: "ServiceMenuSection", settings: { eyebrow: "Prices", title: "What we offer", subtitle: "Every service, its length and its price.", buttonLabel: "Book", showLength: true, showDescription: true, showBook: true, align: "left" } },
-          { type: "ImageWithTextSection", settings: { eyebrow: "About us", title: "Tell people about your space", body: "Share who you are, how you work and what a visit feels like. A few warm lines help someone visit for the first time.", imageUrl: "/samples/beauty/about.webp", imageAlt: "Your space", layout: "text-left" } },
+          { type: "ImageWithTextSection", settings: { eyebrow: "About us", title: "Tell people about your space", body: "Share who you are, how you work and what a visit feels like. A few warm lines help someone visit for the first time.", imageUrl: "/samples/beauty/about.webp", imageAlt: "Your space", layout: "image-left" } },
           { type: "BookingTeamSection", settings: { eyebrow: "The team", title: "Who you'll see", showServices: true, align: "left" } },
           { type: "BookTimeSection", settings: { eyebrow: "Book", title: "Book your next visit", maxServices: 4, showPrice: true, showDescription: false, showLength: true, showAll: true, align: "left" } },
           { type: "BookingHoursSection", settings: { eyebrow: "Visit", title: "Open times and where to find us", showMap: true, showCancelRule: true, align: "left" } },
@@ -906,14 +919,21 @@ export const THEME_LIBRARY = [
       headerBg: "#f6f1ec", headerColor: "#2a2422", footerBg: "#2a2422", footerTextColor: "#f6f1ec", footerHeadingColor: "#eadcd3", showAnnouncement: false,
       cartDrawerBg: "#f6f1ec", cartDrawerText: "#2a2422", checkoutAccentColor: "#9b5a4e", checkoutBgColor: "#f6f1ec", linkColorHover: "#9b5a4e", navLinkActiveColor: "#9b5a4e" } },
   { id: "starter-workshop", name: "Workshop",
-    mood: "Bright and friendly for classes and workshops: a split opening, the classes up next, what's included, who teaches and the questions people ask",
+    mood: "Bright and friendly for classes and workshops: a huge headline over a photo mosaic, the classes up next, what's included, who teaches and the questions people ask",
     palettePreset: "workshop", font: "Work Sans", buttonStyle: "solid", productCardStyle: "minimal", productHoverEffect: "lift", imageAspectRatio: "1:1",
     productColumnsDesktop: 3, productColumnsMobile: 2, cardRadius: 16, productCTA: "Add to bag", catalogLayoutStyle: "modern", showCatalogControls: true, homeLayoutTemplate: "starter-workshop",
     content: {
       starterPages: ["about", "contact"],
       sections: {
         heroPage: [
-          { type: "SplitOpeningSection", settings: { eyebrow: "Classes and workshops", title: "Learn something,", accentWord: "make something.", body: "Say what people learn with you, who it's for and what they take home.", imageUrl: "/samples/studio/opening.webp", imageAlt: "Your opening photo", layout: "image-right", ctaText: "See the classes", ctaUrl: "/book", captionText: "A short caption" } },
+          { type: "BigIntroSection", settings: { eyebrow: "Classes and workshops", title: "Learn something,\nmake something.", body: "Say what people learn with you, who it's for and what they take home." } },
+          { type: "ImageCollageSection", settings: { title: "", layout: "mosaic", gap: 16, showCaptions: false, items: [
+            { imageUrl: "/samples/studio/opening.webp", alt: "Your studio", caption: "", linkUrl: "" },
+            { imageUrl: "/samples/studio/wheel-lesson.webp", alt: "A class at work", caption: "", linkUrl: "" },
+            { imageUrl: "/samples/studio/hand-building.webp", alt: "Hands at work", caption: "", linkUrl: "" },
+            { imageUrl: "/samples/studio/glazing.webp", alt: "Glazing a piece", caption: "", linkUrl: "" },
+            { imageUrl: "/samples/studio/group-class.webp", alt: "A group class", caption: "", linkUrl: "" },
+          ] } },
           { type: "BookTimeSection", settings: { eyebrow: "Coming up", title: "Classes with places left", maxServices: 6, showPrice: true, showDescription: true, showLength: true, showAll: true, align: "left" } },
           { type: "MulticolumnSection", settings: { title: "What every class includes", columns: 3, align: "left", items: [
             { imageUrl: "/samples/studio/group-class.webp", title: "Your first promise", body: "Say how big your groups are." },
@@ -939,7 +959,7 @@ export const THEME_LIBRARY = [
       headerBg: "#fff8ee", headerColor: "#1d1b2e", footerBg: "#1d1b2e", footerTextColor: "#fff8ee", footerHeadingColor: "#ffd166", showAnnouncement: false,
       cartDrawerBg: "#fff8ee", cartDrawerText: "#1d1b2e", checkoutAccentColor: "#d2471c", checkoutBgColor: "#fff8ee", linkColorHover: "#d2471c", navLinkActiveColor: "#1d1b2e" } },
   { id: "starter-commission", name: "Commission",
-    mood: "Made to order: a full-photo opening, recent work in a grid, how it works in three steps, pieces ready to order and an enquiry form",
+    mood: "Made to order: a dark band with a photo beside your words, recent work shown large, how it works in three steps, pieces ready to order and an enquiry form",
     palettePreset: "commission", font: "Inter", buttonStyle: "solid", productCardStyle: "minimal", productHoverEffect: "zoom", imageAspectRatio: "4:5",
     productColumnsDesktop: 3, productColumnsMobile: 2, cardRadius: 0, productCTA: "Add to bag", catalogLayoutStyle: "modern", showCatalogControls: true, homeLayoutTemplate: "starter-commission",
     content: {
@@ -954,8 +974,8 @@ export const THEME_LIBRARY = [
       ],
       sections: {
         heroPage: [
-          { type: "PhotoOpeningSection", settings: { eyebrow: "Made to order", title: "Your headline\nin a few words.", body: "Say what you make to order and who it's for in a sentence or two.", ctaText: "Start an enquiry", ctaUrl: "/page/contact", imageUrl: "/samples/made/opening.webp", imageAlt: "Your opening photo", captionLeft: "Your workshop", captionRight: "A short caption" } },
-          { type: "GallerySection", settings: { title: "Recent work", subtitle: "A few pieces you've made, to show what's possible.", columns: 3, align: "left", items: [
+          { type: "ImageWithTextSection", settings: { eyebrow: "Made to order", title: "Your headline in a few words", body: "Say what you make to order and who it's for in a sentence or two.", ctaText: "Start an enquiry", ctaUrl: "/page/contact", imageUrl: "/samples/made/opening.webp", imageAlt: "Your opening photo", layout: "image-left", colorSchemeId: "scheme-inverse" } },
+          { type: "GallerySection", settings: { title: "Recent work", subtitle: "A few pieces you've made, to show what's possible.", columns: 2, align: "left", items: [
             { imageUrl: "/samples/made/round-table.webp", alt: "A piece you made" },
             { imageUrl: "/samples/made/pedestal-table.webp", alt: "A piece you made" },
             { imageUrl: "/samples/made/spindle-chair.webp", alt: "A piece you made" },

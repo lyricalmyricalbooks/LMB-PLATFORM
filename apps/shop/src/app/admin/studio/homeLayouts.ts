@@ -166,21 +166,22 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
   {
     id: "starter-gallery",
     name: "Gallery",
-    description: "Big photos and few products: a full-photo opening, a quiet introduction, a shoppable photo, two products to a row and a wide photo.",
+    description: "Big photos and few products: a photo that fills the screen, a quiet introduction, a shoppable photo, two products to a row and a row of photos.",
     sections: [
-      { type: "PhotoOpeningSection", settings: { eyebrow: "A short line about your shop", title: "Your headline\nin a few words.", body: "Say what you make and why.", ctaText: "See the collection", ctaUrl: "/collections/all" } },
+      { type: "ImageBannerSection", settings: { eyebrow: "A short line about your shop", title: "Your headline in a few words", body: "Say what you make and why.", height: "full", contentPosition: "bottom-left", textAlign: "left", ctaText: "See the collection", ctaUrl: "/collections/all" } },
       { type: "BigIntroSection", settings: { eyebrow: "About the shop", title: "Fewer things,\nchosen well", body: "Introduce your shop in a few lines." } },
       { type: "ShoppablePhotoSection", settings: { title: "Shop the photo", body: "Tap a dot to see the product.", layout: "words-left", aspect: "portrait" } },
       { type: "ProductShowcaseGridSection", settings: { title: "A few things, shown large", columnsDesktop: 2, columnsMobile: 1 } },
-      { type: "ImageBannerSection", settings: { title: "Your story, in one line", ctaText: "Read our story", ctaUrl: "/page/about" } },
+      { type: "ImageCollageSection", settings: { layout: "strip", gap: 0, showCaptions: false } },
     ],
   },
   {
     id: "starter-warehouse",
     name: "Warehouse",
-    description: "A large catalogue: a split opening, collections, a dense grid of products and your promises.",
+    description: "A large catalogue: huge moving words, a row of photos, collections, a dense grid of products and your promises.",
     sections: [
-      { type: "SplitOpeningSection", settings: { eyebrow: "A short line about your shop", title: "Your headline,", accentWord: "in a few words.", body: "Say what you sell.", ctaText: "Shop everything", ctaUrl: "/collections/all" } },
+      { type: "MarqueeSection", settings: { text: "Everything you sell  \u2726  Easy to find", fontSize: 96, uppercase: true, bold: true } },
+      { type: "ImageCollageSection", settings: { layout: "strip", gap: 0 } },
       { type: "CollectionListSection", settings: { title: "Shop by collection" } },
       { type: "ProductShowcaseGridSection", settings: { title: "Everything in the shop", columnsDesktop: 4 } },
       { type: "NewsletterSection", settings: { title: "Join our letter", description: "Tell shoppers what you send and how often." } },
@@ -189,9 +190,9 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
   {
     id: "starter-larder",
     name: "Larder",
-    description: "Food and drink: a photo beside a warm headline, a ticker, the pantry, your story and questions.",
+    description: "Food and drink: a centred headline on a big photo, a ticker, the pantry, your story and questions.",
     sections: [
-      { type: "SplitOpeningSection", settings: { eyebrow: "A short line about your shop", title: "Your headline,", accentWord: "made well.", body: "Say what you make.", ctaText: "Shop the pantry", ctaUrl: "/collections/all" } },
+      { type: "ImageBannerSection", settings: { eyebrow: "A short line about your shop", title: "Your headline, made well.", body: "Say what you make.", height: "large", contentPosition: "center-center", textAlign: "center", ctaText: "Shop the pantry", ctaUrl: "/collections/all", secondaryCtaText: "" } },
       { type: "MarqueeSection", settings: { text: "Your first message  \u2022  A second short line" } },
       { type: "ProductShowcaseGridSection", settings: { title: "From the pantry" } },
       { type: "FAQSection", settings: { title: "Good to know" } },
@@ -200,9 +201,9 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
   {
     id: "starter-salon",
     name: "Salon",
-    description: "Appointments: a full-photo opening, your services, your team, a time picker and your hours.",
+    description: "Appointments: words on a colour band beside a photo, your services, your team, a time picker and your hours.",
     sections: [
-      { type: "PhotoOpeningSection", settings: { eyebrow: "A short line about your studio", title: "Your headline\nin a few words.", body: "Say what you offer.", ctaText: "Book a time", ctaUrl: "/book" } },
+      { type: "ImageWithTextSection", settings: { eyebrow: "A short line about your studio", title: "Your headline in a few words", body: "Say what you offer.", ctaText: "Book a time", ctaUrl: "/book", layout: "text-left", colorSchemeId: "scheme-accent" } },
       { type: "ServiceMenuSection", settings: { title: "Services" } },
       { type: "BookTimeSection", settings: {} },
       { type: "BookingHoursSection", settings: {} },
@@ -211,9 +212,10 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
   {
     id: "starter-workshop",
     name: "Workshop",
-    description: "Classes: a split opening, the class times, what you'll learn, questions and your hours.",
+    description: "Classes: a huge headline, a photo mosaic, the class times, what you'll learn, questions and your hours.",
     sections: [
-      { type: "SplitOpeningSection", settings: { eyebrow: "Classes and workshops", title: "Your headline,", accentWord: "hands on.", body: "Say what people will learn.", ctaText: "See the classes", ctaUrl: "/book" } },
+      { type: "BigIntroSection", settings: { eyebrow: "Classes and workshops", title: "Your headline,\nhands on.", body: "Say what people will learn." } },
+      { type: "ImageCollageSection", settings: { layout: "mosaic", showCaptions: false } },
       { type: "BookTimeSection", settings: {} },
       { type: "FAQSection", settings: { title: "Good to know" } },
       { type: "BookingHoursSection", settings: {} },
@@ -222,9 +224,9 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
   {
     id: "starter-commission",
     name: "Commission",
-    description: "Made to order: a full-photo opening, past work, how it works, the pieces and an enquiry form.",
+    description: "Made to order: a dark band beside a photo, past work shown large, how it works, the pieces and an enquiry form.",
     sections: [
-      { type: "PhotoOpeningSection", settings: { eyebrow: "Made to order", title: "Your headline\nin a few words.", body: "Say what you make for people.", ctaText: "Ask about a piece", ctaUrl: "/page/contact" } },
+      { type: "ImageWithTextSection", settings: { eyebrow: "Made to order", title: "Your headline in a few words", body: "Say what you make for people.", ctaText: "Ask about a piece", ctaUrl: "/page/contact", layout: "image-left", colorSchemeId: "scheme-inverse" } },
       { type: "GallerySection", settings: { title: "Past work" } },
       { type: "ProductShowcaseGridSection", settings: { title: "Ready to go" } },
       { type: "ContactFormSection", settings: { title: "Tell us what you have in mind" } },

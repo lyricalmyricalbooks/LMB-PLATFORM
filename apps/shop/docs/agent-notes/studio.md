@@ -1041,3 +1041,19 @@ The preview takes most of the screen. Nothing was removed; each thing moved to w
     under the photo. All words are section fields with `fb()` fallbacks.
   - The Gallery starter's home has a Shoppable photo. Browser checks: "Style › Site styles…", "Shoppable photo…",
     "Lookbook…" (in Browse mode, since Edit mode clicks select).
+
+## Starters in three kinds, and nine distinct openings (26 November 2026, one website picker plan step 1)
+
+- `starterForShop(theme, sellsOrKind, lead?)` (`studio/starterDesign.ts`) takes a sign-up answer or a kind (`"products" | "services" | "both"`,
+  `starterKind`). Both (`bothVersion`) starts from the lead side's version and adds the other half after the lead's last row,
+  worded per starter in `BOTH` (Salon and Workshop lead with services: "Shop the aftercare", "Take it home"); it keeps the
+  bag and adds opening hours. `lead` missing = the starter's own lead. The shop types thread's switch calls it with
+  `shopKindOf(doc)` / `leadSideOf(doc)` (`servicesSetup.ts`).
+- Opening buttons move between `/collections/all` and `/book` through `retarget`, slides included.
+- Demo (`demoShop.ts`): `?kind=products|services|both&lead=` shows any starter as that kind (Preview's "Show as"); a
+  services demo has no products, a Both demo always has some.
+- Julian 26 Nov: no two starters may look alike. Openings now: Aurel and Catalogue split (both from his Figma files),
+  Slow Season full photo in capitals, Gallery full-screen banner, Warehouse huge moving words over a photo strip, Larder
+  centred banner, Salon words on a colour band, Workshop giant headline + photo mosaic, Commission dark band. Keep a new
+  starter's opening different from all of these.
+- A service whose lowest price is 0 shows Free, never "From $0.00".

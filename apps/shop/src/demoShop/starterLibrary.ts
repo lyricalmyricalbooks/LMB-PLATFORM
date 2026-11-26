@@ -47,7 +47,8 @@ export type LibraryEntry = {
 /** The starter's first photo on its home page: the one its card shows. */
 function coverOf(theme: any): string {
   for (const section of presetSections(theme).heroPage || []) {
-    const url = (section.settings as any)?.imageUrl;
+    const settings = section.settings as any;
+    const url = settings?.imageUrl || settings?.slides?.[0]?.imageUrl || settings?.items?.[0]?.imageUrl;
     if (typeof url === "string" && url) return url;
   }
   return "";

@@ -80,3 +80,4 @@ Details of each feature live in [`docs/agent-notes/studio.md`](../../../../docs/
 - Make it yours (25 November 2026, round three phase 3)
 - Calmer Studio (25 November 2026, round three phase 4)
 - Site styles, Shoppable photo and Lookbook (25 November 2026, round three phase 5)
+- Starters in three kinds, and nine distinct openings (26 November 2026, one website picker plan step 1)

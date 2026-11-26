@@ -66,3 +66,44 @@ describe("a product shop's version of a starter made for appointments or classes
     }
   });
 });
+
+describe("a Both shop's version of every starter (products and services)", () => {
+  const firstIndex = (list: any[], test: (s: any) => boolean) => list.findIndex(test);
+  const isProducts = (s: any) => PRODUCT_SECTIONS.has(s.type);
+  const isServices = (s: any) => s.type === "ServiceMenuSection" || s.type === "BookTimeSection";
+  it("shows both halves, keeps the bag, adds hours and passes the look checks", () => {
+    for (const id of STARTER_SITES) {
+      const both = starterForShop(libraryLook(id), "both");
+      const home = presetSections(both).heroPage;
+      expect(home.some(isProducts), id).toBe(true);
+      expect(home.some(isServices), id).toBe(true);
+      expect(home.some((s) => s.type === "BookingHoursSection"), id).toBe(true);
+      expect((both as any).global?.hideCartButton, id).not.toBe(true);
+      expect(themeProblems(both), id).toEqual([]);
+    }
+  });
+  it("puts the side most customers come for first", () => {
+    for (const id of STARTER_SITES) {
+      for (const lead of ["products", "services"] as const) {
+        const home = presetSections(starterForShop(libraryLook(id), "both", lead)).heroPage;
+        const p = firstIndex(home, isProducts), s = firstIndex(home, isServices);
+        expect(lead === "products" ? p < s : s < p, `${id} ${lead}`).toBe(true);
+      }
+    }
+  });
+  it("reads the kind from a sign-up answer or a kind name", () => {
+    const theme = libraryLook("aurel-editorial");
+    expect(starterForShop(theme, "products")).toBe(starterForShop(theme, "clothing"));
+    expect(presetSections(starterForShop(theme, "services")).heroPage.some(isServices)).toBe(true);
+  });
+});
+
+describe("a services shop's version sends every opening button to booking", () => {
+  it("leaves no 'shop the collection' button on a services home page", () => {
+    for (const id of STARTER_SITES) {
+      const home = presetSections(starterForShop(libraryLook(id), "hair")).heroPage;
+      const opening = home[0];
+      expect(JSON.stringify(opening), id).not.toContain('"ctaUrl":"/collections/all"');
+    }
+  });
+});

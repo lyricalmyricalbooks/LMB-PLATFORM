@@ -322,7 +322,7 @@ function NewBooking({ c }: { c: Copy }) {
             <button key={s.id} {...regionProps("bookingsService")} type="button" className="fm-book-service" data-photo={s.photo ? "true" : undefined} onClick={() => { setListed(s); setStart(""); setAnswers({}); setProblems({}); setError(""); setStep("time"); }}>
               {s.photo && <img className="fm-book-service-photo" src={s.photo} alt="" loading="lazy" decoding="async" />}
               <h3>{s.name}</h3>
-              <span className="fm-book-price" translate="no">{shown.from ? c("bookTimeFromPrice", { price: moneyText(shown.minor, currency) }) : shown.minor > 0 ? moneyText(shown.minor, currency) : c("bookTimeFree")}{!!s.taxMinor && <small> {c("bookTimePlusTax")}</small>}</span>
+              <span className="fm-book-price" translate="no">{shown.from && shown.minor > 0 ? c("bookTimeFromPrice", { price: moneyText(shown.minor, currency) }) : shown.minor > 0 ? moneyText(shown.minor, currency) : c("bookTimeFree")}{!!s.taxMinor && <small> {c("bookTimePlusTax")}</small>}</span>
               {s.description && <p>{s.description}</p>}
               <span className="fm-book-meta fm-track-mono">
                 <span><Clock size={12} aria-hidden="true" /> {(s.lengths?.length || 0) >= 2 ? s.lengths!.map((l) => lengthText(l.minutes)).join(" · ") : lengthText(s.minutes)}</span>
