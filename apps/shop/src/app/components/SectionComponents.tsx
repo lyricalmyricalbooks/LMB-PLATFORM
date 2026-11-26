@@ -2410,7 +2410,7 @@ export function BookTimeSection({ settings, enableAnimations }: any) {
                 <h3 className="text-xl font-bold text-white leading-tight" style={hStyle(settings)}>{s.name}</h3>
                 {settings.showPrice !== false && (
                   <span className="shrink-0 text-xs font-bold tracking-[0.08em] text-white whitespace-nowrap" translate="no" style={bStyle(settings)}>
-                    {(() => { const shown = cardPrice(s, peopleFor(info, s.id)); return shown.from ? c("bookTimeFromPrice", { price: bookingMoney(shown.minor, currency) }) : shown.minor > 0 ? bookingMoney(shown.minor, currency) : c("bookTimeFree"); })()}
+                    {(() => { const shown = cardPrice(s, peopleFor(info, s.id)); return shown.from && shown.minor > 0 ? c("bookTimeFromPrice", { price: bookingMoney(shown.minor, currency) }) : shown.minor > 0 ? bookingMoney(shown.minor, currency) : c("bookTimeFree"); })()}
                   </span>
                 )}
               </div>
@@ -2473,7 +2473,7 @@ export function ServiceMenuSection({ settings, enableAnimations }: any) {
               </div>
               <div className="flex flex-col items-end gap-3 text-right">
                 <span className="text-base font-bold text-white whitespace-nowrap" translate="no" style={bStyle(settings)}>
-                  {shown.from ? c("bookTimeFromPrice", { price: bookingMoney(shown.minor, currency) }) : shown.minor > 0 ? bookingMoney(shown.minor, currency) : c("bookTimeFree")}
+                  {shown.from && shown.minor > 0 ? c("bookTimeFromPrice", { price: bookingMoney(shown.minor, currency) }) : shown.minor > 0 ? bookingMoney(shown.minor, currency) : c("bookTimeFree")}
                   {shown.minor > 0 && !!s.taxMinor && <small className="block text-[11px] font-normal text-white/60">{c("bookTimePlusTax")}</small>}
                 </span>
                 {settings.showBook !== false && (

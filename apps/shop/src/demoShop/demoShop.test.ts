@@ -45,3 +45,22 @@ describe("live demo shops", () => {
     }
   }
 });
+
+describe("Show as: a demo as a products, services or both shop", () => {
+  it("picks a sample set that fits the kind and keeps the lead only for Both", () => {
+    expect(demoChoice({ starter: "aurel-editorial", kind: "services" }).sells).toBe("studio");
+    expect(demoChoice({ starter: "starter-salon", kind: "services" }).sells).toBe("beauty");
+    expect(demoChoice({ starter: "starter-salon", kind: "products" }).sells).toBe("clothing");
+    expect(demoChoice({ starter: "aurel-editorial", kind: "both", lead: "services" })).toMatchObject({ kind: "both", lead: "services" });
+    expect(demoChoice({ starter: "aurel-editorial", kind: "products", lead: "services" }).lead).toBeUndefined();
+    expect(demoChoice({ starter: "aurel-editorial", kind: "nonsense" }).kind).toBeUndefined();
+  });
+  it("a services demo sells nothing, a Both demo always has products and booking", () => {
+    for (const starter of STARTER_SITES) {
+      expect(demoDesign(demoChoice({ starter, kind: "services" })).books, starter).toEqual([]);
+      const both = demoDesign(demoChoice({ starter, kind: "both" }));
+      expect(both.books.length, starter).toBeGreaterThan(0);
+      expect(JSON.stringify(both.design), starter).toMatch(/ServiceMenuSection|BookTimeSection/);
+    }
+  });
+});

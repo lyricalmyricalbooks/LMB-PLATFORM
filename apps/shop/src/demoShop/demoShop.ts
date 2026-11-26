@@ -4,7 +4,7 @@ import { STARTER_SITES } from "../app/admin/lookGallery";
 import { stylesFor, styledName, withStyle } from "../app/admin/studio/starterStyles";
 import { sampleShopBooks } from "../designFirst/beforeShop";
 import { defaultSettings } from "../app/admin/defaultSettings";
-import { applyStarter, starterForShop } from "../app/admin/studio/starterDesign";
+import { applyStarter, starterForShop, type LeadSide, type StarterKind } from "../app/admin/studio/starterDesign";
 import { getSectionMeta } from "../app/admin/ThemeEditorExtensions";
 import { starterPhotos } from "../app/admin/studio/starterPhotos";
 import { withStarterWords } from "../app/admin/sells";
@@ -20,14 +20,26 @@ export const DEMO_NAME = "Your shop";
  */
 export const DEMO_SELLS = { clothing: "clothing", home: "other", books: "books", studio: "studio", beauty: "hair" } as const;
 export type DemoKind = keyof typeof DEMO_SELLS;
-export type DemoChoice = { starter: string; style: string; sells: DemoKind };
+export type DemoChoice = { starter: string; style: string; sells: DemoKind; kind?: StarterKind; lead?: LeadSide };
+const SERVICE_DEMOS = new Set<DemoKind>(["studio", "beauty"]);
 
-export function demoChoice(asked: { starter?: string | null; style?: string | null; sells?: string | null }): DemoChoice {
+/** Starters made for appointments or classes open as that kind of shop unless the address asks for another. */
+const MADE_FOR: Record<string, DemoKind> = { "starter-salon": "beauty", "starter-workshop": "studio" };
+
+/**
+ * `kind` shows the starter as a products, services or both shop (Preview's "Show as"); `lead` says which half of a Both
+ * shop comes first. A kind that doesn't fit the asked sample set picks the set that does (services need a services set).
+ */
+export function demoChoice(asked: { starter?: string | null; style?: string | null; sells?: string | null; kind?: string | null; lead?: string | null }): DemoChoice {
   const starter = asked.starter && STARTER_SITES.includes(asked.starter) ? asked.starter : STARTER_SITES[0];
   const styles = stylesFor(starter);
   const style = styles.find((s) => s.id === asked.style)?.id || styles[0]?.id || "";
-  const sells = Object.hasOwn(DEMO_SELLS, String(asked.sells)) ? (asked.sells as DemoKind) : "clothing";
-  return { starter, style, sells };
+  let sells = Object.hasOwn(DEMO_SELLS, String(asked.sells)) ? (asked.sells as DemoKind) : MADE_FOR[starter] || "clothing";
+  const kind = asked.kind === "products" || asked.kind === "services" || asked.kind === "both" ? asked.kind : undefined;
+  if (kind === "services" && !SERVICE_DEMOS.has(sells)) sells = MADE_FOR[starter] || "studio";
+  if (kind === "products" && SERVICE_DEMOS.has(sells)) sells = "clothing";
+  const lead = kind === "both" && (asked.lead === "products" || asked.lead === "services") ? asked.lead : undefined;
+  return { starter, style, sells, ...(kind ? { kind } : {}), ...(lead ? { lead } : {}) };
 }
 
 /**
@@ -53,8 +65,19 @@ export function demoShopName(asked?: string | null): string {
 export function demoDesign(choice: DemoChoice, base = "/", shopName = DEMO_NAME): { design: any; books: any[]; name: string; sells: string } {
   const sells = DEMO_SELLS[choice.sells];
   const theme = withStyle(libraryLook(choice.starter), choice.style);
-  const shop = starterForShop(theme, sells);
+  const shop = starterForShop(theme, choice.kind === "both" ? "both" : sells, choice.lead);
   const applied = applyStarter(defaultSettings().design, shop, getSectionMeta, wordsFor(sells), starterPhotos(sells, base));
   const design = withStarterWords({ ...applied, copy: { ...(applied.copy || {}), siteName: shopName } }, sells);
-  return { design: underBase(design, base), books: underBase(sampleShopBooks(sells, choice.starter), base), name: styledName(theme), sells };
+  return { design: underBase(design, base), books: underBase(demoProducts(choice, sells), base), name: styledName(theme), sells };
+}
+
+/**
+ * The sample products a demo shows: none for a services-only shop (its bag stays hidden, as a real one's does), and for a
+ * Both shop the starter's own, else a set of things to buy alongside the services (a services sample set has none).
+ */
+function demoProducts(choice: DemoChoice, sells: string): any[] {
+  if (choice.kind === "services") return [];
+  const own = sampleShopBooks(sells, choice.starter);
+  if (choice.kind !== "both" || own.length) return own;
+  return sampleShopBooks("other");
 }

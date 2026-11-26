@@ -26,7 +26,7 @@ async function showShop() {
   const shopName = demoShopName(params.get("name"));
   let saved: Record<string, string> | null = null;
   try { saved = JSON.parse(sessionStorage.getItem(DEMO_KEY) || "null"); } catch { saved = null; }
-  const choice = demoChoice({ starter: params.get("starter") || saved?.starter, style: params.get("style") || saved?.style, sells: params.get("sells") || saved?.sells });
+  const choice = demoChoice({ starter: params.get("starter") || saved?.starter, style: params.get("style") || saved?.style, sells: params.get("sells") || saved?.sells, kind: params.get("kind") || saved?.kind, lead: params.get("lead") || saved?.lead });
   if (!embedded) try { sessionStorage.setItem(DEMO_KEY, JSON.stringify(choice)); } catch { /* the starter is still shown */ }
 
   const { design, books, name, sells } = demoDesign(choice, import.meta.env.BASE_URL, shopName);
@@ -37,11 +37,11 @@ async function showShop() {
   // status is set, so the shop shows no "your live shop" banner: there is no Studio behind a demo.
   // The snapshot is the whole shop: nothing is read from a database (features/site/useSiteData.ts readSiteData).
   win.__studioPreviewOnly = true;
-  win.__studioPreviewState = { settings: { design, sells, info: { name: shopName } }, books, pages: [] };
+  win.__studioPreviewState = { settings: { design, sells, ...(choice.kind === "both" ? { sellsProducts: true } : {}), info: { name: shopName } }, books, pages: [] };
 
   if (params.get("preview") !== "true") {
     const url = new URL(location.href);
-    for (const key of ["starter", "style", "sells", "frame", "name", "embed"]) url.searchParams.delete(key);
+    for (const key of ["starter", "style", "sells", "kind", "lead", "frame", "name", "embed"]) url.searchParams.delete(key);
     url.searchParams.set("preview", "true");
     history.replaceState(null, "", url);
   }

@@ -31,8 +31,11 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
     looks: { cobalt: "1e53ebw", sand: "1jgi7m0", night: "1itwz40" },
   },
   "starter-gallery": {
-    releases: [{ version: 1, date: "2026-11-25", note: "The first version, in Linen, Stone and Night." }],
-    looks: { linen: "179ocjt", stone: "kcizzn", night: "77hnf0" },
+    releases: [
+      { version: 1, date: "2026-11-25", note: "The first version, in Linen, Stone and Night." },
+      { version: 2, date: "2026-11-26", note: "Your name now sits in the middle of the header, above a photo that fills the screen." },
+    ],
+    looks: { linen: "1x1ro7z", stone: "1yhk7nt", night: "1334736" },
   },
   "starter-warehouse": {
     releases: [{ version: 1, date: "2026-11-25", note: "The first version, in Signal, Cobalt and Night." }],
