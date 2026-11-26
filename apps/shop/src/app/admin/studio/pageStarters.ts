@@ -28,7 +28,7 @@ export const PAGE_STARTERS: PageStarter[] = [
   },
   {
     id: "shipping", label: "Shipping & returns", summary: "Delivery times, costs and how returns work.", outline: ["Shipping", "Delivery times", "Returns", "Damaged or missing parcels"],
-    title: "Shipping & returns", slug: "shipping-returns", showInNav: false,
+    title: "Shipping & returns", slug: "shipping-returns", showInNav: false, showInFooter: true,
     body: [h2("Shipping"), p("[Where you ship to and how prices are worked out.]"), h2("Delivery times"), p("[How long parcels usually take, by region.]"), h2("Returns"), p("[How long shoppers have, what condition items must be in, and who pays return postage.]"), h2("Damaged or missing parcels"), p("[What to do and how to reach you.]")].join(""),
   },
   {
@@ -37,9 +37,9 @@ export const PAGE_STARTERS: PageStarter[] = [
     body: [h2("Orders"), `<h3>[A question shoppers ask]</h3>`, p("[Your answer.]"), h2("Shipping"), `<h3>[A question shoppers ask]</h3>`, p("[Your answer.]"), h2("Books & editions"), `<h3>[A question shoppers ask]</h3>`, p("[Your answer.]")].join(""),
   },
   {
-    id: "contact", label: "Contact", summary: "How shoppers, stores and the press can reach you.", outline: ["Get in touch", "Wholesale & stockists", "Press"],
+    id: "contact", label: "Contact", summary: "How shoppers, other shops and partners can reach you.", outline: ["Get in touch", "Wholesale & stockists", "Partners"],
     title: "Contact", slug: "contact", showInNav: true,
-    body: [h2("Get in touch"), p("[Your email address and when you usually reply.]"), h2("Wholesale & stockists"), p("[How other shops can order from you to sell.]"), h2("Press"), p("[Who to contact for review copies and interviews.]")].join(""),
+    body: [h2("Get in touch"), p("[Your email address and when you usually reply.]"), h2("Wholesale & stockists"), p("[How other shops can order from you to sell.]"), h2("Partners"), p("[Who to contact for collaborations, press and events.]")].join(""),
   },
   {
     id: "stockists", label: "Stockists", summary: "The bookshops that carry your books, linked from the footer only.", outline: ["Where to find our books", "[City]", "Stock our books"],

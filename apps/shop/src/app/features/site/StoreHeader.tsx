@@ -19,7 +19,7 @@ import { bookingsLinkShown, useBookingsLive } from "./bookingsLive";
 import { eventsLinkShown, useEventsLive } from "./eventsLive";
 import { classesLinkShown, useClassesLive } from "./classesLive";
 import { supportLinkShown, useGivingLive } from "./supportLive";
-import { buildNavItems, childCategories, referenceNavCategories, splitNavigation, usesReferenceHeader, type NavItem } from "./navItems";
+import { buildNavItems, childCategories, referenceNavCategories, splitNavigation, usesReferenceHeader, withShopLink, type NavItem } from "./navItems";
 // Search loads the first time it opens (button, Ctrl/⌘+K or Studio's Search pop-over), not with every page.
 const SearchOverlay = lazy(() => import("./SearchOverlay").then(m => ({ default: m.SearchOverlay })));
 import { SecondaryStorefrontNav } from "./SecondaryStorefrontNav";
@@ -112,7 +112,7 @@ function NavEntry({ target, style, className }: { target: Target; style: CSSProp
 }
 
 /** The desktop category bar: categories, drop-downs for sub-categories, and in-menu pages. */
-function CategoryBar({ navRef, items, design, copyDesign, color, line, stickers, pageTarget, categoryTarget, childTarget }: {
+function CategoryBar({ navRef, items, design, copyDesign, color, line, stickers, pageTarget, categoryTarget, childTarget, activeLink }: {
   navRef: RefObject<HTMLElement | null>;
   items: NavItem[];
   design: any;
@@ -123,6 +123,8 @@ function CategoryBar({ navRef, items, design, copyDesign, color, line, stickers,
   pageTarget: (item: NavItem & { kind: "page" }) => Target;
   categoryTarget: (item: NavItem & { kind: "category" }) => Target;
   childTarget: (child: any) => Target;
+  /** The address on screen, so the Shop link shows as the current page on every-product listing. */
+  activeLink?: string;
 }) {
   const linkClass = `transition-all hover:!opacity-100 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`;
   return (
@@ -136,6 +138,19 @@ function CategoryBar({ navRef, items, design, copyDesign, color, line, stickers,
       style={stickers ? { ["--nav-fit" as any]: (line.style as any)["--nav-fit"] } : line.style}
     >
       {items.map((item, index) => {
+        // Style › Header layout › "Shop link": a link to every product, or a drop-down of All and each category.
+        if (item.kind === "link") {
+          const own: Target = { key: item.key, label: item.label, to: item.to, active: !!activeLink && activeLink.endsWith(item.to) };
+          if (item.children.length === 0) return <NavEntry key={item.key} target={own} className={linkClass}
+            style={{ ...navLinkStyle(design, own.active, color), ...(stickers ? stickerPillStyle(design, index, own.active) : {}) }} />;
+          // On the home page the shop's first category is picked in place: only a listing page lights the Shop link.
+          const listing = !!activeLink?.includes("/collections/");
+          const entries = item.children.map(childTarget).map((entry) => (listing ? entry : { ...entry, active: false }));
+          const on = own.active || entries.some((entry) => entry.active);
+          return <NavDropdown key={item.key} design={design} copyDesign={copyDesign} label={item.label}
+            linkStyle={{ ...navLinkStyle(design, on, color), ...(stickers ? stickerPillStyle(design, index, on) : {}) }}
+            className={linkClass} all={{ ...own, key: `${item.key}:all` }} entries={entries} />;
+        }
         if (item.kind === "page") {
           const target = pageTarget(item);
           return <NavEntry key={item.key} target={target} className={linkClass}
@@ -484,8 +499,9 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
   const navBar = (
     <CategoryBar
       navRef={navRef}
-      items={splitNavigation(navItems, storefront).primary}
+      items={withShopLink(splitNavigation(navItems, storefront).primary, storefront, getCopy(design, "navShopLabel"))}
       design={storefront}
+      activeLink={location.pathname}
       copyDesign={design}
       color={headerColor}
       line={line}
@@ -649,7 +665,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   const headerBorderColor = isHeaderTransparent ? "transparent" : headerScheme ? "var(--border-color)" : (sf?.headerColor ? `${sf.headerColor}1a` : `${storefrontText}1a`);
   const activeName = typeof activeCategory === "string" ? activeCategory : activeCategory?.name;
 
-  const primaryNav = splitNavigation(navItems, sf).primary;
+  const primaryNav = withShopLink(splitNavigation(navItems, sf).primary, sf, getCopy(design, "navShopLabel"));
   const barOf = (items: typeof primaryNav, ref: typeof navRef) => (
     <CategoryBar
       navRef={ref}
@@ -659,6 +675,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
       color={headerTextColor}
       line={line}
       stickers={stickers}
+      activeLink={location.pathname}
       pageTarget={(item) => ({ key: item.key, label: item.label, to: `/page/${item.page.slug}`, active: location.pathname.endsWith(`/page/${item.page.slug}`) })}
       categoryTarget={(item) => ({ key: item.key, label: item.label, to: collectionPath(item.label), active: activeName === item.label, onSelect: () => pick(item.category) })}
       childTarget={(k) => ({ key: `cat:${k.id}`, label: k.name, to: collectionPath(k.name), active: activeName === k.name, onSelect: () => pick(categories.find((c: any) => c.id === k.id) || k) })}

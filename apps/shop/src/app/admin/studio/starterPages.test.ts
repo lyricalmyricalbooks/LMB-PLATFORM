@@ -1,60 +1,58 @@
 import { describe, expect, it } from "vitest";
-import { productBlocks } from "../../features/site/productBlocks";
-import { getSectionMeta } from "../ThemeEditorExtensions";
-import { applyPresetSections, hasPresetContent, presetContentSummary } from "./presetContent";
-import { themeProblems } from "./themeCheck";
+import { THEME_LIBRARY } from "./themeLibrary";
+import { STARTER_PAGES, starterPageSections } from "./starterPages";
+import { presetPagesToAdd, presetSections } from "./presetContent";
+import { STARTER_SITES } from "../lookGallery";
+import { existsSync } from "node:fs";
 
-// Starter websites step 3: a starter can shape every page, including what sits under the header and above the footer on
-// every page, and the book page's buy box.
-const starter = {
-  id: "t", name: "Test starter",
-  content: {
-    sections: {
-      headerSections: [{ type: "MarqueeSection", settings: { text: "New books every week" } }],
-      globalSections: [{ type: "NewsletterSection", settings: { align: "center" } }],
-      productPage: [{ type: "TestimonialsSection" }],
-      cartPage: [{ type: "RichTextSection" }],
-    },
-    productBlocks: [{ type: "heading" }, { type: "price" }, { type: "badge", settings: { label: "Staff pick" } }, { type: "buy" }, { type: "details", hidden: true }],
-  },
-};
+// Plan "Starters on par", step 2 (owner's yes, 26 November 2026): every starter's About, Contact and Shipping pages are
+// written for its made-up brand, never bracketed prompts, and real shops get them as drafts marked Sample.
+describe("each starter's own pages", () => {
+  it("covers every starter", () => expect(Object.keys(STARTER_PAGES).sort()).toEqual([...STARTER_SITES].sort()));
 
-describe("starters shape every page", () => {
-  it("puts group sections in the every-page lists and page sections on their pages", () => {
-    const d = applyPresetSections({ globalSections: [{ id: "old", type: "FAQSection", settings: {} }] }, starter, getSectionMeta, t => t.replace("books", "goods"));
-    expect(d.headerSections.map((s: any) => s.type)).toEqual(["MarqueeSection"]);
-    expect(d.headerSections[0].settings.text).toBe("New goods every week");
-    expect(d.globalSections.map((s: any) => s.type)).toEqual(["NewsletterSection"]);
-    expect(d.productPage.sections.map((s: any) => s.type)).toEqual(["TestimonialsSection"]);
-    expect(d.cartPage.sections.map((s: any) => s.type)).toEqual(["RichTextSection"]);
-    expect(d.headerSections.sections).toBeUndefined();
+  describe.each(STARTER_SITES.map((id) => [id]))("%s", (id) => {
+    const look: any = THEME_LIBRARY.find((t: any) => t.id === id);
+    const set = STARTER_PAGES[id];
+    it("writes every starter page it brings in its own words: no prompts, no email address, no reviews", () => {
+      for (const pageId of look.content.starterPages) {
+        const words = set.words[pageId as "about"];
+        expect(words, `${id} ${pageId}`).toMatch(/<h2>/);
+        expect(words).not.toMatch(/\[|\]|@|review|★|Example/i);
+      }
+    });
+    it("adds its pages as drafts with its own words, marked Sample", () => {
+      for (const page of presetPagesToAdd(look, [])) {
+        expect(page.status).toBe("draft");
+        expect((page as any).sample, page.slug).toBe(true);
+        expect(page.body).not.toMatch(/\[/);
+      }
+    });
+    it("gives About a photo beside the story and Contact a form", () => {
+      const sections = presetSections(look);
+      expect(sections["page:about"].map((s) => s.type)).toEqual(["PageContentSection", "ImageWithTextSection"]);
+      expect(sections["page:contact"].map((s) => s.type)).toContain("ContactFormSection");
+      expect(existsSync(`public${set.about.photo}`), set.about.photo).toBe(true);
+      expect(starterPageSections(id)["page:about"][1].settings?.ctaText).toMatch(/\S/);
+    });
   });
 
-  it("lays out the buy box, keeping the required blocks", () => {
-    const d = applyPresetSections({ productPage: { sections: [] } }, starter, getSectionMeta);
-    const shown = productBlocks(d.productPage).filter(b => !b.hidden).map(b => b.type);
-    expect(shown.slice(0, 4)).toEqual(["heading", "price", "badge", "buy"]);
-    expect(d.productPage.sections.map((s: any) => s.type)).toEqual(["TestimonialsSection"]);
-  });
-
-  it("passes the theme check, says what it replaces, and refuses unknown or hidden-required blocks", () => {
-    expect(themeProblems(starter)).toEqual([]);
-    expect(hasPresetContent({ content: { productBlocks: [{ type: "buy" }] } })).toBe(true);
-    const lines = presetContentSummary({ globalSections: [{ id: "a" }, { id: "b" }] }, starter, []);
-    expect(lines.join("\n")).toMatch(/Above the footer \(every page\): its 1 sections replace your 2 current sections/);
-    expect(lines.join("\n")).toMatch(/buy box/);
-    const bad = { name: "Bad", content: { productBlocks: [{ type: "zz" }, { type: "buy", hidden: true }] } };
-    expect(themeProblems(bad)).toHaveLength(2);
+  it("a look without its own pages keeps the prompts, so the owner sees what to write", () => {
+    const plain: any = { content: { starterPages: ["about"] } };
+    const [about] = presetPagesToAdd(plain, []);
+    expect(about.body).toMatch(/\[/);
+    expect((about as any).sample).toBeUndefined();
   });
 });
 
-describe("starter sections are samples until the owner edits them", () => {
-  it("marks them, and any edit clears the mark", async () => {
-    const { patchSectionSettings, patchBlockField } = await import("./studioModel");
-    const d = applyPresetSections({}, starter, getSectionMeta);
-    const list = d.cartPage.sections;
-    expect(list.every((s: any) => s.sample === true)).toBe(true);
-    expect(patchSectionSettings(list, list[0].id, { align: "left" })[0].sample).toBeUndefined();
-    expect(patchBlockField(list, list[0].id, "none", "text", "x")[0].sample).toBeUndefined();
+// The ImageWithText renderer falls back to a "Read more" button pointing at "#": a starter must never ship that.
+describe("starter story blocks", () => {
+  it.each(STARTER_SITES.map((id) => [id]))("%s gives every picture-and-words block a real button", (id) => {
+    const look: any = THEME_LIBRARY.find((t: any) => t.id === id);
+    for (const [where, list] of Object.entries(look.content.sections as Record<string, any[]>)) {
+      for (const s of list.filter((s) => s.type === "ImageWithTextSection")) {
+        expect(s.settings.ctaText, `${id} ${where} ${s.settings.title}`).toBeTruthy();
+        expect(s.settings.ctaUrl, `${id} ${where} ${s.settings.title}`).toMatch(/^\//);
+      }
+    }
   });
 });

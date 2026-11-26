@@ -152,7 +152,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Text wordmark", keys: ["logoText", "wordmarkStyle", "wordmarkPrimary", "wordmarkSecondary", "wordmarkSecondaryMuted", "wordmarkSecondaryColor", "wordmarkSize", "wordmarkWeight"] },
   ],
   header: [
-    { title: "Header layout", keys: ["headerLayout", "headerStyle", "logoPosition", "navAroundLogo", "logoHeight", "stickyHeader", "stickyHeaderHideOnScroll", "transparentHeader", "navStyle", "showMobileNavigation", "phoneCompactHeader", "mobileNavStyle", "mobileNavTabSize", "showSocialInMobileMenu", "showSecondaryNavigation", "showStoreChromeOnUtilityPages"] },
+    { title: "Header layout", keys: ["headerLayout", "headerStyle", "logoPosition", "navAroundLogo", "logoHeight", "stickyHeader", "stickyHeaderHideOnScroll", "transparentHeader", "navStyle", "showMobileNavigation", "phoneCompactHeader", "mobileNavStyle", "phoneMenuFullScreen", "navShopLink", "mobileNavTabSize", "showSocialInMobileMenu", "showSecondaryNavigation", "showStoreChromeOnUtilityPages"] },
     { title: "Header colours", keys: ["headerBg", "headerColor"] },
     { title: "Announcement bar", keys: ["showAnnouncement", "announcementText", "announcementBg", "announcementColor", "announcementScrolling", "announcementFontSize", "announcementWeight", "announcementTracking", "announcementSpeed", "announcementRotateSeconds", "announcementCountdown", "announcementCountdownWithin", "announcementDismissible"] },
     { title: "Icons & buttons in the header", keys: ["hideHeaderSearch", "hideHeaderWishlist", "hideHeaderBookings", "hideHeaderEvents", "hideHeaderClasses", "hideHeaderSupport", "hideHeaderAccount", "hideCurrencySelector", "hideThemeToggle", "hideAdminLink", "hideCartButton"] },
@@ -420,6 +420,11 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Description, details & tabs", match: /^(tab|spec|productDescriptionLabel|pdpDescription|noDescription|pdpDetailsAria|pdpPolicy)/ },
     { title: "Back-in-stock alert", match: /^alert/ },
     { title: "Related books & bundles", match: /^(related|bundle)/ },
+  ],
+  Header: [
+    { title: "Menu links", match: /^(nav\w*|\w+NavLink|secondaryNavigationAria|ariaMainNavigation)$/ },
+    { title: "Announcement countdown & close", match: /^announce/ },
+    { title: "Icons & buttons (read aloud)", match: /^(aria\w+|cartLabel|currencyLabel|logoAlt)$/ },
   ],
   Footer: [
     { title: "Headings, about & copyright", match: /^footer(About|ExploreHeading|ConnectHeading|NavHeading|Wordmark|LegalHeading|LocationHeading|Location|Copyright)$/ },

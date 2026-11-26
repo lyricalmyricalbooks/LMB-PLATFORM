@@ -2314,7 +2314,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               onHover={key => postPreview({ type: "HOVER_NODE", key })}
               onOpen={openStructureItem}
               onOpenTarget={(target, label) => openTarget(target, label)}
-              onOverlay={overlay => { if (overlay !== "close") setMode("edit"); postPreview({ type: "OPEN_OVERLAY", overlay }); }}
+              onOverlay={overlay => { if (overlay !== "close") setMode("edit"); if (overlay === "menu") setDevice("mobile"); postPreview({ type: "OPEN_OVERLAY", overlay }); }}
+              hiddenOverlays={design.phoneMenuFullScreen === true ? [] : ["menu"]}
               regionState={regionToggleState} onToggleRegion={toggleRegion}
               onGlobal={group => { setShowGlobal(true); setGlobalGroup(group); setSelectedId(null); setBlockId(null); }}
               onPage={() => { setShowGlobal(false); setSelectedId(null); setBlockId(null); }}>

@@ -119,6 +119,8 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
     if (!editing.slug?.trim()) return setError("A web address is required.");
     if (pages.some((p) => p.slug === editing.slug && p.id !== editing.id)) return setError("Another page already uses this web address.");
     const captured = JSON.parse(JSON.stringify(editing));
+    // Saving makes the words the owner's own: a starter page's Sample mark goes.
+    if (captured.sample) captured.sample = false;
     // What the editor held before pasted pictures were uploaded, so a body left untouched during the save takes the uploaded links.
     const sent = JSON.parse(JSON.stringify(editing));
     locked.current = true; setError(""); setSaving(true); onBusy?.(true);
@@ -268,6 +270,11 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
             onChange={(e) => { setSlugEdited(true); set({ slug: toSlug(e.target.value) }); }} />
           <span className="text-[11px] text-neutral-500 break-all">{publicUrl(editing.slug || "…")}</span>
         </label>
+        {editing.sample && (
+          <p className="studio-sample-note text-[12px] leading-snug border border-neutral-300 bg-neutral-50 px-3 py-2">
+            <strong>Sample words.</strong> They came with your starter. Change them to your own, then save.
+          </p>
+        )}
         <div>
           <span className="text-[10px] font-black tracking-widest uppercase text-neutral-500 block mb-1">Body</span>
           <PageBodyEditor value={editing.body || ""} onChange={(v) => set({ body: v })} onUploading={setUploading} title={editing.title} />
@@ -395,7 +402,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
             <button className={iconBtn} onClick={() => remove(p)} aria-label={`Delete ${p.title}`}><Trash2 size={14} /></button>
           </div>
           <p className="text-[11px] text-neutral-600">
-            {p.status === "published" ? "✓ Published" : p.status === "members" ? "✓ Members only" : "○ Draft"} · {LINK_PLACEMENTS.find(x => x.id === linkPlacement({ ...p, showInNav: !!p.showInNav }))?.short}
+            {p.status === "published" ? "✓ Published" : p.status === "members" ? "✓ Members only" : "○ Draft"}{p.sample ? " · Sample words" : ""} · {LINK_PLACEMENTS.find(x => x.id === linkPlacement({ ...p, showInNav: !!p.showInNav }))?.short}
           </p>
         </div>
       ))}

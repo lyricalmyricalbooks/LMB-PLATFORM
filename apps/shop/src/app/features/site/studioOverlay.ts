@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-export type StudioOverlay = "cart" | "search" | "popup" | "cookie";
+export type StudioOverlay = "cart" | "search" | "popup" | "cookie" | "menu";
 
 /**
  * Studio's page structure can open a pop-over (shopping bag, search) inside the preview so the

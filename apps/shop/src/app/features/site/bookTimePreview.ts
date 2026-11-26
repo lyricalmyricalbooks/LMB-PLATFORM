@@ -26,6 +26,26 @@ const SERVICES: BookingServiceView[] = [
   { id: "sample-review", name: "Portfolio review", description: "The shop answers each request before it's booked.", minutes: 45, priceMinor: 0, payment: "free", location: "The studio", approval: true },
   { id: "sample-home", name: "Home visit", description: "We come to you, in the postal codes we travel to.", minutes: 60, priceMinor: 0, payment: "free", location: "", atClient: true, areas: ["M6G", "M5V"] },
 ];
+/**
+ * A starter's own price list and team (plan "Starters on par", step 2): the demo shops put the booking starter's services
+ * on the preview snapshot (`starterServices`, `starterTeam`), so Salon and Workshop show their own brand's list, not the
+ * general samples. Anything else previews the general samples.
+ */
+function previewState(): any {
+  return typeof window === "undefined" ? null : (window as any).__studioPreviewState || null;
+}
+function services(): BookingServiceView[] {
+  const own = previewState()?.starterServices;
+  return Array.isArray(own) && own.length ? own : SERVICES;
+}
+const DEFAULT_STAFF = [{ id: "ana", name: "Ana", bio: "Ten years at the bench. Ask her about paper.", serviceIds: [] as string[], rates: [{ serviceId: "sample-session", minutes: 75, priceMinor: 6000 }] }, { id: "ben", name: "Ben", bio: "Runs the Saturday classes.", serviceIds: ["sample-session", "sample-class"] }];
+function staff() {
+  const own = previewState()?.starterTeam;
+  return Array.isArray(own) && own.length ? own : DEFAULT_STAFF;
+}
+/** The service a sample booking is for: the one asked for, else the second (a paid one-to-one), else the first. */
+const serviceFor = (id: unknown) => services().find((s) => s.id === id) || services()[1] || services()[0];
+
 /** Places left at the sample class's times, so "3 left", "Last place" and a full time (0) are on show. */
 const CLASS_LEFT = [8, 3, 0, 1, 6];
 const TIMES = ["10:00", "11:00", "13:30", "15:00", "18:00"];
@@ -64,7 +84,7 @@ function sampleGift(service: BookingServiceView, giftCard: unknown): { last4: st
 }
 
 function sampleBooking(zone: string, currency: string, nowMs: number, serviceId?: string, start?: string, code?: unknown, giftCard?: unknown): BookingView {
-  const listed = SERVICES.find((s) => s.id === serviceId) || SERVICES[1];
+  const listed = serviceFor(serviceId);
   const applied = sampleCode(listed, code);
   const service = withCode(listed, applied);
   const deposit = takesDeposit(service);
@@ -108,7 +128,7 @@ function samplePack(nowMs: number, zone: string, currency: string): BookingPackV
 export function previewAnswer(action: string, body: Record<string, any> = {}, currency = "CAD", nowMs = Date.now(), zone = shopTimeZone()): Record<string, any> {
   const today = dayOf(nowMs, zone);
   if (action === "bookingInfo") {
-    return { on: true, zone, currency, cancelHours: 24, maxDaysAhead: 60, today, services: SERVICES, codes: true, giftCards: true, texts: true, promoTexts: true, birthday: true, hours: SAMPLE_HOURS, reviews: SAMPLE_REVIEWS, staff: [{ id: "ana", name: "Ana", bio: "Ten years at the bench. Ask her about paper.", serviceIds: [], rates: [{ serviceId: "sample-session", minutes: 75, priceMinor: 6000 }] }, { id: "ben", name: "Ben", bio: "Runs the Saturday classes.", serviceIds: ["sample-session", "sample-class"] }] } satisfies BookingInfo;
+    return { on: true, zone, currency, cancelHours: 24, maxDaysAhead: 60, today, services: services(), codes: true, giftCards: true, texts: true, promoTexts: true, birthday: true, hours: SAMPLE_HOURS, reviews: SAMPLE_REVIEWS, staff: staff() } satisfies BookingInfo;
   }
   if (action === "bookingTimes") {
     const from = typeof body.from === "string" ? body.from : today;
@@ -119,15 +139,16 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
       // Sundays are closed and today is past, so the empty-day look is on show too.
       days[day] = weekdayOf(day) === 0 || day <= today ? [] : TIMES.map((t) => new Date(zonedTime(day, t, zone)).toISOString());
     }
-    if (body.serviceId !== "sample-class") return { on: true, days, fullDays: [] };
+    const places = services().find((x) => x.id === body.serviceId)?.places || 0;
+    if (places <= 1) return { on: true, days, fullDays: [] };
     const left: Record<string, number> = {};
     const full: Record<string, string[]> = {};
     for (const [day, list] of Object.entries(days)) {
-      list.forEach((iso, i) => { left[iso] = CLASS_LEFT[i % CLASS_LEFT.length]; });
+      list.forEach((iso, i) => { left[iso] = Math.min(places, CLASS_LEFT[i % CLASS_LEFT.length]); });
       const gone = list.filter((iso) => left[iso] === 0);
       if (gone.length) { full[day] = gone; days[day] = list.filter((iso) => left[iso] > 0); }
     }
-    return { on: true, days, fullDays: [], places: 8, left, full };
+    return { on: true, days, fullDays: [], places, left, full };
   }
   if (action === "bookingMine") {
     // The account's Your bookings card (2.10): one coming visit, one waiting for a yes, and two past ones.
@@ -147,12 +168,12 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
   }
   if (action === "bookingWait") return { ok: true };
   if (action === "bookingCode") {
-    const applied = sampleCode(SERVICES.find((s) => s.id === body.serviceId) || SERVICES[1], body.code);
+    const applied = sampleCode(serviceFor(body.serviceId), body.code);
     if (!applied) throw Object.assign(new Error(), { code: "code" });
     return applied;
   }
   if (action === "bookingGiftCard") {
-    const listed = SERVICES.find((s) => s.id === body.serviceId) || SERVICES[1];
+    const listed = serviceFor(body.serviceId);
     const gift = sampleGift(withCode(listed, sampleCode(listed, body.code)), body.giftCard);
     if (!gift) throw Object.assign(new Error(), { code: "gift" });
     return gift;
@@ -162,7 +183,7 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
   if (action === "bookingPackView") return { pack: samplePack(nowMs, zone, currency) };
   if (action === "bookingPack") {
     const typed = typeof body.pack === "string" ? body.pack.toUpperCase().replace(/[^A-Z0-9]/g, "") : "";
-    const service = SERVICES.find((s) => s.id === body.serviceId);
+    const service = services().find((s) => s.id === body.serviceId);
     if (typed.length !== 12 || !service?.packVisits) throw Object.assign(new Error(), { code: "pack" });
     return { last4: typed.slice(-4), left: 3, visits: service.packVisits, expiresOn: addDays(today, 300) };
   }
@@ -174,7 +195,7 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
     sample = sampleBooking(zone, currency, nowMs, body.serviceId, body.start, body.code, body.giftCard);
     sampleRun = [];
     // Ask me first (plan 4, 2.5): the sample becomes a request the shop has two days to answer.
-    if (SERVICES.find((x) => x.id === body.serviceId)?.approval && !body.run) {
+    if (services().find((x) => x.id === body.serviceId)?.approval && !body.run) {
       sample = { ...sample, status: "requested", answerBy: new Date(nowMs + 48 * 3600_000).toISOString(), canWithdraw: true, canChange: false, canEarlier: false, canReview: false };
     }
     if (body.run && typeof body.start === "string") {
@@ -183,12 +204,12 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
       sampleRun = sampleRunStarts(body.start, run, zone).map((start, n) => ({ id: n ? `${SAMPLE_BOOKING_ID}-${n + 1}` : SAMPLE_BOOKING_ID, start, status: "confirmed" as const, ...(n ? {} : { current: true }) }));
     }
     // A length chosen of a service offered in several: its minutes and price, named in the service.
-    const sized = (SERVICES.find((x) => x.id === body.serviceId)?.lengths || []).find((l) => l.id === body.length);
+    const sized = (services().find((x) => x.id === body.serviceId)?.lengths || []).find((l) => l.id === body.length);
     if (sized) {
       sample = { ...sample, serviceName: `${sample.serviceName}, ${lengthLabel(sized)}`, lengthId: sized.id, minutes: sized.minutes, priceMinor: sized.priceMinor,
         end: new Date(Date.parse(sample.start) + sized.minutes * 60_000).toISOString() };
     }
-    const ticked = (SERVICES.find((x) => x.id === body.serviceId)?.extras || []).filter((x) => Array.isArray(body.extras) && body.extras.includes(x.id));
+    const ticked = (services().find((x) => x.id === body.serviceId)?.extras || []).filter((x) => Array.isArray(body.extras) && body.extras.includes(x.id));
     if (ticked.length) {
       const minutes = sample.minutes + ticked.reduce((n, x) => n + x.minutes, 0);
       sample = { ...sample, extras: ticked, minutes, priceMinor: sample.priceMinor + ticked.reduce((n, x) => n + x.priceMinor, 0),
@@ -196,7 +217,7 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
     }
     // Several services in one visit: each added one straight after, the visit's length and price their sum.
     const added = (Array.isArray(body.also) ? body.also : []).flatMap((a: any) => {
-      const sv = SERVICES.find((x) => x.id === a?.serviceId);
+      const sv = services().find((x) => x.id === a?.serviceId);
       return sv ? [sv] : [];
     });
     if (added.length) {

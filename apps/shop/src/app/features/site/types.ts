@@ -167,4 +167,6 @@ export type Page = {
   metaDescription?: string;
   /** Sharing image (social cards, search); blank = the page's first picture, else the site's share image. */
   seoImage?: string;
+  /** A starter's own sample words (plan "Starters on par", step 2): Studio says so until the owner saves the page. */
+  sample?: boolean;
 };

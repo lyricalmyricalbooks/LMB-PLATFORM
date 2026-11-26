@@ -1,4 +1,5 @@
 // Colour palette presets and the built-in theme library used by the Studio editor.
+import { withStarterPages } from "./starterPages";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
 
 export const PALETTES = [
@@ -61,7 +62,7 @@ export const THEME_APPLIED_KEYS = [
   "catalogLayoutStyle", "showCatalogControls",
 ];
 
-export const THEME_LIBRARY = [
+export const THEME_LIBRARY = withStarterPages([
   {
     id: RISO_NOIR_ID,
     name: "Riso Noir",
@@ -703,7 +704,7 @@ export const THEME_LIBRARY = [
       },
       productBlocks: [{ type: "tag" }, { type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
-    global: { themeStyle: "slowseason", pdpThumbsPhone: "hidden", showSocialShare: false, productCtaWidth: "full", showAmbientGlow: false, pdpShowTag: false, pdpShowCaption: false, pdpShowBackLink: false, showPdpTaxNote: true, pdpDetailsPlacement: "column", mobileNavStyle: "icon", logoPosition: "left", navCentred: true, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 13, navLinkSpacing: 0, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "modern", pdpLayout: "open", cardDesign: "caption", footerDesign: "line", announcementScrolling: false, backgroundColor: "#f9f7f0", textColor: "#151613", primaryColor: "#bd5238", secondaryColor: "#f2eddf", surfaceColor: "#ede9de",
+    global: { themeStyle: "slowseason", navShopLink: "menu", phoneMenuFullScreen: true, pdpThumbsPhone: "hidden", showSocialShare: false, productCtaWidth: "full", showAmbientGlow: false, pdpShowTag: false, pdpShowCaption: false, pdpShowBackLink: false, showPdpTaxNote: true, pdpDetailsPlacement: "column", mobileNavStyle: "icon", logoPosition: "left", navCentred: true, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 13, navLinkSpacing: 0, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "modern", pdpLayout: "open", cardDesign: "caption", footerDesign: "line", announcementScrolling: false, backgroundColor: "#f9f7f0", textColor: "#151613", primaryColor: "#bd5238", secondaryColor: "#f2eddf", surfaceColor: "#ede9de",
       mutedTextColor: "#55564f", borderColor: "#d6d3ca", headingFont: "Syne", bodyFont: "DM Sans", headingWeight: 600, lineHeight: 1.6,
       buttonColor: "#151613", buttonTextColor: "#f9f7f0", buttonHoverBgColor: "#bd5238", buttonHoverTextColor: "#ffffff", buttonRadius: 0, buttonUppercase: true,
       headerBg: "#f9f7f0", headerColor: "#151613", footerBg: "#151613", footerTextColor: "#f9f7f0", footerHeadingColor: "#f9f7f0",
@@ -734,7 +735,7 @@ export const THEME_LIBRARY = [
       },
       productBlocks: [{ type: "tag" }, { type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
-    global: { themeStyle: "catalogue", pdpThumbsPhone: "hidden", showSocialShare: false, productCtaWidth: "full", showAmbientGlow: false, pdpShowTag: false, pdpShowCaption: false, pdpShowBackLink: false, showPdpTaxNote: true, logoPosition: "left", navCentred: true, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 13, navLinkSpacing: 0, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "minimal", pdpLayout: "editorial", cardDesign: "numbered", shopPageLayout: "list", footerDesign: "contact", cartDrawerSide: "left", announcementScrolling: false, backgroundColor: "#e7e8e2", textColor: "#161815", primaryColor: "#c4401f", secondaryColor: "#d8ff43", warningColor: "#e34f2a", surfaceColor: "#dfddd4",
+    global: { themeStyle: "catalogue", navShopLink: "menu", phoneMenuFullScreen: true, pdpThumbsPhone: "hidden", showSocialShare: false, productCtaWidth: "full", showAmbientGlow: false, pdpShowTag: false, pdpShowCaption: false, pdpShowBackLink: false, showPdpTaxNote: true, logoPosition: "left", navCentred: true, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 13, navLinkSpacing: 0, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "minimal", pdpLayout: "editorial", cardDesign: "numbered", shopPageLayout: "list", footerDesign: "contact", cartDrawerSide: "left", announcementScrolling: false, backgroundColor: "#e7e8e2", textColor: "#161815", primaryColor: "#c4401f", secondaryColor: "#d8ff43", warningColor: "#e34f2a", surfaceColor: "#dfddd4",
       mutedTextColor: "#55554f", borderColor: "#b9b8af", headingFont: "Newsreader", bodyFont: "Manrope", headingWeight: 400, lineHeight: 1.5,
       buttonColor: "#161815", buttonTextColor: "#e7e8e2", buttonHoverBgColor: "#d8ff43", buttonHoverTextColor: "#161815", buttonRadius: 0, buttonUppercase: false,
       headerBg: "#e7e8e2", headerColor: "#161815", footerBg: "#161815", footerTextColor: "#e7e8e2", footerHeadingColor: "#d8ff43", showAnnouncement: false,
@@ -760,13 +761,13 @@ export const THEME_LIBRARY = [
           { type: "SplitOpeningSection", settings: { phonePhotoFirst: true, eyebrow: "Autumn \u2014 The Arc collection", title: "Carried well,", accentWord: "made to last.", body: "Leather bags and small goods, cut and stitched by hand in our Montr\u00e9al studio and repaired for life.", imageUrl: "/starters/aurel/arc-bag.jpg", imageAlt: "The Arc shoulder bag in cobalt leather", layout: "image-right", ctaText: "Explore the collection", ctaUrl: "/collections/all", captionNumber: "01", captionText: "Arc shoulder bag\nCobalt leather \u00b7 $240", plusUrl: "/collections/all", plusLabel: "View the featured product" } },
           { type: "MarqueeSection", settings: { text: "Free shipping over $150 \u2726 Made in Montr\u00e9al \u2726 Repairs for life", separator: "\u2726", still: true, fontSize: 10, speed: 40, uppercase: true, bold: false, letterSpacing: 0.12 } },
           { type: "ProductShowcaseGridSection", settings: { overlayOpacity: 0, eyebrow: "The Arc collection", title: "Bags and small goods", columnsDesktop: 3, columnsMobile: 2, imageAspectRatio: "4:5", showCategoryTag: false, showQuickAdd: true, grainOpacity: 0 } },
-          { type: "ImageWithTextSection", settings: { eyebrow: "The atelier", title: "Four benches, one street", body: "Ondine started cutting bags at her kitchen table in 2014. Today four of us make every piece at the studio on Rue Bernard, and we still repair each one for free.", imageUrl: "/starters/aurel/atelier.jpg", imageAlt: "Leather and tools on a workbench in the studio", layout: "image-left" } },
+          { type: "ImageWithTextSection", settings: { eyebrow: "The atelier", title: "Four benches, one street", body: "Ondine started cutting bags at her kitchen table in 2014. Today four of us make every piece at the studio on Rue Bernard, and we still repair each one for free.", imageUrl: "/starters/aurel/atelier.jpg", imageAlt: "Leather and tools on a workbench in the studio", layout: "image-left", ctaText: "Visit the atelier", ctaUrl: "/page/about" } },
         ],
         globalSections: [{ type: "NewsletterSection", settings: { title: "First look at new pieces", description: "A short letter when a new collection is ready, never more than once a month.", align: "center", colorSchemeId: "scheme-inverse" } }],
       },
       productBlocks: [{ type: "tag" }, { type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
-    global: { themeStyle: "aurel", pdpThumbsPhone: "hidden", showSocialShare: false, productCtaWidth: "full", showAmbientGlow: false, pdpShowTag: false, pdpShowCaption: false, pdpShowBackLink: false, showPdpTaxNote: true, pdpDetailsPlacement: "column", mobileNavStyle: "icon", logoPosition: "center", navAroundLogo: true, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "centered", shopPageLayout: "staggered", footerDesign: "wordmark", cartDrawerSide: "full", announcementScrolling: false, backgroundColor: "#f2eee6", textColor: "#0f1826", primaryColor: "#183dce", secondaryColor: "#e4ddd1", surfaceColor: "#e4ddd1",
+    global: { themeStyle: "aurel", navShopLink: "menu", phoneMenuFullScreen: true, pdpThumbsPhone: "hidden", showSocialShare: false, productCtaWidth: "full", showAmbientGlow: false, pdpShowTag: false, pdpShowCaption: false, pdpShowBackLink: false, showPdpTaxNote: true, pdpDetailsPlacement: "column", mobileNavStyle: "icon", logoPosition: "center", navAroundLogo: true, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "centered", shopPageLayout: "staggered", footerDesign: "wordmark", cartDrawerSide: "full", announcementScrolling: false, backgroundColor: "#f2eee6", textColor: "#0f1826", primaryColor: "#183dce", secondaryColor: "#e4ddd1", surfaceColor: "#e4ddd1",
       mutedTextColor: "#4c5661", borderColor: "#c9c3b8", headingFont: "Cormorant Garamond", bodyFont: "Manrope", headingWeight: 500, lineHeight: 1.6,
       buttonColor: "#0f1826", buttonTextColor: "#f2eee6", buttonHoverBgColor: "#183dce", buttonHoverTextColor: "#ffffff", buttonRadius: 0, buttonUppercase: true,
       headerBg: "#f2eee6", headerColor: "#0f1826", footerBg: "#0f1826", footerTextColor: "#f2eee6", footerHeadingColor: "#f2eee6",
@@ -802,7 +803,7 @@ export const THEME_LIBRARY = [
       },
       productBlocks: [{ type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
-    global: { themeStyle: "gallery", pdpThumbsPhone: "hidden", productCtaWidth: "full", pdpShowTag: false, pdpShowCaption: false, showPdpTaxNote: true, pdpDetailsPlacement: "column", logoPosition: "center", navCentred: false, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 14, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "minimal", pdpLayout: "open", pdpShowBackLink: false, productImageLayout: "grid", showAmbientGlow: false, showBundleWidget: false, showSocialShare: false, showRelatedProducts: true, shopPageLayout: "staggered", footerDesign: "centred", announcementScrolling: false,
+    global: { themeStyle: "gallery", navShopLink: "menu", phoneMenuFullScreen: true, pdpThumbsPhone: "hidden", productCtaWidth: "full", pdpShowTag: false, pdpShowCaption: false, showPdpTaxNote: true, pdpDetailsPlacement: "column", logoPosition: "center", navCentred: false, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 14, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "minimal", pdpLayout: "open", pdpShowBackLink: false, productImageLayout: "grid", showAmbientGlow: false, showBundleWidget: false, showSocialShare: false, showRelatedProducts: true, shopPageLayout: "staggered", footerDesign: "centred", announcementScrolling: false,
       backgroundColor: "#f7f6f3", textColor: "#161616", primaryColor: "#7d5a3c", secondaryColor: "#ecebe6", surfaceColor: "#ecebe6", mutedTextColor: "#55534f", borderColor: "#d6d4ce",
       headingFont: "Instrument Serif", bodyFont: "Inter", headingWeight: 400, lineHeight: 1.6,
       buttonColor: "#161616", buttonTextColor: "#f7f6f3", buttonHoverBgColor: "#7d5a3c", buttonHoverTextColor: "#ffffff", buttonRadius: 0, buttonUppercase: false,
@@ -843,7 +844,7 @@ export const THEME_LIBRARY = [
       },
       productBlocks: [{ type: "tag" }, { type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
-    global: { themeStyle: "warehouse", pdpThumbsPhone: "hidden", showSocialShare: false, productCtaWidth: "full", showAmbientGlow: false, pdpShowTag: false, pdpShowCaption: false, pdpShowBackLink: false, showPdpTaxNote: true, pdpDetailsPlacement: "column", mobileNavStyle: "icon", logoPosition: "left", navCentred: false, navLinkTransform: "uppercase", navLinkSize: 12, hideCurrencySelector: true, hideThemeToggle: true, headerLayout: "market", navPlacement: "below", contentWidthMode: "margins", contentSideMargin: 2, pdpLayout: "split", cardDesign: "framed", cartDrawerSide: "left", announcementScrolling: false,
+    global: { themeStyle: "warehouse", navShopLink: "menu", phoneMenuFullScreen: true, pdpThumbsPhone: "hidden", showSocialShare: false, productCtaWidth: "full", showAmbientGlow: false, pdpShowTag: false, pdpShowCaption: false, pdpShowBackLink: false, showPdpTaxNote: true, pdpDetailsPlacement: "column", mobileNavStyle: "icon", logoPosition: "left", navCentred: false, navLinkTransform: "uppercase", navLinkSize: 12, hideCurrencySelector: true, hideThemeToggle: true, headerLayout: "market", navPlacement: "below", contentWidthMode: "margins", contentSideMargin: 2, pdpLayout: "split", cardDesign: "framed", cartDrawerSide: "left", announcementScrolling: false,
       backgroundColor: "#f4f4f1", textColor: "#111111", primaryColor: "#d63f12", secondaryColor: "#ffe14a", surfaceColor: "#e7e7e2", mutedTextColor: "#4f4f4a", borderColor: "#c9c9c2",
       headingFont: "Archivo Black", bodyFont: "Archivo", headingWeight: 400, lineHeight: 1.5,
       buttonColor: "#111111", buttonTextColor: "#f4f4f1", buttonHoverBgColor: "#d63f12", buttonHoverTextColor: "#ffffff", buttonRadius: 0, buttonUppercase: true,
@@ -892,7 +893,7 @@ export const THEME_LIBRARY = [
       },
       productBlocks: [{ type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
-    global: { themeStyle: "larder", pdpThumbsPhone: "hidden", showSocialShare: false, productCtaWidth: "full", showAmbientGlow: false, pdpShowTag: false, pdpShowCaption: false, pdpShowBackLink: false, showPdpTaxNote: true, mobileNavStyle: "icon", logoPosition: "center", navAroundLogo: true, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "centered", pdpLayout: "editorial", cardDesign: "framed", footerDesign: "contact", announcementScrolling: false,
+    global: { themeStyle: "larder", navShopLink: "menu", phoneMenuFullScreen: true, pdpThumbsPhone: "hidden", showSocialShare: false, productCtaWidth: "full", showAmbientGlow: false, pdpShowTag: false, pdpShowCaption: false, pdpShowBackLink: false, showPdpTaxNote: true, mobileNavStyle: "icon", logoPosition: "center", navAroundLogo: true, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "centered", pdpLayout: "editorial", cardDesign: "framed", footerDesign: "contact", announcementScrolling: false,
       backgroundColor: "#fbf5ea", textColor: "#2b1d14", primaryColor: "#a8401f", secondaryColor: "#f0c96b", surfaceColor: "#f1e6d2", mutedTextColor: "#5f4d40", borderColor: "#dfcfb6",
       headingFont: "DM Serif Display", bodyFont: "DM Sans", headingWeight: 400, lineHeight: 1.6,
       buttonColor: "#a8401f", buttonTextColor: "#ffffff", buttonHoverBgColor: "#2b1d14", buttonHoverTextColor: "#fbf5ea", buttonRadius: 999, buttonUppercase: false,
@@ -910,7 +911,7 @@ export const THEME_LIBRARY = [
         heroPage: [
           { type: "ImageBannerSection", settings: { eyebrow: "Hair studio \u00b7 Dundas West", title: "Good hair, no rush.", body: "Cuts, colour and care in a bright studio with four chairs. Every visit starts with a proper chat.", imageUrl: "/samples/beauty/opening.webp", imageAlt: "A stylist finishing a client's hair in a bright studio", height: "full", contentPosition: "bottom-left", textAlign: "left", overlayOpacity: 0.5, overlayStyle: "fade", colorSchemeId: "scheme-inverse", ctaText: "Book a time", ctaUrl: "/book", secondaryCtaText: "" } },
           { type: "ServiceMenuSection", settings: { eyebrow: "Prices", title: "What we offer", subtitle: "Every service, how long it takes and what it costs. Prices include a wash and finish.", buttonLabel: "Book", showLength: true, showDescription: true, showBook: true, align: "left", containerWidth: "md" } },
-          { type: "ImageWithTextSection", settings: { eyebrow: "About us", title: "Four chairs and plenty of light", body: "We opened Rosewater in 2019 in an old print shop with big windows. Tea is always on, nobody is rushed, and we only book one client per stylist at a time.", imageUrl: "/samples/beauty/about.webp", imageAlt: "The studio with its big windows and four chairs", layout: "image-left", colorSchemeId: "scheme-accent" } },
+          { type: "ImageWithTextSection", settings: { eyebrow: "About us", title: "Four chairs and plenty of light", body: "We opened Rosewater in 2019 in an old print shop with big windows. Tea is always on, nobody is rushed, and we only book one client per stylist at a time.", imageUrl: "/samples/beauty/about.webp", imageAlt: "The studio with its big windows and four chairs", layout: "image-left", ctaText: "Meet the team", ctaUrl: "/page/about", colorSchemeId: "scheme-accent" } },
           { type: "BookingTeamSection", settings: { eyebrow: "The team", title: "Who you'll see", showServices: true, align: "left" } },
           { type: "BookingHoursSection", settings: { eyebrow: "Visit", title: "Open times and where to find us", showMap: true, showCancelRule: true, align: "left", colorSchemeId: "scheme-inverse" } },
         ],
@@ -918,7 +919,7 @@ export const THEME_LIBRARY = [
       },
       productBlocks: [{ type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
-    global: { themeStyle: "salon", pdpThumbsPhone: "hidden", showSocialShare: false, productCtaWidth: "full", showAmbientGlow: false, pdpShowTag: false, pdpShowCaption: false, pdpShowBackLink: false, showPdpTaxNote: true, mobileNavStyle: "icon", logoPosition: "center", navAroundLogo: true, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "rail", pdpLayout: "hero", cardDesign: "caption", footerDesign: "centred", cartDrawerSide: "full", announcementScrolling: false,
+    global: { themeStyle: "salon", phoneMenuFullScreen: true, pdpThumbsPhone: "hidden", showSocialShare: false, productCtaWidth: "full", showAmbientGlow: false, pdpShowTag: false, pdpShowCaption: false, pdpShowBackLink: false, showPdpTaxNote: true, mobileNavStyle: "icon", logoPosition: "center", navAroundLogo: true, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "rail", pdpLayout: "hero", cardDesign: "caption", footerDesign: "centred", cartDrawerSide: "full", announcementScrolling: false,
       backgroundColor: "#f7e8e3", textColor: "#2a2422", primaryColor: "#874a3e", secondaryColor: "#eadcd3", surfaceColor: "#ece2da", mutedTextColor: "#5e5450", borderColor: "#d8cbc2",
       headingFont: "Playfair Display", bodyFont: "Nunito", headingWeight: 500, lineHeight: 1.6,
       buttonColor: "#2a2422", buttonTextColor: "#f7e8e3", buttonHoverBgColor: "#874a3e", buttonHoverTextColor: "#ffffff", buttonRadius: 999, buttonUppercase: false,
@@ -947,7 +948,7 @@ export const THEME_LIBRARY = [
             { title: "02 · Everything included", body: "Clay, tools, aprons, glazes, two firings and plenty of tea." },
             { title: "03 · Take it home", body: "Your glazed pieces are ready to collect two weeks after class." },
           ] } },
-          { type: "ImageWithTextSection", settings: { eyebrow: "Who teaches", title: "Hi, I'm Noor", body: "I've made pots for fifteen years and taught for ten. My classes are slow, messy and full of laughing, and nobody leaves without something they made.", imageUrl: "/samples/studio/story.webp", imageAlt: "Noor centring clay on the wheel", layout: "image-left" } },
+          { type: "ImageWithTextSection", settings: { eyebrow: "Who teaches", title: "Hi, I'm Noor", body: "I've made pots for fifteen years and taught for ten. My classes are slow, messy and full of laughing, and nobody leaves without something they made.", imageUrl: "/samples/studio/story.webp", imageAlt: "Noor centring clay on the wheel", layout: "image-left", ctaText: "More about the studio", ctaUrl: "/page/about" } },
           { type: "FAQSection", settings: { title: "Before you book", showSearch: false, items: [
             { question: "Do I need any experience?", answer: "None at all. The Saturday class is made for first-timers; the open studio hour is for people who have taken a class." },
             { question: "What should I bring?", answer: "Clothes you don't mind getting muddy and short nails. We have aprons, tools and towels." },
@@ -959,7 +960,7 @@ export const THEME_LIBRARY = [
       },
       productBlocks: [{ type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
-    global: { themeStyle: "workshop", pdpThumbsPhone: "hidden", showSocialShare: false, productCtaWidth: "full", showAmbientGlow: false, pdpShowTag: false, pdpShowCaption: false, pdpShowBackLink: false, showPdpTaxNote: true, pdpDetailsPlacement: "column", mobileNavStyle: "icon", logoPosition: "left", navCentred: false, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 15, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "modern", pdpLayout: "split", cardDesign: "centred", shopPageLayout: "list", footerDesign: "wordmark", cartDrawerSide: "full", announcementScrolling: false,
+    global: { themeStyle: "workshop", phoneMenuFullScreen: true, pdpThumbsPhone: "hidden", showSocialShare: false, productCtaWidth: "full", showAmbientGlow: false, pdpShowTag: false, pdpShowCaption: false, pdpShowBackLink: false, showPdpTaxNote: true, pdpDetailsPlacement: "column", mobileNavStyle: "icon", logoPosition: "left", navCentred: false, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 15, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "modern", pdpLayout: "split", cardDesign: "centred", shopPageLayout: "list", footerDesign: "wordmark", cartDrawerSide: "full", announcementScrolling: false,
       backgroundColor: "#fff1c7", textColor: "#1d1b2e", primaryColor: "#d2471c", secondaryColor: "#ffd166", surfaceColor: "#fbeedb", mutedTextColor: "#4d4a5c", borderColor: "#eadcc6",
       headingFont: "Fredoka", bodyFont: "Work Sans", headingWeight: 700, lineHeight: 1.6,
       buttonColor: "#1d1b2e", buttonTextColor: "#fff1c7", buttonHoverBgColor: "#d2471c", buttonHoverTextColor: "#ffffff", buttonRadius: 999, buttonUppercase: false,
@@ -1005,10 +1006,10 @@ export const THEME_LIBRARY = [
       },
       productBlocks: [{ type: "heading" }, { type: "price" }, { type: "formats" }, { type: "buy" }, { type: "details" }],
     },
-    global: { themeStyle: "commission", pdpThumbsPhone: "hidden", showSocialShare: false, productCtaWidth: "full", showAmbientGlow: false, pdpShowTag: false, pdpShowCaption: false, pdpShowBackLink: false, showPdpTaxNote: true, pdpDetailsPlacement: "column", mobileNavStyle: "icon", logoPosition: "left", navCentred: true, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 14, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "rail", pdpLayout: "open", cardDesign: "numbered", shopPageLayout: "staggered", footerDesign: "line", cartDrawerSide: "left", announcementScrolling: false,
+    global: { themeStyle: "commission", navShopLink: "menu", phoneMenuFullScreen: true, pdpThumbsPhone: "hidden", showSocialShare: false, productCtaWidth: "full", showAmbientGlow: false, pdpShowTag: false, pdpShowCaption: false, pdpShowBackLink: false, showPdpTaxNote: true, pdpDetailsPlacement: "column", mobileNavStyle: "icon", logoPosition: "left", navCentred: true, navPlacement: "inline", navLinkTransform: "none", navLinkSize: 14, hideCurrencySelector: true, hideThemeToggle: true, hideHeaderWishlist: true, headerLayout: "rail", pdpLayout: "open", cardDesign: "numbered", shopPageLayout: "staggered", footerDesign: "line", cartDrawerSide: "left", announcementScrolling: false,
       backgroundColor: "#f3efe8", textColor: "#1f1a14", primaryColor: "#7a4b2a", secondaryColor: "#d9cbb6", surfaceColor: "#e7e0d4", mutedTextColor: "#564d43", borderColor: "#cdc2b1",
       headingFont: "Libre Baskerville", bodyFont: "Inter", headingWeight: 400, lineHeight: 1.6,
       buttonColor: "#1f1a14", buttonTextColor: "#f3efe8", buttonHoverBgColor: "#7a4b2a", buttonHoverTextColor: "#ffffff", buttonRadius: 0, buttonUppercase: false,
       headerBg: "#f3efe8", headerColor: "#1f1a14", footerBg: "#1f1a14", footerTextColor: "#f3efe8", footerHeadingColor: "#d9cbb6", showAnnouncement: false,
       cartDrawerBg: "#f3efe8", cartDrawerText: "#1f1a14", checkoutAccentColor: "#7a4b2a", checkoutBgColor: "#f3efe8", linkColorHover: "#7a4b2a", navLinkActiveColor: "#7a4b2a" } },
-];
+]);

@@ -101,6 +101,8 @@ export const STUDIO_OVERLAYS = [
   { id: "popup" as const, label: "Pop-up", target: "style:popup|copy:Sections" },
   // Shown in the preview even after this browser answered it (the answer is never changed from the preview).
   { id: "cookie" as const, label: "Cookie banner", target: "style:overlayLayout|copy:Cookie banner" },
+  // The full-screen phone menu (Style › Header layout › "Menu button opens a full-screen panel"); phone preview only.
+  { id: "menu" as const, label: "Phone menu", target: "style:header|menus:categories|copy:Header" },
 ];
 
 /** The click-to-edit target to open for a structure item: the first style target, else the first one. */

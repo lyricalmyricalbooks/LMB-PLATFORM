@@ -88,3 +88,5 @@ Details of each feature live in [`docs/agent-notes/studio.md`](../../../../docs/
 - Starter product pages (26 November 2026, plan "Starters vs Shopify and Squarespace", step 5)
 - Starter fonts and "Good for" (26 November 2026, plan "Starters vs Shopify and Squarespace", step 6)
 - Starter page fixes (26 November 2026, plan "Starters on par", step 1)
+- Starter About, Contact and services (26 November 2026, plan "Starters on par", step 2)
+- Starter menus: Shop link and full-screen phone menu (26 November 2026, plan "Starters on par", step 3)

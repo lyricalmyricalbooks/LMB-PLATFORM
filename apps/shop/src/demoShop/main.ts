@@ -29,7 +29,7 @@ async function showShop() {
   const choice = demoChoice({ starter: params.get("starter") || saved?.starter, style: params.get("style") || saved?.style, sells: params.get("sells") || saved?.sells, kind: params.get("kind") || saved?.kind, lead: params.get("lead") || saved?.lead });
   if (!embedded) try { sessionStorage.setItem(DEMO_KEY, JSON.stringify(choice)); } catch { /* the starter is still shown */ }
 
-  const { design, books, pages, name, sells, shopName: shownName } = demoDesign(choice, import.meta.env.BASE_URL, shopName);
+  const { design, books, pages, name, sells, shopName: shownName, bookingSamples } = demoDesign(choice, import.meta.env.BASE_URL, shopName);
   document.title = `${name}: a sample shop`;
   const win = window as any;
   win.__studioPreviewDesign = design;
@@ -37,7 +37,9 @@ async function showShop() {
   // status is set, so the shop shows no "your live shop" banner: there is no Studio behind a demo.
   // The snapshot is the whole shop: nothing is read from a database (features/site/useSiteData.ts readSiteData).
   win.__studioPreviewOnly = true;
-  win.__studioPreviewState = { settings: { design, sells, ...(choice.kind === "both" ? { sellsProducts: true } : {}), info: { name: shownName } }, books, pages };
+  // A shop with services takes bookings, so its header, phone menu and footer show "Book a time" as a live one's do.
+  const takesBookings = bookingSamples.starterServices.length > 0 && choice.kind !== "products";
+  win.__studioPreviewState = { settings: { design, sells, ...(choice.kind === "both" ? { sellsProducts: true } : {}), ...(takesBookings ? { bookingsLive: true } : {}), info: { name: shownName } }, books, pages, ...bookingSamples };
 
   if (params.get("preview") !== "true") {
     const url = new URL(location.href);

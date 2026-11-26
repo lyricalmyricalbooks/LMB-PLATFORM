@@ -26,16 +26,18 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 4, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links." },
       { version: 5, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
       { version: 6, date: "2026-11-26", note: "A second pair of fonts in the calm colour version, so it feels like its own design and not only new colours." },
+      { version: 7, date: "2026-11-26", note: "A Shop link leads the menu with your categories in a drop-down, and on phones the menu button opens a full-screen menu with big links." },
     ],
-    looks: { terracotta: "1k7gpe7", sage: "jmgwy6", night: "7n5512" },
+    looks: { terracotta: "154swpr", sage: "idno0u", night: "1b1u1l2" },
   },
   "juniper-catalogue": {
     releases: [
       { version: 1, date: "2026-11-24", note: "The first version, in Acid, Blueprint and Night." },
       { version: 2, date: "2026-11-26", note: "A new frame: links behind a Menu button, numbered products, a list shop page, the title first on product pages and your email large in the footer, on cool grey paper." },
       { version: 3, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
+      { version: 4, date: "2026-11-26", note: "A Shop link leads the menu with your categories in a drop-down, and on phones the menu button opens a full-screen menu with big links." },
     ],
-    looks: { acid: "b03tek", blueprint: "mk0o3f", night: "1p6c3by" },
+    looks: { acid: "1s6k9jg", blueprint: "5x9ycr", night: "1wr2rzi" },
   },
   "aurel-editorial": {
     releases: [
@@ -44,8 +46,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 3, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
       { version: 4, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links, and the opening photo comes first." },
       { version: 5, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
+      { version: 6, date: "2026-11-26", note: "A Shop link leads the menu with your categories in a drop-down, and on phones the menu button opens a full-screen menu with big links." },
     ],
-    looks: { cobalt: "idxdun", sand: "za79h7", night: "cptwur" },
+    looks: { cobalt: "2ok40f", sand: "qp6jvv", night: "m7q0rn" },
   },
   "starter-gallery": {
     releases: [
@@ -56,8 +59,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 5, date: "2026-11-26", note: "The sample announcement bar now reads like a real shop's (for example a free delivery line) instead of asking you to write one." },
       { version: 6, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
       { version: 7, date: "2026-11-26", note: "A second pair of fonts in the calm colour version, so it feels like its own design and not only new colours." },
+      { version: 8, date: "2026-11-26", note: "A Shop link leads the menu with your categories in a drop-down, and on phones the menu button opens a full-screen menu with big links." },
     ],
-    looks: { linen: "wsren", stone: "1tqgza5", night: "1wez7mq" },
+    looks: { linen: "twfzan", stone: "1llnv7x", night: "d0o7de" },
   },
   "starter-warehouse": {
     releases: [
@@ -69,8 +73,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 6, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links, and the opening photo comes first." },
       { version: 7, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
       { version: 8, date: "2026-11-26", note: "A second pair of fonts in the calm colour version, so it feels like its own design and not only new colours." },
+      { version: 9, date: "2026-11-26", note: "A Shop link leads the menu with your categories in a drop-down, and on phones the menu button opens a full-screen menu with big links." },
     ],
-    looks: { signal: "oyh1s9", cobalt: "kuovrw", night: "1xn3y9v" },
+    looks: { signal: "1hs3mgp", cobalt: "1cm3rg", night: "thskgj" },
   },
   "starter-larder": {
     releases: [
@@ -82,8 +87,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 6, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links, and the opening photo comes first." },
       { version: 7, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
       { version: 8, date: "2026-11-26", note: "A second pair of fonts in the calm colour version, so it feels like its own design and not only new colours." },
+      { version: 9, date: "2026-11-26", note: "A Shop link leads the menu with your categories in a drop-down, and on phones the menu button opens a full-screen menu with big links." },
     ],
-    looks: { harvest: "35usc5", olive: "zf5kol", night: "1afze5u" },
+    looks: { harvest: "15ddqd", olive: "kqoxj9", night: "1wa0142" },
   },
   "starter-salon": {
     releases: [
@@ -93,8 +99,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 4, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links." },
       { version: 5, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
       { version: 6, date: "2026-11-26", note: "A second pair of fonts in the calm colour version, so it feels like its own design and not only new colours." },
+      { version: 7, date: "2026-11-26", note: "On phones the menu button opens a full-screen menu with big links, and Book a time sits right in it." },
     ],
-    looks: { blush: "9n2h5x", sage: "1h35z9x", night: "3bp5ht" },
+    looks: { blush: "1bs2s8r", sage: "13qfibv", night: "1a9rbxj" },
   },
   "starter-workshop": {
     releases: [
@@ -104,8 +111,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 4, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links." },
       { version: 5, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
       { version: 6, date: "2026-11-26", note: "A second pair of fonts in the calm colour version, so it feels like its own design and not only new colours." },
+      { version: 7, date: "2026-11-26", note: "On phones the menu button opens a full-screen menu with big links, and Book a time sits right in it." },
     ],
-    looks: { sunny: "103llsz", mint: "1oqgt1x", night: "fcku65" },
+    looks: { sunny: "42s3kp", mint: "w0psjv", night: "1kqarlf" },
   },
   "starter-commission": {
     releases: [
@@ -115,8 +123,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 4, date: "2026-11-26", note: "On phones the header is one tidy row (a menu button, your name, search and the bag) instead of a second row of links, and the opening photo comes first." },
       { version: 5, date: "2026-11-26", note: "Calmer product pages: no glow or tag behind the product, a full-width Add to bag button, a taxes and shipping line under the price, the description beside the photos, and on phones the photo comes first." },
       { version: 6, date: "2026-11-26", note: "A second pair of fonts in the calm colour version, so it feels like its own design and not only new colours." },
+      { version: 7, date: "2026-11-26", note: "A Shop link leads the menu with your categories in a drop-down, and on phones the menu button opens a full-screen menu with big links." },
     ],
-    looks: { walnut: "1ew66th", chalk: "m4jfbi", night: "c2sccc" },
+    looks: { walnut: "1kmi2np", chalk: "1uw3x32", night: "16zjo7g" },
   },
 };
 

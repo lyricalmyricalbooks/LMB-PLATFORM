@@ -1226,3 +1226,33 @@ Squarespace demos). Step 1 fixed what was broken:
 - **Footer email:** `StoreFooter.tsx` no longer falls back to `owner@example.com`. With no shop email the Contact design
   shows a large "Contact →" link to `/page/contact`, the Contact link goes to the page (unless the page is already in the
   footer menu) and the four-column layout leaves the email out.
+
+## Starter About, Contact and services (26 November 2026, plan "Starters on par", step 2)
+
+- **Brand pages:** `studio/starterPages.ts` holds `STARTER_PAGES`, one set per starter: About/Contact/Shipping words, an
+  About photo band, contact form words, an optional map, and for Salon and Workshop sample services and team.
+  `withStarterPages` (wrapping `THEME_LIBRARY`) adds `content.pageWords`, `"page:about"`/`"page:contact"` sections
+  (PageContentSection first, then ImageWithText or ContactForm + Map) and `sampleServices`/`sampleTeam`.
+- **Sample words:** `presetPagesToAdd` uses the starter's words and marks the page `sample: true`; Studio › Pages shows a
+  "Sample words" note and list tag, and saving the page clears the flag. Plain looks keep the bracketed prompts.
+- **Booking preview:** `bookTimePreview.ts` reads `__studioPreviewState.starterServices`/`starterTeam` when present
+  (`starterBookingSamples(look)`), and a service with `places > 1` is a class. Services-only demo shops list no products.
+- **No dead buttons:** ImageWithText blocks in starters always set `ctaText`/`ctaUrl` (the renderer's default is
+  "Read more" to `#`). `starterPages.test.ts` checks words have no prompts, emails, reviews or "Example".
+
+## Starter menus: Shop link and full-screen phone menu (26 November 2026, plan "Starters on par", step 3)
+
+- **Shop link:** Style › Header layout › `navShopLink` (`off` default, `link`, `menu`). `withShopLink` (`navItems.ts`)
+  puts a `{ kind: "link" }` item first in the bar (words `navShopLabel`, Text & labels › Header › Menu links); in
+  `menu` mode the top-level categories move into its drop-down (All + each). CategoryBar, the phone tabs and both phone
+  menus draw it; the Classic (Reference) header does not. On the home page the in-place category pick never lights it.
+- **Full-screen phone menu:** `phoneMenuFullScreen` (default off) swaps the menu button's small `<details>` box for
+  `PhonePanelMenu` (only where the menu button is used: Phone navigation style › Menu button beside the name, or the
+  Minimal header). It is a body portal with `data-fm-store` (the header's blur would trap a fixed panel), locks page
+  scroll, keeps Tab inside, closes on Escape or a link, and fades in only without reduced motion. Main links big in the
+  heading font; Book a time joins them while bookings are live. Studio overlay `menu` (Pop-ups › Phone menu, listed
+  only while the switch is on; opening it moves the preview to the phone). Baseline `none` on the fixture (tabs).
+- **Starters:** every product starter sets `navShopLink: "menu"`; all nine set `phoneMenuFullScreen: true` (release
+  per starter in `starterVersions.ts`, control room mirror bumped). Generic Shipping & returns page now
+  `showInFooter: true`; the demo keeps each page's own menu/footer place, lists the sample products' shelves as
+  categories and turns bookings on for a starter with sample services.

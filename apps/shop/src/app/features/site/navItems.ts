@@ -8,7 +8,9 @@
 
 export type NavItem =
   | { kind: "category"; key: string; label: string; category: any; children: any[] }
-  | { kind: "page"; key: string; label: string; page: any };
+  | { kind: "page"; key: string; label: string; page: any }
+  /** Style › Header layout › "Shop link": every product (`to`), with the shop's categories under it in "menu" mode. */
+  | { kind: "link"; key: string; label: string; to: string; children: any[] };
 
 export const catKey = (cat: any, index: number) => `cat:${(typeof cat === "object" && cat?.id) || `cat-${index}`}`;
 export const pageKey = (page: any) => `page:${page.id || page.slug}`;
@@ -50,6 +52,23 @@ export function buildNavItems(categories: any[], pages: any[], order?: string[])
   };
   // Array.prototype.sort is stable, so unlisted items keep their default order.
   return [...items].sort((a, b) => rank(a.key) - rank(b.key));
+}
+
+/** Style › Header layout › "Shop link in the menu": off (default), a link, or a drop-down holding the categories. */
+export const shopLinkMode = (design: any): "off" | "link" | "menu" =>
+  design?.navShopLink === "link" || design?.navShopLink === "menu" ? design.navShopLink : "off";
+
+/**
+ * The header bar with the Shop link first (shoppers on Shopify-style shops look for it there). In "menu" mode the
+ * top-level categories move under it (a drop-down of All and each one), so a big range keeps a short bar.
+ */
+export function withShopLink(items: NavItem[], design: any, label: string): NavItem[] {
+  const mode = shopLinkMode(design);
+  if (mode === "off") return items;
+  const cats = items.filter((i): i is NavItem & { kind: "category" } => i.kind === "category");
+  const children = mode === "menu" ? cats.map((c) => ({ ...(typeof c.category === "object" ? c.category : {}), id: c.key.slice(4), name: c.label })) : [];
+  const shop: NavItem = { kind: "link", key: "shop", label, to: "/collections/all", children };
+  return [shop, ...(mode === "menu" ? items.filter((i) => i.kind !== "category") : items)];
 }
 
 /** navOrder that keeps categories where they are and puts pages, in their own slots, in `orderedPages` order. */

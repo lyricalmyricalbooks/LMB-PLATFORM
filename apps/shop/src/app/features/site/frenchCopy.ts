@@ -397,6 +397,8 @@ export const FRENCH_COPY: Record<string, string> = {
   catalogLoadError: "Le catalogue n'a pas pu être chargé. Veuillez réessayer.",
   catalogRetry: "Réessayer",
   navMenu: "Menu",
+  navMenuClose: "Fermer le menu",
+  navShopLabel: "Boutique",
   navSearch: "Recherche",
   bookTimeNavLink: "Prendre rendez-vous",
   eventsNavLink: "Événements",
