@@ -81,10 +81,10 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "cartEstimateButton", label: "Shipping preview · Button", default: "Estimate shipping" },
       { key: "cartEstimateLoading", label: "Shipping preview · Loading", default: "Checking shipping…" },
       { key: "cartEstimateOptions", label: "Shipping preview · Options", default: "Estimated shipping options" },
-      { key: "cartEstimateNone", label: "Shipping preview · None", default: "No profile estimate is available for this destination. Enter your full address at checkout to check carrier availability." },
+      { key: "cartEstimateNone", label: "Shipping preview · None", default: "We can't guess shipping to this place yet. Add your full address at checkout to see the delivery choices." },
       { key: "cartEstimateDigital", label: "Shipping preview · Digital", default: "No shipping is needed for digital items." },
       { key: "cartEstimateError", label: "Shipping preview · Error", default: "Shipping estimates could not be loaded. Please try again or continue to checkout." },
-      { key: "cartEstimateNotice", label: "Shipping preview · Notice", default: "Preliminary profile estimates before discounts and tax. Live carrier prices and eligibility require your full address at checkout. Transit starts after dispatch; processing time is separate. Your destination carries into checkout." },
+      { key: "cartEstimateNotice", label: "Shipping preview · Notice", default: "A first guess, before discounts and tax. Checkout shows the exact price once you add your full address." },
 
       { key: "cartCodeToggle", label: "Discount code box · Opener", default: "Have a discount code?", hint: "Shown when Style › Cart drawer › Total & checkout button › Discount code box is on." },
       { key: "cartCodeLabel", label: "Discount code box · Field label", default: "Discount code" },
@@ -104,13 +104,13 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "cartTermsError", label: "Terms checkbox · Not ticked", default: "Please tick the box to agree before checking out." },
 
       { key: "cartTitle", label: "Cart heading", default: "Shopping Bag" },
-      { key: "cartEmpty", label: "Empty cart message", default: "The archive is empty." },
+      { key: "cartEmpty", label: "Empty cart message", default: "Your bag is empty." },
       { key: "cartTotalLabel", label: "Total label", default: "Estimated total" },
       { key: "cartCheckoutButton", label: "Checkout button", default: "PROCEED TO CHECKOUT" },
       {
         key: "cartDeliveryNote",
         label: "Delivery note",
-        default: "Carrier transit estimates appear at checkout after you enter your address and cover time after dispatch. Processing time is separate; see the Shipping Policy for order preparation timing. Taxes are calculated at checkout.",
+        default: "Shipping and tax are worked out at checkout. Delivery times count from the day your order is sent.",
         multiline: true,
       },
       { key: "cartCountLabel", label: "Item count line", default: "{count} in your bag", hint: "Use {count} for the number of copies in the bag." },

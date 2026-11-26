@@ -809,7 +809,9 @@ export default function BookDetail() {
   const sizeGuide = showPdpSizeGuide && regionVisible(regionDesign, "productSizeGuide") && typeof bk.sizeChart === "string" ? bk.sizeChart.trim() : "";
   const sizeGuidePhoto = showPdpSizeGuide && regionVisible(regionDesign, "productSizeGuide") && typeof bk.sizeChartPhoto === "string" ? bk.sizeChartPhoto.trim() : "";
   const detailTabs: { id: "description" | "artist" | "size" | "specs" | "policies" | "reviews"; label: string }[] = orderTabs([
-    ...(regionVisible(regionDesign, "productDescription") ? [{ id: "description" as const, label: getCopy(settings?.design, "tabDescription") }] : []),
+    // A product with no description shows no Description tab to shoppers (an empty "No description available." box
+    // reads as unfinished); Studio's preview keeps it so the owner can still find and style that part.
+    ...(regionVisible(regionDesign, "productDescription") && (bk.description || inEditorPreview()) ? [{ id: "description" as const, label: getCopy(settings?.design, "tabDescription") }] : []),
     ...(artistBio ? [{ id: "artist" as const, label: getCopy(settings?.design, "tabArtistBio") }] : []),
     ...(sizeGuide || sizeGuidePhoto ? [{ id: "size" as const, label: getCopy(settings?.design, "tabSizeGuide") }] : []),
     ...(hasSpecs ? [{ id: "specs" as const, label: getCopy(settings?.design, productDetailsLayout === "accordions" ? "tabSpecs" : "tabDetails") }] : []),

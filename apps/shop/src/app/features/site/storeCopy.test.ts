@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { getCopy, DEFAULT_COPY, CopyError, copyErrorText } from './storeCopy';
 
 describe('getCopy', () => {
-  it('separates processing time from address-specific carrier transit in the cart note', () => {
-    expect(DEFAULT_COPY.cartDeliveryNote).toMatch(/carrier transit/i);
-    expect(DEFAULT_COPY.cartDeliveryNote).toMatch(/after dispatch/i);
-    expect(DEFAULT_COPY.cartDeliveryNote).toMatch(/processing time is separate/i);
-    expect(DEFAULT_COPY.cartDeliveryNote).not.toMatch(/5.?7 business days/i);
+  it('says in plain words that shipping is priced at checkout and delivery time counts from sending', () => {
+    expect(DEFAULT_COPY.cartDeliveryNote).toMatch(/worked out at checkout/i);
+    expect(DEFAULT_COPY.cartDeliveryNote).toMatch(/from the day your order is sent/i);
+    expect(DEFAULT_COPY.cartDeliveryNote).not.toMatch(/5.?7 business days|carrier|dispatch|profile/i);
+    expect(DEFAULT_COPY.cartEstimateNotice).not.toMatch(/carrier|dispatch|profile|preliminary/i);
   });
   it('keeps local validation reasons editable and replaces provider diagnostics', () => {
     const d = { copy: { coErrMinItems: 'Buy {count} copies', coStripeError: 'Please try another payment method' } };

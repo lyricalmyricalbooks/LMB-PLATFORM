@@ -23,6 +23,7 @@ import { googleFontHref } from "../features/site/fonts";
 import { useSectionCopy, useSectionDesign, useSectionPage, useShopName } from "./sectionCopy";
 import { isEmailAddress, subscribeNewsletter } from "../features/site/newsletterSignup";
 import { slugify } from "../features/site/storeMenu";
+import { productHref } from "../lib/productHref";
 import { pickBook, sectionBookQuery, selectBooks } from "../features/site/merchandising";
 import { aspectRatioValue } from "../features/site/imageAspect";
 import { ResponsiveImage } from "./ResponsiveImage";
@@ -501,6 +502,21 @@ function siteHref(url: string | undefined | null): string | undefined {
   if (!url.startsWith("/") || url.startsWith("//")) return url;
   const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
   return keepPreviewParam(base + url);
+}
+
+/** A product card's real address, so shoppers can open it in a new tab and search engines can follow it from the page. */
+function productCardHref(book: any): string | undefined {
+  return siteHref(productHref(book?.slug || slugify(book?.title || "")));
+}
+
+/**
+ * A plain click on a product link stays in the shop's own navigation (`go`); a click with Ctrl, Cmd, Shift or the middle
+ * button is left to the browser, which opens the product's address in a new tab or window.
+ */
+function followInPage(e: { defaultPrevented: boolean; button: number; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean; preventDefault: () => void }, go: () => void) {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  go();
 }
 
 function keepPreviewParam(href: string) {
@@ -1633,9 +1649,9 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
             const price = displayPrice(book);
             return (
               <AnimationContainer className="min-w-0" key={book.id || idx} enabled={enableAnimations} delay={idx * 0.04}>
-                <button
-                  type="button"
-                  onClick={() => onProductClick?.(book)}
+                <a
+                  href={productCardHref(book)}
+                  onClick={(e) => followInPage(e, () => onProductClick?.(book))}
                   {...blockEditAttrs({ id: book.id || productSlug(book) }, idx)}
                   className="fm-card group block w-full min-w-0 text-left"
                 >
@@ -1670,7 +1686,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
                       <span className="fm-card-price">{formatBookPrice(book)}</span>
                     </p>
                   )}
-                </button>
+                </a>
               </AnimationContainer>
             );
           })}
@@ -1859,22 +1875,18 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
             const category = book.categories?.[0] || "";
             return (
               <AnimationContainer className="min-w-0" key={book.id || idx} enabled={enableAnimations} delay={idx * 0.05}>
+                // The card's link lies over the whole card, so the card opens the product, can be opened in a new tab and is
+                // followed by search engines; the "+" button sits above it (a button can't sit inside a link).
                 <div
                   {...blockEditAttrs({ id: book.id || productSlug(book) }, idx)}
-                  className="fm-card group relative min-w-0 cursor-pointer"
-                  role="link"
-                  tabIndex={0}
-                  aria-label={sc("sectionViewBook", { title: book.title })}
-                  onClick={() => openBook(book)}
-                  onKeyDown={(e: any) => {
-                    // Keys pressed on the "+" quick-add button inside the card belong to that button.
-                    if (e.target !== e.currentTarget) return;
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      openBook(book);
-                    }
-                  }}
+                  className="fm-card group relative min-w-0"
                 >
+                  <a
+                    href={productCardHref(book)}
+                    aria-label={sc("sectionViewBook", { title: book.title })}
+                    onClick={(e) => followInPage(e, () => openBook(book))}
+                    className="absolute inset-0 z-[1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4"
+                  />
                   <div className="relative overflow-hidden rounded-[2px] bg-white/5" style={{ aspectRatio: aspect }}>
                     {book.photos?.[0]?.url ? (
                       <img
@@ -1918,7 +1930,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                             import("react-hot-toast").then((mod) => mod.default.error(message)).catch(() => {});
                           }
                         }}
-                        className={`absolute right-3 bottom-3 w-8 h-8 max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-[''] rounded-full border text-base leading-none flex items-center justify-center transition-colors ${
+                        className={`absolute z-[2] right-3 bottom-3 w-8 h-8 max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-[''] rounded-full border text-base leading-none flex items-center justify-center transition-colors ${
                           soldOut
                             ? "opacity-40 cursor-not-allowed border-white/20 bg-black/60 text-white/60"
                             : "border-white/30 bg-black/70 text-white hover:border-transparent"
@@ -3341,13 +3353,11 @@ export function FeaturedCollectionSection({ settings, books, onProductClick, ena
         <div className={`${gridId} grid gap-6`}>
           {items.map((book: any, idx: number) => (
             <AnimationContainer className="min-w-0" key={book.id || idx} enabled={enableAnimations} delay={idx * 0.05}>
-              <div
-                className="fm-card group min-w-0 cursor-pointer"
-                role="link"
-                tabIndex={0}
+              <a
+                href={productCardHref(book)}
+                className="fm-card group block min-w-0 cursor-pointer"
                 aria-label={sc("sectionViewBook", { title: book.title })}
-                onClick={() => onProductClick?.(book)}
-                onKeyDown={(e: any) => { if (e.target !== e.currentTarget) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onProductClick?.(book); } }}
+                onClick={(e) => followInPage(e, () => onProductClick?.(book))}
               >
                 <div className="fm-photo-frame relative overflow-hidden bg-white/5" style={{ aspectRatio: "3 / 4" }}>
                   {book.photos?.[0]?.url ? <><PhotoToneDefs photo={book.photos[0]} /><img loading="lazy" src={book.photos[0].url} {...photoSrcSet(book.photos[0], gridPhotoSizes([{ from: 0, cols: mobileCols }, { from: 768, cols }], { photo: book.photos[0], frame: "3 / 4" }))} alt={book.title} decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"  style={framingStyle(book.photos[0])} /></> : <NoPhoto title={book.title} />}
@@ -3359,7 +3369,7 @@ export function FeaturedCollectionSection({ settings, books, onProductClick, ena
                     <span className="fm-card-price">{formatBookPrice(book)}</span>
                   </p>
                 )}
-              </div>
+              </a>
             </AnimationContainer>
           ))}
         </div>
