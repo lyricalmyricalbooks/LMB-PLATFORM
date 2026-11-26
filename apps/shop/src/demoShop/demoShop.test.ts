@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STARTER_SITES } from "../app/admin/lookGallery";
+import { STARTER_SITES, libraryLook } from "../app/admin/lookGallery";
 import { stylesFor } from "../app/admin/studio/starterStyles";
 import { withShopStartFor } from "../app/admin/sells";
 import { DEMO_NAME, DEMO_SELLS, demoChoice, demoDesign, demoShopName, underBase } from "./demoShop";
@@ -43,7 +43,8 @@ describe("live demo shops", () => {
         const { design, books, name, sells } = demoDesign({ starter, style, sells: kind }, "/demo/");
         expect(sells).toBe(DEMO_SELLS[kind]);
         expect(name).toMatch(/\S/);
-        expect(design.copy.siteName).toBe(DEMO_NAME);
+        // No name asked: the starter's made-up brand, never "Your shop".
+        expect(design.copy.siteName).toBe((libraryLook(starter) as any).content.sampleBrand);
         expect(books.length).toBeGreaterThan(0);
         // Every picture sits under the demo's folder.
         expect(JSON.stringify({ design, books })).not.toMatch(/"\/(starters|samples)\//);

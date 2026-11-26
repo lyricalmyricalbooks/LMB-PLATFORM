@@ -10,6 +10,7 @@ import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { PAGE_STARTERS, pageFromStarter, type PageStarter } from "./pageStarters";
 import { isGroupSurface } from "../../features/site/sectionGroups";
 import { getSections, makeSection, setSections, type SectionTarget } from "./studioModel";
+import { optionCombinations, variantLabel, type ProductOption } from "../../../shared/productOptions";
 
 export type PresetSectionSpec = { type: string; settings?: Record<string, any> };
 
@@ -20,8 +21,25 @@ export type PresetContent = {
   starterPages?: string[];
   /** The book page's buy box, top to bottom (Page › Buy box blocks); built-in and custom block types only. */
   productBlocks?: { type: string; hidden?: boolean; settings?: Record<string, any> }[];
-  /** A starter's own sample shop: products with their own photos, shown whenever the starter is previewed. */
-  sampleProducts?: { title: string; maker?: string; price: number; photo: string }[];
+  /**
+   * A starter's own sample shop: a made-up brand's products with their own photos, words and options, shown whenever
+   * the starter is previewed. A new shop keeps its own name and products; these only show until it adds its own.
+   */
+  sampleProducts?: StarterSampleProduct[];
+  /** The made-up brand a starter's sample shop belongs to: the name a demo shows when no shop name is given. */
+  sampleBrand?: string;
+};
+
+export type StarterSampleProduct = {
+  title: string; price: number; photo: string;
+  /** The shelf it sits on (Bags, Bread…): the category shoppers filter by. */
+  category?: string;
+  /** Two plain sentences: what it is, what it is made of, one detail worth knowing. */
+  description?: string;
+  /** Only for products that really come with a maker's name, such as a book's author. */
+  maker?: string;
+  /** Up to three option lists (Size, Colour…); the product gets one variant for each combination. */
+  options?: ProductOption[];
 };
 
 const sampleSlug = (title: string) => title.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -31,14 +49,21 @@ const sampleSlug = (title: string) => title.toLowerCase().normalize("NFKD").repl
  * shop instead of the press's real products. Never saved anywhere. Empty for a look without samples.
  */
 export function starterSampleBooks(preset: any): any[] {
-  const list: NonNullable<PresetContent["sampleProducts"]> = preset?.content?.sampleProducts || [];
-  return list.map((p, i) => ({
-    id: `starter-sample-${i + 1}`, slug: sampleSlug(p.title), title: p.title, authorName: p.maker || "", author: p.maker || "",
-    retailPrice: p.price, stockLevel: 8, status: "published", isFeatured: i < 4, featured: i < 4,
-    categories: [p.maker || "Featured"], photos: [{ id: `s${i + 1}`, url: p.photo, alt: p.title }],
-    description: "A sample product. Your own products take its place once you add them.",
-    createdAt: new Date(Date.UTC(2026, 10, 20 - i)).toISOString(), sample: true,
-  }));
+  const list: StarterSampleProduct[] = preset?.content?.sampleProducts || [];
+  return list.map((p, i) => {
+    const options = (p.options || []).filter((o) => o.values.length > 0);
+    const variants = optionCombinations(options).map((picks, v) => ({
+      id: `v${v + 1}`, name: variantLabel(options, picks), options: picks, price: p.price, stockLevel: 8,
+    }));
+    return {
+      id: `starter-sample-${i + 1}`, slug: sampleSlug(p.title), title: p.title, authorName: p.maker || "", author: p.maker || "",
+      retailPrice: p.price, stockLevel: 8, status: "published", isFeatured: i < 4, featured: i < 4,
+      categories: [p.category || "Featured"], photos: [{ id: `s${i + 1}`, url: p.photo, alt: p.title }],
+      description: p.description || "A sample product. Your own products take its place once you add them.",
+      ...(options.length ? { options, variants } : {}),
+      createdAt: new Date(Date.UTC(2026, 10, 20 - i)).toISOString(), sample: true,
+    };
+  });
 }
 
 /** The page templates a preset may hold sections for, with the name the owner sees. */

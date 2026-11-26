@@ -1147,3 +1147,17 @@ Multicolumn round photos get `max-w-full` so they shrink in narrow columns (unch
 SplitOpening's owner-set title size is now the size at 1440px and scales down with the screen
 (`min(Npx, N/14.4 vw)`), so a long word never runs into the photo on a laptop. Warehouse v4 and Larder v4 releases;
 "Choose your website" pictures regenerated with `scripts/starter-thumbs.mjs`.
+
+## Starter sample shops (26 November 2026, plan "Starters vs Shopify and Squarespace", step 2)
+
+The owner compared the starters with shop-builder theme demos and approved making each one a finished sample shop
+(plan https://claude.ai/artifact/JrRbyag8kdqVT6T1tnnL8t, pick A). Each `THEME_LIBRARY` starter has `content.sampleBrand`
+(Fallow House, Margin Editions, Atelier Ondine, Stillwater Ceramics, Northline Supply, Rye & Salt, Rosewater Studio,
+Clayhouse Studio, Hollis & Pine Joinery) and its section words, banner and product list read as that business.
+`sampleProducts` entries take `category`, a two-sentence `description` and `options`; `starterSampleBooks` turns options
+into one variant per combination (`optionCombinations`, names joined with " / "), so the demo's product pages show option
+buttons. The demo (`demoDesign`) shows the brand as the shop name when no `?name=` is given. A real shop keeps its own
+name and products; `withOwnBanner` (sells.ts) swaps the starter's banner for the shop's starting line in `chooseLook` and
+the before-shop designer, because a banner is not a section and carries no Sample mark. The changed banners shipped as a
+new release of Slow Season, Aurel, Gallery, Warehouse and Larder (`starterVersions.ts`, control room `starterSites.js`).
+`sampleShops.test.ts` replaced `neutralStarters.test.ts`.
