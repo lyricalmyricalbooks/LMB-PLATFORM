@@ -83,3 +83,4 @@ Details of each feature live in [`docs/agent-notes/studio.md`](../../../../docs/
 - Starters in three kinds, and nine distinct openings (26 November 2026, one website picker plan step 1)
 - Calmer Studio: no Designs (26 November 2026, one website picker plan step 3)
 - Starter sample shops (26 November 2026, plan "Starters vs Shopify and Squarespace", step 2)
+- Starter photo sets (26 November 2026, plan "Starters vs Shopify and Squarespace", step 3)

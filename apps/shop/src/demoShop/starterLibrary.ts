@@ -15,7 +15,7 @@ export type StarterKind = "products" | "services" | "books";
 export const STARTER_INFO: Record<string, { kinds: StarterKind[]; bestFor: string[]; sells: DemoKind; cover?: string }> = {
   "juniper-slow-season": { kinds: ["products"], bestFor: ["Home goods", "Clothing", "Seasonal collections"], sells: "home" },
   // Catalogue opens on the same still life as Slow Season, so its card shows one of its own products instead.
-  "juniper-catalogue": { kinds: ["products", "books"], bestFor: ["Books and prints", "Collections", "Small ranges"], sells: "books", cover: "/starters/catalogue/candle.jpg" },
+  "juniper-catalogue": { kinds: ["products", "books"], bestFor: ["Books and prints", "Collections", "Small ranges"], sells: "books", cover: "/starters/catalogue/opening.jpg" },
   "aurel-editorial": { kinds: ["products", "books"], bestFor: ["Clothing", "Design objects", "Editorial shops"], sells: "clothing" },
   "starter-gallery": { kinds: ["products", "books"], bestFor: ["A few products", "Makers", "Art and prints"], sells: "home" },
   "starter-warehouse": { kinds: ["products"], bestFor: ["A big range", "Clothing", "Shops with many categories"], sells: "clothing" },

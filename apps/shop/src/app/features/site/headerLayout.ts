@@ -47,6 +47,8 @@ export const RAIL_HEADER_CSS = `@media (min-width:${RAIL_MIN_WIDTH}px){`
   + `header[data-hdr-layout="rail"] .fm-hdr-row>div{flex:0 0 auto !important;flex-direction:column;align-items:flex-start !important;justify-content:flex-start !important;gap:36px !important;order:0 !important;}`
   + `header[data-hdr-layout="rail"] .fm-hdr-row>div:last-child{flex-direction:row;flex-wrap:wrap;gap:16px !important;}`
   + `header[data-hdr-layout="rail"] nav[data-ga-menu="categories"]{flex-direction:column;align-items:flex-start;row-gap:14px;column-gap:0 !important;white-space:normal;}`
+  // A long shop name wraps inside the rail instead of running out under the page ("Hollis & Pine Joinery").
+  + `header[data-hdr-layout="rail"] .fm-logo{flex-wrap:wrap;row-gap:0.15em;}header[data-hdr-layout="rail"] .fm-logo,header[data-hdr-layout="rail"] .fm-logo *{white-space:normal !important;overflow-wrap:break-word;max-width:100%;}`
   + `}`;
 
 /** The header layout a design draws. */
