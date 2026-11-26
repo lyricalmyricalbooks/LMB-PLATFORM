@@ -21,8 +21,8 @@ importers:
         specifier: ^10.2.0
         version: 10.2.1
       barcode-detector:
-        specifier: ^3.2.3
-        version: 3.2.3(@types/emscripten@1.41.6)
+        specifier: ^3.2.4
+        version: 3.2.4(@types/emscripten@1.41.6)
       firebase:
         specifier: 13.2.0
         version: 13.2.0(@types/react@19.3.0)(react@19.3.1)
@@ -1154,8 +1154,8 @@ packages:
     resolution: {integrity: sha512-FHfa+lmNjQZfJz1q8wKqIDwC6DExcHt/pkjNQb09a3NPjCKg2rhu5qb2S4r76ASyFNNtuFooJpZe37OgudVGtQ==}
     engines: {node: '>=4'}
 
-  barcode-detector@3.2.3:
-    resolution: {integrity: sha512-PLinpWGiOQoQH4X+YObWZ6iXeffXKDM3d4vnOD86481SvukIfvkf7jEE/tud9oI4HTDxtDdlHaFilA5Kn7Xa7A==}
+  barcode-detector@3.2.4:
+    resolution: {integrity: sha512-4tjallFXSratRbkzyccnfgL8w/3FtTexjWpQoPes3niFQ2DybGeaktH8w5ukc6wVUrOL7yNsoUUqmaRVn1YtJg==}
 
   bidi-js@1.1.0:
     resolution: {integrity: sha512-fX1Onk0tdVPC7obPWB5EbJ1z7NVhLq4m2xZLq2YXBkxzMXIGRpNMU88n0EPgWseKl12J7zXs7qrDxPK4sRs2fg==}
@@ -1844,8 +1844,8 @@ packages:
     resolution: {integrity: sha512-7dSzzRQ++CKnNI/krKnYRV7JKKPUXMEh61soaHKg9mrWEhzFWhFnxPxGl+69cD1Ou63C13NUPCnmIcrvqCuM6w==}
     engines: {node: '>=12'}
 
-  zxing-wasm@3.1.6:
-    resolution: {integrity: sha512-mU7UNuvl+hOT+nlSOQTMHZ2tM8lRMsbjDIp5IO/+HmBl/FOq77q0OSZPJ3cm42A9c1MKU6Uve67FiGdkhsrT9g==}
+  zxing-wasm@3.1.7:
+    resolution: {integrity: sha512-LI94ndlOY+xoqlkNcc0EwByrMpUXKrCX171EQ38kGWqpiRq/gcnC+ZrbRipvxI3uV4LaDtNlKo1p9Uayg1sesQ==}
     peerDependencies:
       '@types/emscripten': '>=1.39.6'
 
@@ -2784,9 +2784,9 @@ snapshots:
 
   axe-core@4.14.1: {}
 
-  barcode-detector@3.2.3(@types/emscripten@1.41.6):
+  barcode-detector@3.2.4(@types/emscripten@1.41.6):
     dependencies:
-      zxing-wasm: 3.1.6(@types/emscripten@1.41.6)
+      zxing-wasm: 3.1.7(@types/emscripten@1.41.6)
     transitivePeerDependencies:
       - '@types/emscripten'
 
@@ -3403,7 +3403,7 @@ snapshots:
       y18n: 5.0.8
       yargs-parser: 21.1.1
 
-  zxing-wasm@3.1.6(@types/emscripten@1.41.6):
+  zxing-wasm@3.1.7(@types/emscripten@1.41.6):
     dependencies:
       '@types/emscripten': 1.41.6
       type-fest: 5.10.0
