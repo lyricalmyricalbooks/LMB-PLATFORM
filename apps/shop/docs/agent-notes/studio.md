@@ -1093,3 +1093,31 @@ Each starter sets its own mix in its `global` (themeLibrary.ts), with its own he
 `starterFrames.test.ts` fails when two starters share more than two of the eight parts (header, product page, cards,
 shop page, footer, bag, type, background), share a heading typeface, or a starter keeps the default frame. A new
 starter picks a mix no other has (see `add-a-starter.md`).
+
+## Starter design upgrade: shared fixes and Gallery (26 November 2026, starter design upgrade plan steps 1 and 2)
+
+Plan https://claude.ai/artifact/A5vVNJk14QrF2JjoUk6gER; Figma https://www.figma.com/design/muJlnW2wGVKpH0kG51w6yG (page Redesign).
+- **Milky banners, root cause:** in light looks `--overlay-rgb` is the light background, so the even shade over an opening
+  photo washed it out. Image banner gets a new field **Shade** (`overlayStyle`: "" even, as before; "fade" = behind the
+  words only). The fade is `color-mix` of the section's own scheme `--bg-color`, aimed at `contentPosition`
+  (`bannerShadeStyle`, `BANNER_FADE` in `SectionComponents.tsx`; `bannerShade.test.ts`). Pair it with a dark scheme
+  (`scheme-inverse`) for light words over a dark fade.
+- Starter sample descriptions are plain text (the `<p>` showed raw on product pages).
+- The demo shop publishes the starter's own pages with `showInNav` (`demoPages`), so rail and side menus are never empty
+  in the picker preview. Real new shops still get those pages as drafts.
+- Gallery v4: minimal header, open product page with grid photos (no glow, bundle or share), plain cards, staggered shop,
+  centred footer, slim dark announcement; home = banner (fade, inverse), big intro, two large then three small products
+  (`productSort` priceHigh/priceLow with `productLimit`), shoppable photo with words right.
+
+## Starter design upgrade: Warehouse and the Search bar header (26 November 2026, plan step 3)
+
+- New header layout **"market"** (Studio label "Search bar"): logo left, a search box in the middle, icons right, links
+  always in a full row below (`HEADER_LAYOUTS`, `MARKET_HEADER_CSS` in `headerLayout.ts`; `HeaderSearchBox` in
+  `StoreHeader.tsx`, both the shop and page headers). The box shows Text & labels › `searchPlaceholder` (shop-type
+  worded) and opens the same search drawer; computers only, where it hides the search icon. Its accessible name starts
+  with `ariaSearch` (axe label-content-name-mismatch).
+- Warehouse v3 follows Figma: market header, Split opening (huge headline, `accentWord: ""` to drop the sample accent),
+  categories, black/yellow marquee, 8 framed products, promises, yellow Image with text story. Wide sections use the
+  section's own Content width "full".
+- Gallery also hides the Back link (`pdpShowBackLink: false`, breadcrumb only, as in Figma): at 70% opacity its muted
+  words failed contrast on the open product page.

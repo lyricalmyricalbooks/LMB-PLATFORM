@@ -4,7 +4,7 @@ import { STARTER_SITES } from "../app/admin/lookGallery";
 import { stylesFor, styledName, withStyle } from "../app/admin/studio/starterStyles";
 import { sampleShopBooks } from "../designFirst/beforeShop";
 import { defaultSettings } from "../app/admin/defaultSettings";
-import { applyStarter, starterForShop, type LeadSide, type StarterKind } from "../app/admin/studio/starterDesign";
+import { applyStarter, starterForShop, starterPagesToAdd, type LeadSide, type StarterKind } from "../app/admin/studio/starterDesign";
 import { getSectionMeta } from "../app/admin/ThemeEditorExtensions";
 import { starterPhotos } from "../app/admin/studio/starterPhotos";
 import { withStarterWords } from "../app/admin/sells";
@@ -62,13 +62,21 @@ export function demoShopName(asked?: string | null): string {
 }
 
 /** The design and sample products a demo shows, and its name ("Aurel Sand"). */
-export function demoDesign(choice: DemoChoice, base = "/", shopName = DEMO_NAME): { design: any; books: any[]; name: string; sells: string } {
+/**
+ * The starter's own pages (About, Shipping, Contact), published and in the menu, so a demo's header and side menu show
+ * the links a finished shop has instead of an empty bar. A real shop gets the same pages as drafts (chooseLook.ts).
+ */
+export function demoPages(shop: any): any[] {
+  return starterPagesToAdd(shop, []).map((page: any, i: number) => ({ ...page, id: `demo-${page.slug}`, status: "published", showInNav: true, order: i }));
+}
+
+export function demoDesign(choice: DemoChoice, base = "/", shopName = DEMO_NAME): { design: any; books: any[]; pages: any[]; name: string; sells: string } {
   const sells = DEMO_SELLS[choice.sells];
   const theme = withStyle(libraryLook(choice.starter), choice.style);
   const shop = starterForShop(theme, choice.kind === "both" ? "both" : sells, choice.lead);
   const applied = applyStarter(defaultSettings().design, shop, getSectionMeta, wordsFor(sells), starterPhotos(sells, base));
   const design = withStarterWords({ ...applied, copy: { ...(applied.copy || {}), siteName: shopName } }, sells);
-  return { design: underBase(design, base), books: underBase(demoProducts(choice, sells), base), name: styledName(theme), sells };
+  return { design: underBase(design, base), books: underBase(demoProducts(choice, sells), base), pages: demoPages(shop), name: styledName(theme), sells };
 }
 
 /**

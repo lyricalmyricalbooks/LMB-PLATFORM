@@ -9,12 +9,15 @@
  *   - "minimal": logo and icons only; every link sits behind the Menu button on every screen size.
  *   - "rail":    a side menu on computers: the shop name, links and icons run down the left edge and the page sits
  *                beside them (frame designs, 26 November 2026). On phones it draws like "modern".
+ *   - "market":  a big-range shop: the logo on the left, a search box in the middle, the icons on the right and every
+ *                link in a full-width row below (starter design upgrade, 26 November 2026). The box opens the same search
+ *                drawer as the search icon; on phones it draws like "modern".
  *
  * Left empty (every existing shop), the header follows the shop page layout exactly as it did before: Modern draws
  * the modern header, anything else the classic one. Choosing a layout here never changes the shop page grid.
  */
 
-export const HEADER_LAYOUTS = ["classic", "modern", "centered", "minimal", "rail"] as const;
+export const HEADER_LAYOUTS = ["classic", "modern", "centered", "minimal", "rail", "market"] as const;
 export type HeaderLayout = (typeof HEADER_LAYOUTS)[number];
 
 /** The Studio choices for Header layout; the empty value keeps following the shop page layout. */
@@ -25,6 +28,7 @@ export const HEADER_LAYOUT_OPTIONS: { value: "" | HeaderLayout; label: string }[
   { value: "centered", label: "Centred: logo in the middle, links in a row below" },
   { value: "minimal", label: "Minimal: logo and bag, links behind a Menu button" },
   { value: "rail", label: "Side menu: shop name and links down the left on computers" },
+  { value: "market", label: "Search bar: logo, a search box in the middle, links in a row below" },
 ];
 
 /** Computers wide enough for the side menu; below this the "rail" header draws as the one-bar header. */
@@ -51,3 +55,15 @@ export function headerLayout(design: any): HeaderLayout {
   if ((HEADER_LAYOUTS as readonly string[]).includes(chosen)) return chosen;
   return design?.catalogLayoutStyle === "modern" ? "modern" : "classic";
 }
+
+/**
+ * The "market" header's search box: computers only (phones keep the search icon), and the box takes the place of the
+ * icon there. Colours come from the header's own text colour and the theme's border token.
+ */
+export const MARKET_HEADER_CSS = `header[data-hdr-layout="market"] .fm-hdr-searchbox{display:none;}`
+  + `@media (min-width:768px){`
+  + `header[data-hdr-layout="market"] .fm-hdr-searchbox{display:flex;flex:1 1 auto;max-width:520px;min-height:44px;margin:0 auto;align-items:center;gap:10px;padding:0 16px;border:1px solid rgba(var(--border-rgb), 0.9);background:transparent;font-size:13px;text-align:left;cursor:text;}`
+  + `header[data-hdr-layout="market"] .fm-hdr-searchbox>span{opacity:.6;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}`
+  + `header[data-hdr-layout="market"] .fm-hdr-searchbox:hover{border-color:currentColor;}`
+  + `header[data-hdr-layout="market"] .fm-hdr-search-icon{display:none !important;}`
+  + `}`;

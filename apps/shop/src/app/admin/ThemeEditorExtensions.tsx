@@ -1839,6 +1839,10 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     ] },
     { key: "textAlign", label: "Text alignment", kind: "select", options: ALIGN_OPTIONS },
     { key: "overlayOpacity", label: "Overlay darkness", kind: "range", min: 0, max: 0.9, step: 0.05 },
+    { key: "overlayStyle", label: "Shade", kind: "select", options: [
+      { value: "", label: "Even over the photo" },
+      { value: "fade", label: "Behind the words only" },
+    ] },
     { key: "ctaText", label: "Primary CTA label", kind: "text" },
     { key: "ctaUrl", label: "Primary CTA link", kind: "link" },
     { key: "secondaryCtaText", label: "Secondary CTA label", kind: "text" },

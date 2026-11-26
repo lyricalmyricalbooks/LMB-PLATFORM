@@ -15,7 +15,7 @@ export const STARTER_BLURB: Record<string, string> = {
   "juniper-slow-season": "A full photo in bold capitals, then calm colour bands. Made for seasonal collections.",
   "juniper-catalogue": "A numbered catalogue, a list shop page and a Menu button. Made for books, prints and small ranges.",
   "starter-gallery": "A photo that fills the screen and products shown large. Made for makers with a few pieces.",
-  "starter-warehouse": "A big masthead, moving words and framed products in a dense grid. Made for a big range.",
+  "starter-warehouse": "A search bar up top, a huge headline and framed products in a dense grid. Made for a big range.",
   "starter-larder": "A warm photo banner, a running line and quick add. Made for food and drink.",
   "starter-salon": "A side menu, a soft blush page and your prices up front. Made for appointments.",
   "starter-workshop": "A giant headline, a photo mosaic and class times. Made for classes and workshops.",

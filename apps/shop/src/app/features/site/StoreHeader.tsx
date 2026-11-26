@@ -14,7 +14,7 @@ import { PHONE_MAX } from "./breakpoints";
 import { isLiveBook } from "./liveBook";
 import { MobileStorefrontNav } from "./MobileStorefrontNav";
 import { NavDropdown, selectInPlace, type NavDropdownEntry } from "./NavDropdown";
-import { headerLayout, RAIL_HEADER_CSS } from "./headerLayout";
+import { headerLayout, MARKET_HEADER_CSS, RAIL_HEADER_CSS } from "./headerLayout";
 import { bookingsLinkShown, useBookingsLive } from "./bookingsLive";
 import { eventsLinkShown, useEventsLive } from "./eventsLive";
 import { classesLinkShown, useClassesLive } from "./classesLive";
@@ -335,7 +335,7 @@ function HeaderActions({ flags, copyDesign, color, shop, onSearch, wishlistCount
   return (
     <>
       {!flags?.hideHeaderSearch && (
-        <button onClick={onSearch} aria-label={getCopy(copyDesign, "ariaSearch")} style={tint} className={`flex min-h-11 min-w-11 items-center justify-center rounded-full opacity-80 transition-all hover:opacity-100${hoverBg}`}>
+        <button onClick={onSearch} aria-label={getCopy(copyDesign, "ariaSearch")} style={tint} className={`fm-hdr-search-icon flex min-h-11 min-w-11 items-center justify-center rounded-full opacity-80 transition-all hover:opacity-100${hoverBg}`}>
           <Search size={14} />
         </button>
       )}
@@ -433,6 +433,19 @@ export function StoreHeader({ design, pages, books, shop }: { design: any; pages
 }
 
 /** Product, custom-page, wishlist, account, tracking and 404 header: routed category links. */
+/** Header layout › Search bar: a box that looks like a search field and opens the search drawer (computers only). */
+function HeaderSearchBox({ design, copyDesign, onSearch }: { design: any; copyDesign: any; onSearch: () => void }) {
+  if (design?.hideHeaderSearch) return null;
+  return (
+    <button type="button" onClick={onSearch} className="fm-hdr-searchbox" data-studio-target="style:header|copy:Search & filters" data-studio-label="Search box">
+      <Search size={15} aria-hidden="true" />
+      {/* Its name starts with "Search" for screen readers, then the words shoppers see (accessibility check). */}
+      <b className="sr-only">{getCopy(copyDesign, "ariaSearch")} </b>
+      <span data-studio-copy="searchPlaceholder">{getCopy(copyDesign, "searchPlaceholder")}</span>
+    </button>
+  );
+}
+
 function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; onSearch: () => void }) {
   const location = useLocation();
   const { cartCount, setIsCartOpen } = useCart();
@@ -456,7 +469,8 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
   const centered = layout === "centered";
   const minimal = layout === "minimal";
   // The side menu keeps its links beside the logo (they run down the rail on computers).
-  const navBelow = useNavBelow(centered ? { ...storefront, navPlacement: "below" } : layout === "rail" ? { ...storefront, navPlacement: "inline" } : storefront, rowRef, navRef);
+  const market = layout === "market";
+  const navBelow = useNavBelow(centered || market ? { ...storefront, navPlacement: "below" } : layout === "rail" ? { ...storefront, navPlacement: "inline" } : storefront, rowRef, navRef);
   const navFit = useNavFit(storefront, navRef, navBelow);
   const line = navLineProps(storefront, navBelow, navFit);
   const headerRef = useRef<HTMLElement>(null);
@@ -485,6 +499,7 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
       <AnnouncementBar design={storefront} copyDesign={design} show={storefront.showAnnouncement ?? false} shop={false} />
       {revealOnScrollUp && <style>{HEADER_REVEAL_CSS}</style>}
       {layout === "rail" && <style>{RAIL_HEADER_CSS}</style>}
+      {market && <style>{MARKET_HEADER_CSS}</style>}
       <header
         data-section="navigation"
         data-hdr-layout={layout}
@@ -506,6 +521,7 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
             {!navBelow && !minimal && navBar}
           </div>
           {centered && <div className="flex-1 order-1" aria-hidden="true" />}
+          {market && <HeaderSearchBox design={storefront} copyDesign={design} onSearch={onSearch} />}
           <div data-hdr-fixed className={`${centered ? "order-3 flex-1 " : ""}flex shrink-0 flex-nowrap items-center justify-end gap-2 sm:gap-6 md:gap-8`} data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart">
             {storefront.menus?.header?.length > 0 && <div className="mr-2"><StoreMenu items={storefront.menus.header} design={storefront} /></div>}
             <HeaderActions
@@ -573,9 +589,10 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   const minimal = layout === "minimal";
   // Links split around a centred logo sit inline beside it (each half is short), unless the owner picked "below".
   const splitInline = !centered && sf?.navAroundLogo === true && shop.logoPosition === "center" && (sf?.navPlacement || "auto") === "auto";
-  const navBelow = useNavBelow(centered ? { ...sf, navPlacement: "below" } : splitInline || layout === "rail" ? { ...sf, navPlacement: "inline" } : sf, headerRowRef, navRef);
-  // The side menu always starts with the logo at the top of the rail.
-  const logoPosition = centered ? "center" : layout === "rail" ? "left" : shop.logoPosition;
+  const market = layout === "market";
+  const navBelow = useNavBelow(centered || market ? { ...sf, navPlacement: "below" } : splitInline || layout === "rail" ? { ...sf, navPlacement: "inline" } : sf, headerRowRef, navRef);
+  // The side menu always starts with the logo at the top of the rail; the search bar keeps it on the left.
+  const logoPosition = centered ? "center" : layout === "rail" || market ? "left" : shop.logoPosition;
   const navFit = useNavFit(sf, navRef, navBelow);
   const line = navLineProps(sf, navBelow, navFit);
 
@@ -659,6 +676,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
       {stickers && <style>{STICKER_PILL_CSS}</style>}
       {revealOnScrollUp && <style>{HEADER_REVEAL_CSS}</style>}
       {layout === "rail" && <style>{RAIL_HEADER_CSS}</style>}
+      {market && <style>{MARKET_HEADER_CSS}</style>}
       <AnnouncementBar design={sf} copyDesign={design} show={showAnnouncement} fallback={shop.announcement} shop />
       <header
         data-section="navigation"
@@ -751,6 +769,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
             </div>
             {linksMiddle && <div className="flex min-w-0 justify-center">{!navBelow && navBar}</div>}
             {logoPosition === "center" && <div className={`${around ? "" : "flex-1 "}flex justify-center`}>{logo}</div>}
+            {market && <HeaderSearchBox design={design} copyDesign={design} onSearch={onSearch} />}
             <div data-hdr-fixed data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart" className={`flex shrink-0 flex-nowrap gap-2 sm:gap-6 md:gap-8 items-center flex-1 justify-end ${logoPosition === "right" ? "flex-initial" : ""}`}>
               {logoPosition === "right" && logo}
               {around && <div className="mr-auto hidden md:block md:pl-10">{barOf(around.right, navRightRef)}</div>}
