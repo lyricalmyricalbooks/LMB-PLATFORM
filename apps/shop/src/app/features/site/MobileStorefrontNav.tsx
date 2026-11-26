@@ -44,6 +44,8 @@ export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle =
   // Style › Header layout › "Phone navigation style": tabs across the top (default) or the drop-down menu.
   // Header layout › Minimal: the Menu button holds every link on every screen size.
   const menuSocial = d.showSocialInMobileMenu !== false ? social : [];
+  // "Menu button beside the name": the header draws this menu itself (PhoneHeaderMenu), so nothing below the header row.
+  if (!everywhere && mobileNavStyle(d) === "icon") return null;
   if (!everywhere && mobileNavStyle(d) === "tabs") return <MobileNavTabs design={design} d={d} groups={groups} bookings={bookings} showThemeToggle={showThemeToggle} pathname={pathname} slug={slug} social={menuSocial} />;
   return <details ref={ref} className={everywhere ? "relative shrink-0" : "md:hidden"} data-ga-menu="phone" data-studio-target="style:header|menus:categories|copy:Header" data-studio-label="Mobile navigation"
     onKeyDown={e => { if (e.key === "Escape") { close(); ref.current?.querySelector("summary")?.focus(); } }}>
@@ -88,8 +90,17 @@ function SocialIconRow({ design, links, className }: { design: any; links: Socia
   </div>;
 }
 
-/** "tabs" (a sideways-scrolling row of links) unless Studio picked the drop-down "menu". */
-export const mobileNavStyle = (d: any): "tabs" | "menu" => (d?.mobileNavStyle === "menu" ? "menu" : "tabs");
+/** "tabs" (a sideways-scrolling row of links) unless Studio picked the drop-down "menu" or the "icon" menu button
+ *  that sits in the header row beside the shop's name (one row on phones: menu, name, search, bag). */
+export const mobileNavStyle = (d: any): "tabs" | "menu" | "icon" => (d?.mobileNavStyle === "menu" ? "menu" : d?.mobileNavStyle === "icon" ? "icon" : "tabs");
+
+/** True when phones get the menu button inside the header row (Style › Header layout › "Phone navigation style"). */
+export const phoneMenuInHeader = (d: any): boolean => d?.showMobileNavigation !== false && mobileNavStyle(d) === "icon";
+
+/** The phone-only menu button for the header row; computers keep their own links. */
+export function PhoneHeaderMenu(props: { design: any; pages: any[]; onSearch: () => void; showThemeToggle?: boolean }) {
+  return <div className="flex shrink-0 md:hidden"><MobileStorefrontNav {...props} everywhere /></div>;
+}
 
 function MobileNavTabs({ design, d, groups, bookings, showThemeToggle, pathname, slug, social }: { design: any; d: any; groups: ReturnType<typeof splitNavigation>; bookings: boolean; showThemeToggle: boolean; pathname: string; slug: (s: string) => string; social: SocialLink[] }) {
   const rowRef = useRef<HTMLDivElement>(null);

@@ -1964,6 +1964,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "imageUrl", label: "Photo", kind: "image" },
     { key: "imageAlt", label: "Photo description (alt text)", kind: "text" },
     { key: "layout", label: "Photo side", kind: "select", options: [{ value: "image-right", label: "Photo on the right" }, { value: "image-left", label: "Photo on the left" }] },
+    { key: "phonePhotoFirst", label: "Photo first on phones (the words follow under it)", kind: "toggle", defaultValue: false },
     { key: "captionNumber", label: "Caption number (e.g. 01)", kind: "text" },
     { key: "captionText", label: "Caption on the photo (a new line starts a second line)", kind: "textarea", rows: 2 },
     { key: "plusUrl", label: "Round + button link (empty = no button)", kind: "link" },

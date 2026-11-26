@@ -9,6 +9,8 @@ describe("compact phone header", () => {
     expect(css).toContain(".fm-announce");
     expect(css).toContain(".fm-hdr-row .fm-logo");
     expect(css).toContain("white-space:nowrap");
+    // A long shop name wraps between words instead of running under search and the bag.
+    expect(css).toMatch(/\.fm-hdr-row \.fm-logo\{[^}]*white-space:normal/);
     expect(storefrontOverridesCss({})).toContain(".fm-hdr-cart");
   });
   it("puts the card price under the title on phones unless switched off", async () => {

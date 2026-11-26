@@ -97,6 +97,9 @@
   .fm-split-copy { min-height: 480px; padding: 60px 28px 36px; }
   .fm-split-title { font-size: var(--fm-split-title-phone, 74px); }
   .fm-split-photo { height: 490px; }
+  /* "Photo first on phones" (the section's own switch): the photo opens the page, the words follow under it. */
+  .fm-split.fm-split-photo-first .fm-split-photo { order: -1; height: min(490px, 58svh); }
+  .fm-split.fm-split-photo-first .fm-split-copy { order: 0; min-height: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .fm-split-link, .fm-split-plus { transition: none; } }
 

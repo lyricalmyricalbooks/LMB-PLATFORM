@@ -940,7 +940,7 @@ export function SplitOpeningSection({ settings, enableAnimations }: any) {
     ...(settings.photoBgColor ? { "--fm-split-photo-bg": settings.photoBgColor } : {}),
   };
   return (
-    <section className={`fm-split ${photoRight ? "" : "fm-split-flip"}`} style={{ ...bgStyle(settings), ...vars }}>
+    <section className={`fm-split ${photoRight ? "" : "fm-split-flip"}${settings.phonePhotoFirst === true ? " fm-split-photo-first" : ""}`} style={{ ...bgStyle(settings), ...vars }}>
       <div className="fm-split-copy" data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           {settings.eyebrow && <p className="fm-split-eyebrow" style={bStyle(settings)} data-theme-field="eyebrow">{settings.eyebrow}</p>}
