@@ -33,6 +33,8 @@ describe("product cards in page sections link to the product", () => {
       // No clickable boxes pretending to be links, and no button inside a link.
       expect(html).not.toContain('role="link"');
       expect(html).not.toMatch(/<a[^>]*>(?:(?!<\/a>).)*<button/s);
+      // A code note written as "// ..." inside the markup showed on every live card (26 November 2026).
+      expect(html.replace(/<[^>]*>/g, " ")).not.toMatch(/\/\/ /);
     });
   }
 });
