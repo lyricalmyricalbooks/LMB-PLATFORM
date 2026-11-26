@@ -201,7 +201,7 @@ export const ARTICLES = Object.freeze([
     topic: "Getting started",
     question: "What should I do first?",
     answer: [
-      "The first time you open your shop's admin, you choose a look for it. Then your Overview shows Set up your shop: eight steps from your logo to opening your shop, in an order chosen from how you said you sell today.",
+      "The first time you open your shop's admin, you choose your website. Then your Overview shows Set up your shop: eight steps from your logo to opening your shop, in an order chosen from how you said you sell today.",
       "Three steps show at a time and the rest wait under Later. Most tick themselves once they are done. Your shop stays private until the last step, Open your shop. When you no longer need the guide, press Hide this guide.",
     ],
     where: ["Overview"],
@@ -420,10 +420,10 @@ export const ARTICLES = Object.freeze([
     topic: "Selling",
     question: "How do I change how my shop looks?",
     answer: [
-      "Open Settings › Design. Choose a theme, then your colours, fonts and logo.",
-      "Your changes stay a draft until you publish them, so shoppers never see a half-finished look. You can check the shop on a phone-sized screen before you publish.",
+      "Open Online store. Your website is at the top with its colours: tap one to try it. To start from another website, pick one under Change your website, or press Preview to see it with sample products first.",
+      "Use this puts it in your draft. Change words, photos and sections in Studio, then press Publish. Shoppers see nothing until you publish, and you can switch back to your old website for 30 days.",
     ],
-    where: ["Settings › Design"],
+    where: ["Online store"],
     plans: ["shop"],
   },
   {

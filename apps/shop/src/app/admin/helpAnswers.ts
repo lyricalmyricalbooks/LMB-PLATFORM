@@ -202,7 +202,7 @@ export function helpList(list: readonly HelpEntry[], { text, topic }: { text: st
 const FIRST: Record<string, string> = {
   overview: "overview", home: "overview", orders: "orders", customers: "customers", books: "catalog", products: "catalog",
   discounts: "discounts", "gift cards": "giftCards", inventory: "inventory", "sales channels": "channels",
-  "social posts": "socialPosts", messages: "messages", analytics: "analytics", reviews: "reviews",
+  "social posts": "socialPosts", messages: "messages", analytics: "analytics", reviews: "reviews", "online store": "design",
 };
 const STOCKROOM: Record<string, string> = { stockroom: "dashboard", "tax centre": "taxcenter", bookkeeping: "books", invoices: "invoices", stockists: "consignment", backups: "backups" };
 

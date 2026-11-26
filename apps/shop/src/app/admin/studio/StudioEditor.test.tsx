@@ -416,7 +416,7 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     await click(buttons("Add section")[0]);
     await click(buttons(/^Newsletter/)[0]);
     await click(buttons("Save draft")[0]);
-    await click(buttons("Theme actions")[0]);
+    await click(buttons("Studio actions")[0]);
     await click(buttons(/^Discard saved draft/)[0]);
     await click(buttons("Discard draft")[0]);
     const discard = fixture.calls.filter(c => c.method === "saveDesign").pop();

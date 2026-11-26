@@ -1,4 +1,4 @@
-// Theme actions › Version history (Studio 3.1): every Publish (last 30), the latest saved draft and the owner's
+// Studio actions › Version history (Studio 3.1): every Publish (last 30), the latest saved draft and the owner's
 // named checkpoints, which are pinned and never age out. Compare any version with the current draft, the live
 // design or another version, in Studio's own words (designDiff.ts), and take back one change at a time — each
 // restore is one named, undoable draft change. Nothing here publishes. Compare with the starter (one website picker

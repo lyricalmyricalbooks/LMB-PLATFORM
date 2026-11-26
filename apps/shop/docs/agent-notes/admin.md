@@ -1721,3 +1721,7 @@ in `websiteChoice.ts` (tests in `websiteChoice.test.ts`).
   line with Use <name>. Skip uses the chosen starter, else the first of the shortlist. The open list row reads
   "Choose your website" (`openList.ts`).
 
+- Step 5 (wording): help article `look` and the tour's Online store stop point to Online store (`helpAnswers.ts` maps
+  "Online store" to the `design` page; `help/help.test.js` accepts menu item labels). Studio's ⋯ menu is named
+  "Studio actions" (was "Theme actions"; "More actions" clashed with Version history's "More actions for …").
+  Studio labels say "website" for "theme". The older looks stay in the code for shops on them, but no owner list shows them.

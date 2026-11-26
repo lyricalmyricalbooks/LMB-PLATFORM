@@ -1,4 +1,4 @@
-// Theme actions › Schedule publishing (Studio 3.5): publish the draft or a saved theme at a set time, or run a
+// Studio actions › Schedule publishing (Studio 3.5): publish the draft or a saved theme at a set time, or run a
 // campaign (a look from … until …, then the shop switches back). Entries are admin-only `themeSchedule` documents the
 // server scheduler runs every 15 minutes (functions/themeSchedule.js); times are Toronto time.
 import { useEffect, useState } from "react";

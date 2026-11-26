@@ -47,7 +47,7 @@ if (new URLSearchParams(location.search).has("classes")) fixture.settings.classe
 if (new URLSearchParams(location.search).has("support")) fixture.settings.givingLive = true;
 if (new URLSearchParams(location.search).has("membership")) fixture.settings.membershipsLive = true;
 if (new URLSearchParams(location.search).has("rentals")) fixture.settings.rentalsLive = true;
-// Version history starts with the published design kept once (Studio › Theme actions › Version history).
+// Version history starts with the published design kept once (Studio › Studio actions › Version history).
 fixture.versions = [{ id: "v-published", kind: "published", label: "Published 8 Oct 2026", createdAt: "2026-10-08T15:00:00.000Z", design: JSON.parse(JSON.stringify(fixture.settings.design)) }];
 // `?olderStarter=aurel-editorial/sand` shows Studio for a shop that started from an older version of that starter (and
 // changed its button corners), so Themes offers the new version (starterVersions.ts).

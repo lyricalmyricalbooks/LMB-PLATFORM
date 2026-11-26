@@ -3703,8 +3703,8 @@ async function loadSetup() {
     // The looks live shops wear now (control-room/shopLooks.js), read from each shop: after the setup looks, not before.
     api("GET", "/control/live-looks").then(({ looks: worn, templates, shops, waiting, withSamples, welcome, unread }) => {
       $("#setup-looks").append(sheet({
-        title: "Looks live shops wear",
-        metaParts: [plural(shops, "live shop"), welcome.picked || welcome.skipped ? `Choose your look: ${welcome.picked} picked, ${welcome.skipped} skipped` : null, waiting ? `${waiting} picked a look but haven't published it` : null, withSamples ? `${withSamples} still show a starter's sample words` : null, unread.length ? `${unread.length} couldn't be read` : null].filter(Boolean),
+        title: "Websites live shops use",
+        metaParts: [plural(shops, "live shop"), welcome.picked || welcome.skipped ? `Choose your website: ${welcome.picked} picked, ${welcome.skipped} skipped` : null, waiting ? `${waiting} picked a website but haven't published it` : null, withSamples ? `${withSamples} still show a starter's sample words` : null, unread.length ? `${unread.length} couldn't be read` : null].filter(Boolean),
         body: [worn.length ? el("ul", { className: "cr-history" }, ...worn.map((r) => el("li", { textContent: `${r.id ? r.name : "Their own design"}: ${r.count}` }))) : emptyState("No live shops yet.")],
       }), sheet({
         title: "Templates live shops show",
@@ -3718,8 +3718,8 @@ async function loadSetup() {
 }
 $("#setup-refresh").addEventListener("click", loadSetup);
 
-// ── Starter websites (control-room/starterSites.js): which whole-website starters shops are offered in Choose your look
-// and Studio › Designs, in what order, and which carry a New tag. Nothing reaches shops until Save. ──
+// ── Starter websites (control-room/starterSites.js): which whole-website starters shops are offered in Choose your
+// website and on Online store, in what order, and which carry a New tag. Nothing reaches shops until Save. ──
 const STARTER_STATE = { shown: ["success", "showing"], hidden: ["neutral", "hidden"], waiting: ["warning", "new, waiting for you"] };
 async function loadStarters() {
   const slot = $("#setup-starters");
@@ -4114,14 +4114,14 @@ function shopLookSection(shop) {
   api("POST", "/control/shop-look", { shopId: shop.shopId }).then(({ look, words }) => {
     if (!look) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: words }));
     fill(slot,
-      look.waiting ? el("p", { className: "rp-hint", textContent: `Picked ${lookWords(look.welcome.theme)} in Choose your look but hasn't published it, so shoppers still see the plain starting design. Studio › Publish puts it live.` }) : null,
+      look.waiting ? el("p", { className: "rp-hint", textContent: `Picked ${lookWords(look.welcome.theme)} in Choose your website but hasn't published it, so shoppers still see the plain starting design. Studio › Publish puts it live.` }) : null,
       el("p", { className: "rp-hint", textContent: look.live
         ? `Shoppers see ${look.live.name}${look.template ? ` (the ${lookWords(look.template)} template)` : ""}${look.publishedAt ? `, published ${dateOnly(look.publishedAt)}` : ""}.`
         : look.publishedAt ? `Shoppers see the press's own design (not from a ready-made look), published ${dateOnly(look.publishedAt)}.` : "Nothing published from Studio yet." }),
       look.templateDetails?.length ? el("p", { className: "rp-hint", textContent: `Changed the template's ${look.templateDetails.join(", ")} in Studio (Reset template details on the Themes page puts them back).` }) : null,
       look.samples ? el("p", { className: "rp-hint", textContent: `${plural(look.samples, "section")} on the website still show the starter's sample words and pictures (marked Sample in Studio › Page layout).` }) : null,
       look.draft ? el("p", { className: "rp-hint", textContent: `Trying ${look.draft.name} in Studio, not published.` }) : null,
-      look.welcome ? el("p", { className: "rp-hint", textContent: `Choose your look: ${look.welcome.skipped ? "skipped, so it took" : "picked"} ${lookWords(look.welcome.theme)}${look.welcome.at ? ` on ${dateOnly(look.welcome.at)}` : ""}.` }) : null);
+      look.welcome ? el("p", { className: "rp-hint", textContent: `Choose your website: ${look.welcome.skipped ? "skipped, so it took" : "picked"} ${lookWords(look.welcome.theme)}${look.welcome.at ? ` on ${dateOnly(look.welcome.at)}` : ""}.` }) : null);
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
   return slot;
 }

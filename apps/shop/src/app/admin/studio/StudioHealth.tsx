@@ -1,4 +1,4 @@
-// Theme actions › Studio Health (3.3): checks the page shown in the preview (healthAudit.ts) plus the whole draft's
+// Studio actions › Studio Health (3.3): checks the page shown in the preview (healthAudit.ts) plus the whole draft's
 // data checks (studioChecks.ts). Each finding can be shown on the page and its part opened for editing. Read-only:
 // nothing is changed until the owner edits the part.
 import { useShopWords } from "../shopWords";

@@ -130,7 +130,7 @@ const DETAILS = "#settings/general/details";
 
 const WORDS: Record<StepId, StepWords> = {
   logo: { title: "Add your logo", why: "Your logo goes in the shop's header, on your emails and when someone shares a link to your shop.", tab: "designer", action: "Open Design" },
-  look: { title: "Choose your look", why: "Pick a look for the shop, then press Publish in Design so shoppers see it.", tab: "designer", action: "Open Design" },
+  look: { title: "Choose your website", why: "Pick a website for your shop on Online store, then press Publish in Studio so shoppers see it.", tab: "design", action: "Open Online store" },
   "add-books": { title: "Add your first book", why: "A title, a price and a photo are enough to start. You can fill in the rest later.", tab: "catalog", action: "Open Books" },
   "bring-books": { title: "Bring your shop with you", why: "Export your products from your old shop and choose that file in Import spreadsheet. Photos, prices and editions come over as drafts, and old links keep working.", tab: "catalog", action: "Open Books" },
   "import-spreadsheet": { title: "Import your spreadsheet", why: "Choose your spreadsheet of books in Import spreadsheet: Excel or CSV both work. You see every book before anything is saved.", tab: "catalog", action: "Open Books" },

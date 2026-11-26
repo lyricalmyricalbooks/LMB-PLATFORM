@@ -521,7 +521,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // Studio › Designs › Preview: a whole theme shown in the canvas without touching the draft.
   const [themePreview, setThemePreview] = useState<{ id: string; label: string; design: any; books?: any[] } | null>(null);
   // The last theme switch's report (Themes › What carried over), kept until dismissed or another look replaces it.
-  // Theme actions › Schedule publishing (3.5); a saved theme can be pre-selected from Themes.
+  // Studio actions › Schedule publishing (3.5); a saved theme can be pre-selected from Themes.
   const [schedule, setSchedule] = useState<{ themeId: string | null } | null>(null);
   const [confirmAction, setConfirmAction] = useState<"publish" | "discard" | null>(null);
   const [checksOpen, setChecksOpen] = useState(false);
@@ -675,7 +675,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         // The same step may have absorbed a follow-up edit of the same field (coalescing keeps `past` as it was), e.g. the
         // rich-text editor rewriting the HTML into its own form: that is still the change this toast names.
         if (expect.present === undefined || !h.past.length || (h.present !== expect.present && h.past !== expect.past)) {
-          say("err", "That change is no longer the latest one. Use Undo (Ctrl+Z) step by step, or Theme actions › Version history.");
+          say("err", "That change is no longer the latest one. Use Undo (Ctrl+Z) step by step, or Studio actions › Version history.");
           return;
         }
         setHist(cur => cur.present === expect.present ? undo(cur) : cur);
@@ -1189,7 +1189,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setHealthRun(n => n + 1);
   };
   const openWorkbench = (tab: WorkbenchTab) => {
-    if (narrow) { if (tab === "health") setChecksOpen(true); else say("ok", "The Workbench is shown on tablets and computers. Studio Health is in Theme actions."); return; }
+    if (narrow) { if (tab === "health") setChecksOpen(true); else say("ok", "The Workbench is shown on tablets and computers. Studio Health is in Studio actions."); return; }
     setWorkbench({ open: true, tab });
     if (tab === "health") setHealthRun(n => n + 1);
   };
@@ -2709,7 +2709,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             ? <strong>{dirtyDraft || busy === "draft" ? "Saving…" : "Saved"}</strong>
             : <><strong>{dirtyDraft ? "Not saved yet" : unpublished ? "Saved as draft" : "Live"}</strong><span className="studio-status-sep"> · </span><span>{dirtyDraft || unpublished ? "shop unchanged" : "the shop shows this"}</span></>}
         </span>
-        <div className="studio-tools-menu"><span>Theme actions</span><ActionMenu label="Theme actions" actions={[
+        <div className="studio-tools-menu"><span>Studio actions</span><ActionMenu label="Studio actions" actions={[
           ...(!beforeShop ? [{ label: "View website", icon: <Eye size={14} />, onSelect: openPreviewTab }] : []),
           { label: "Find anything", icon: <Search size={14} />, onSelect: () => setFindOpen(true) },
           { label: "Version history", icon: <History size={14} />, onSelect: () => { setHistoryOnStarter(false); setHistoryOpen(true); loadVersions(); } },
@@ -2748,7 +2748,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         </span>
         <PrimaryButton size="sm" onClick={() => resolveIncoming("combine")}>{incoming.paths.length ? "Bring in theirs, keep mine" : "Bring in their changes"}</PrimaryButton>
         <SecondaryButton size="sm" onClick={async () => {
-          const ok = await askConfirm({ title: "Use their version?", message: "Your unsaved edits in this tab will be replaced by the version saved in the other tab or device. To keep a copy first, use Theme actions › Version history › Save checkpoint.", confirmLabel: "Use their version" });
+          const ok = await askConfirm({ title: "Use their version?", message: "Your unsaved edits in this tab will be replaced by the version saved in the other tab or device. To keep a copy first, use Studio actions › Version history › Save checkpoint.", confirmLabel: "Use their version" });
           if (ok) resolveIncoming("theirs");
         }}>Use their version</SecondaryButton>
         <SecondaryButton size="sm" onClick={() => resolveIncoming("later")}>Later</SecondaryButton>
@@ -2862,7 +2862,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           })()}
           {liveCheckFailed && <p className="text-sm font-bold studio-dialog-warn" role="status" data-publish-live-check-failed>Couldn't check the live shop just now. The list above compares with the last version Studio saw, so it may miss changes made elsewhere.</p>}
           {confirmAction === "publish" && !publishHealth && <p className="studio-health-publish" data-publish-health-pending>
-            <ShieldCheck size={14} aria-hidden /> {publishHealthState === "failed" ? "Studio Health couldn't check this page just now. Open Theme actions › Studio Health to try again." : "Checking the page…"}</p>}
+            <ShieldCheck size={14} aria-hidden /> {publishHealthState === "failed" ? "Studio Health couldn't check this page just now. Open Studio actions › Studio Health to try again." : "Checking the page…"}</p>}
           {confirmAction === "publish" && publishHealth && <p className="studio-health-publish" data-publish-health>
             <ShieldCheck size={14} aria-hidden /> {site.report && site.complete && site.ranAt?.device === device && !site.running
               ? <>Studio Health checked {template.label} on {REGION_DEVICE_LABELS[device].toLowerCase()}: {publishHealth.text}. Check every page at {new Date(site.ranAt.at).toLocaleTimeString()} ({site.report.totals.checked} pages, before any later edits): {site.report.totals.issues ? `${site.report.totals.issues} to fix` : "nothing to fix"}{site.report.totals.failed ? `, ${site.report.totals.failed} not checked` : ""}.</>

@@ -230,7 +230,7 @@ function MediaDetails({ item, usage, lib, onBack, savedThemes, getVersions, getS
     try { stored = getStoredDesigns ? await getStoredDesigns() : []; }
     catch { setError("Couldn't check scheduled designs and share links for this image, so it wasn't deleted. Check your connection and try again."); return; }
     const scheduled = storedDesignUses(item, stored || []);
-    if (scheduled.length) { setError(`This image is used by ${scheduled.join(", ")}. It would break when that goes live or is opened, so it can't be deleted yet. Cancel that schedule (Theme actions › Schedule publishing) or revoke the share link (Themes › Share a preview link) first.`); return; }
+    if (scheduled.length) { setError(`This image is used by ${scheduled.join(", ")}. It would break when that goes live or is opened, so it can't be deleted yet. Cancel that schedule (Studio actions › Schedule publishing) or revoke the share link (Themes › Share a preview link) first.`); return; }
     const ok = await askConfirm({ title: "Delete this image?", message: `“${item.name}” and all its sizes will be removed from your library and storage. This can't be undone.`, confirmLabel: "Delete image" });
     if (!ok) return;
     await act("Deleting…", async () => { 

@@ -76,7 +76,7 @@ describe("Choose your website, then Set up your shop (plans 6.3, 6.9)", () => {
     expect(draft.themeBase.id).toBe(id);
     expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: { theme: id, at: expect.any(String), firstRun: true } });
     expect(text()).toContain("Set up your shop");
-    expect(text()).not.toContain("Choose your website");
+    expect(document.querySelector("[data-testid=choose-website]")).toBeNull();
   });
 
   it("offers no admin look to pick: the admin has one look", async () => {
@@ -120,7 +120,7 @@ describe("Choose your website, then Set up your shop (plans 6.3, 6.9)", () => {
   it("the welcome never shows again once done; the guide shows its three parts, opens the next step and saves its progress", async () => {
     api.getFirstWeek.mockResolvedValue({ plan: "both", welcome: { theme: "press-zine", at: "now" } });
     await mount({});
-    expect(text()).not.toContain("Choose your website");
+    expect(document.querySelector("[data-testid=choose-website]")).toBeNull();
     expect([...document.querySelectorAll("section h3")].map(h => h.firstElementChild?.textContent)).toEqual(["Your shop", "Ready to sell", "Launch", "Reach more shoppers"]);
     expect(document.querySelectorAll("ol[aria-label='Your shop'] > li").length).toBe(3);
     // Rows open on a click: the next step has its own tile, with its button.
@@ -232,7 +232,7 @@ describe("Get started, contact details after the look and the products (plan 17.
     expect(document.querySelector("[data-row=bring]")?.getAttribute("data-state")).toBe("done");
     expect(text()).toContain("1 step to open Moth Press");
     expect(text()).toContain("We'll also fill in your shipping, returns, privacy and terms pages");
-    expect(text()).not.toContain("Choose your website");
+    expect(document.querySelector("[data-testid=choose-website]")).toBeNull();
     expect((field("Brand name") as HTMLInputElement).value).toBe("Moth Press");
     expect((field("Country") as HTMLSelectElement).value).toBe("Canada");
   });
@@ -267,7 +267,7 @@ describe("Get started, contact details after the look and the products (plan 17.
     // Shipping is in the same row: the row stays the one to do now, on its second part.
     await waitFor(() => !document.querySelector("input[name]") || /Ships from|shipping/i.test(text()));
     expect(document.querySelector("[data-row=delivery][aria-current=step]")).not.toBeNull();
-    expect(text()).not.toContain("Choose your website");
+    expect(document.querySelector("[data-testid=choose-website]")).toBeNull();
   });
 
   it("a failed save keeps the step open with a plain message, and records nothing", async () => {
@@ -296,7 +296,7 @@ describe("Get started, step 2: bring your shop with you (plan 17.3)", () => {
     await mount({ waitForWelcome: false });
     expect(text()).toContain("Bring your products");
     expect(text()).toContain("Where do you sell now?");
-    expect(text()).not.toContain("Choose your website");
+    expect(document.querySelector("[data-testid=choose-website]")).toBeNull();
     expect(document.querySelector("[data-row=bring][aria-current=step]")).not.toBeNull();
   });
 

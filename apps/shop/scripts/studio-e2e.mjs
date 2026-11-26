@@ -678,7 +678,7 @@ await check("Brand kit: a logo's colour becomes a palette, the canvas previews i
     await page.waitForTimeout(400);
     return (await calls(page)).filter(c => c.method === "saveDesign").pop().args[0].design;
   };
-  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
   await page.getByRole("menuitem", { name: "Brand kit…" }).click();
   const kit = page.locator("[data-studio-brand-kit]");
   await kit.waitFor({ timeout: 5000 });
@@ -1085,7 +1085,7 @@ await check("Version history compares a version with the draft and takes one sec
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();
   await expectText(page, "Home · 1 section");
-  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
   await page.getByRole("menuitem", { name: "Version history" }).click();
   const dialog = page.getByRole("dialog", { name: "Version history" });
   await dialog.waitFor({ timeout: 5000 });
@@ -1174,7 +1174,7 @@ await check("Studio Health checks the previewed page, shows a finding and opens 
     part.innerHTML = '<button type="button" data-e2e-health style="width:12px;height:12px;padding:0;border:0"></button>';
     footer.appendChild(part);
   });
-  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
   await page.getByRole("menuitem", { name: "Studio Health" }).click();
   // On a computer Health opens in the Workbench docked under the preview (3.0 phase 1), not a dialog.
   const dialog = page.locator("[data-studio-workbench]");
@@ -1201,7 +1201,7 @@ await check("Studio Health checks the previewed page, shows a finding and opens 
 
 await check("Check every page: audits each kind of page in a hidden preview, Stop works, Open this page switches the canvas", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
-  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
   await page.getByRole("menuitem", { name: "Studio Health" }).click();
   const wb = page.locator("[data-studio-workbench]");
   const panel = wb.locator("[data-studio-site-health-panel]");
@@ -1241,7 +1241,7 @@ await check("Check every page scrolls through so sections that fade in lower dow
     f.remoteSave({ ...draft, showHero: true, heroPage: { sections: [...filler, { id: "lowest", type: "RichTextSection", settings: { animation: "fade-up", html: '<p><a href="#">Go nowhere</a></p>' } }] } });
   });
   await page.frameLocator('iframe[title="Live preview"]').getByText("Go nowhere").first().waitFor({ state: "attached", timeout: 15000 });
-  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
   await page.getByRole("menuitem", { name: "Studio Health" }).click();
   const panel = page.locator("[data-studio-site-health-panel]");
   await panel.getByRole("button", { name: "Check every page" }).click();
@@ -1389,7 +1389,7 @@ await check("Workbench: W opens it, Changes jumps back through edits, To-dos' Sh
 
 await check("⋯ › Share a preview link creates a private link of the draft and turns it off", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
-  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
   await page.getByRole("menuitem", { name: "Share a preview link…" }).click();
   const share = page.getByRole("dialog", { name: /Share a preview/ });
   await share.getByRole("button", { name: "Create link" }).click();
@@ -1434,7 +1434,7 @@ await check("a new version of the shop's starter: told once, previewed in the ca
   if (await page.getByRole("dialog", { name: "Compare with the starter" }).count()) throw new Error("the window stayed over the preview");
   if (await page.locator("[data-studio-status=\"unsaved\"]").count()) throw new Error("previewing the new version changed the draft");
   await page.locator("[data-studio-theme-preview]").getByRole("button", { name: "Stop preview" }).click();
-  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
   await page.getByRole("menuitem", { name: "Version history" }).click();
   await page.locator("[data-history-starter]").click();
   await panel.getByRole("button", { name: "Update Aurel Sand" }).click();
@@ -1488,7 +1488,7 @@ await check("Version history › Compare with the starter keeps the owner's own 
   await expectText(page, "Preview connected", 30000);
   const essentials = page.locator('[data-studio-panel="essentials"]');
   await essentials.locator('[data-style-key="headingFont"] select').selectOption("Oswald");
-  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
   await page.getByRole("menuitem", { name: "Version history" }).click();
   await page.locator("[data-history-starter]").click();
   const own = page.locator("[data-own-edits]");
@@ -1909,7 +1909,7 @@ await check("View website opens the shop in a new tab with the draft and says wh
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();
   await expectText(page, "Home · 1 section");
-  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
   const [tab] = await Promise.all([page.context().waitForEvent("page"), page.getByRole("menuitem", { name: "View website" }).click()]);
   if (!/[?&]preview=true/.test(tab.url())) throw new Error(`View website opened ${tab.url()}`);
   await tab.locator('[data-draft-preview-banner="unsaved"]').waitFor({ timeout: 30000 });
@@ -2034,7 +2034,7 @@ await check("in night mode Navigation's chosen menu tab can be read and Shop cat
 }, "?night=1#designer?tab=menus");
 
 // The phone top bar used to wrap to five rows and push the preview half off the screen.
-await check("on a phone the top bar is two rows of full-size buttons, with View website under Theme actions", { width: 390, height: 844 }, async page => {
+await check("on a phone the top bar is two rows of full-size buttons, with View website under Studio actions", { width: 390, height: 844 }, async page => {
   const bar = await page.evaluate(() => {
     const top = document.querySelector(".studio-topbar");
     const shown = [...top.querySelectorAll("button")].filter(b => b.getBoundingClientRect().width > 0);
@@ -2044,7 +2044,7 @@ await check("on a phone the top bar is two rows of full-size buttons, with View 
   if (bar.height > 120) throw new Error(`the phone top bar is ${bar.height}px tall`);
   if (bar.small.length) throw new Error(`small tap targets in the top bar: ${bar.small.join(", ")}`);
   if (bar.unnamed) throw new Error(`${bar.unnamed} top bar buttons have no name`);
-  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
   await page.getByRole("menuitem", { name: "View website" }).waitFor({ timeout: 5000 });
 });
 
@@ -2071,7 +2071,7 @@ await check("calmer Studio: slim top bar, path in the left panel, a four-stop to
   await expectText(page, "Preview connected", 30000);
   await page.waitForTimeout(1200);
   if (await page.locator("[data-studio-tour]").count()) throw new Error("the tour came back after it was finished");
-  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("button", { name: "Studio actions" }).click();
   await page.getByRole("menuitem", { name: "Take the tour" }).click();
   await page.locator("[data-studio-tour='1']").waitFor({ timeout: 5000 });
 }, "?tour=1#designer?tab=sections");
