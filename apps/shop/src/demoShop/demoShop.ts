@@ -8,8 +8,9 @@ import { applyStarter, starterForShop, starterPagesToAdd, type LeadSide, type St
 import { getSectionMeta } from "../app/admin/ThemeEditorExtensions";
 import { starterPhotos } from "../app/admin/studio/starterPhotos";
 import { withStarterWords } from "../app/admin/sells";
-import { wordsFor } from "../shared/shopSells";
+import { shopKind, wordsFor } from "../shared/shopSells";
 import { libraryLook } from "../app/admin/lookGallery";
+import { starterBookingSamples } from "../app/admin/studio/starterPages";
 
 export const DEMO_KEY = "colophon-demo-shop";
 /** The name a sample shop shows: the visitor's own goes in when they start. */
@@ -70,7 +71,7 @@ export function demoPages(shop: any): any[] {
   return starterPagesToAdd(shop, []).map((page: any, i: number) => ({ ...page, id: `demo-${page.slug}`, status: "published", showInNav: true, order: i }));
 }
 
-export function demoDesign(choice: DemoChoice, base = "/", asked = DEMO_NAME): { design: any; books: any[]; pages: any[]; name: string; sells: string; shopName: string } {
+export function demoDesign(choice: DemoChoice, base = "/", asked = DEMO_NAME): { design: any; books: any[]; pages: any[]; name: string; sells: string; shopName: string; bookingSamples: { starterServices: any[]; starterTeam: any[] } } {
   const sells = DEMO_SELLS[choice.sells];
   const theme = withStyle(libraryLook(choice.starter), choice.style);
   // With no name of the visitor's own, the starter's made-up brand fills the header, as a finished shop's name would.
@@ -78,7 +79,7 @@ export function demoDesign(choice: DemoChoice, base = "/", asked = DEMO_NAME): {
   const shop = starterForShop(theme, choice.kind === "both" ? "both" : sells, choice.lead);
   const applied = applyStarter(defaultSettings().design, shop, getSectionMeta, wordsFor(sells), starterPhotos(sells, base));
   const design = withStarterWords({ ...applied, copy: { ...(applied.copy || {}), siteName: shopName } }, sells);
-  return { design: underBase(design, base), books: underBase(demoProducts(choice, sells), base), pages: demoPages(shop), name: styledName(theme), sells, shopName };
+  return { design: underBase(design, base), books: underBase(demoProducts(choice, sells), base), pages: demoPages(shop), name: styledName(theme), sells, shopName, bookingSamples: underBase(starterBookingSamples(theme), base) };
 }
 
 /**
@@ -86,7 +87,9 @@ export function demoDesign(choice: DemoChoice, base = "/", asked = DEMO_NAME): {
  * Both shop the starter's own, else a set of things to buy alongside the services (a services sample set has none).
  */
 function demoProducts(choice: DemoChoice, sells: string): any[] {
-  if (choice.kind === "services") return [];
+  // A services shop sells nothing unless it's shown as Both: Salon and Workshop's shop page and search used to list the
+  // services sample set's "Example …" items as products (plan "Starters on par", step 2).
+  if (choice.kind === "services" || (!choice.kind && shopKind(sells) === "services")) return [];
   const own = sampleShopBooks(sells, choice.starter);
   if (choice.kind !== "both" || own.length) return own;
   return sampleShopBooks("other");

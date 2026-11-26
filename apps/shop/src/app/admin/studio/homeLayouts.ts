@@ -506,7 +506,7 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
       ] } },
       { type: "ImageWithTextSection", settings: {
         eyebrow: "CONTACT", title: "Got a manuscript, a proposal, or a question about an order?",
-        body: "Write to us and we'll answer within a few days.", ctaText: "Email us", ctaUrl: "mailto:owner@example.com", layout: "image-left",
+        body: "Write to us and we'll answer within a few days.", ctaText: "Write to us", ctaUrl: "/page/contact", layout: "image-left",
       } },
     ],
   },

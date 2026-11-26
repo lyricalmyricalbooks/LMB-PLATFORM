@@ -1226,3 +1226,16 @@ Squarespace demos). Step 1 fixed what was broken:
 - **Footer email:** `StoreFooter.tsx` no longer falls back to `owner@example.com`. With no shop email the Contact design
   shows a large "Contact →" link to `/page/contact`, the Contact link goes to the page (unless the page is already in the
   footer menu) and the four-column layout leaves the email out.
+
+## Starter About, Contact and services (26 November 2026, plan "Starters on par", step 2)
+
+- **Brand pages:** `studio/starterPages.ts` holds `STARTER_PAGES`, one set per starter: About/Contact/Shipping words, an
+  About photo band, contact form words, an optional map, and for Salon and Workshop sample services and team.
+  `withStarterPages` (wrapping `THEME_LIBRARY`) adds `content.pageWords`, `"page:about"`/`"page:contact"` sections
+  (PageContentSection first, then ImageWithText or ContactForm + Map) and `sampleServices`/`sampleTeam`.
+- **Sample words:** `presetPagesToAdd` uses the starter's words and marks the page `sample: true`; Studio › Pages shows a
+  "Sample words" note and list tag, and saving the page clears the flag. Plain looks keep the bracketed prompts.
+- **Booking preview:** `bookTimePreview.ts` reads `__studioPreviewState.starterServices`/`starterTeam` when present
+  (`starterBookingSamples(look)`), and a service with `places > 1` is a class. Services-only demo shops list no products.
+- **No dead buttons:** ImageWithText blocks in starters always set `ctaText`/`ctaUrl` (the renderer's default is
+  "Read more" to `#`). `starterPages.test.ts` checks words have no prompts, emails, reviews or "Example".

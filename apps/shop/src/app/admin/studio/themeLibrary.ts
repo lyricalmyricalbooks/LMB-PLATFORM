@@ -1,4 +1,5 @@
 // Colour palette presets and the built-in theme library used by the Studio editor.
+import { withStarterPages } from "./starterPages";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
 
 export const PALETTES = [
@@ -61,7 +62,7 @@ export const THEME_APPLIED_KEYS = [
   "catalogLayoutStyle", "showCatalogControls",
 ];
 
-export const THEME_LIBRARY = [
+export const THEME_LIBRARY = withStarterPages([
   {
     id: RISO_NOIR_ID,
     name: "Riso Noir",
@@ -760,7 +761,7 @@ export const THEME_LIBRARY = [
           { type: "SplitOpeningSection", settings: { phonePhotoFirst: true, eyebrow: "Autumn \u2014 The Arc collection", title: "Carried well,", accentWord: "made to last.", body: "Leather bags and small goods, cut and stitched by hand in our Montr\u00e9al studio and repaired for life.", imageUrl: "/starters/aurel/arc-bag.jpg", imageAlt: "The Arc shoulder bag in cobalt leather", layout: "image-right", ctaText: "Explore the collection", ctaUrl: "/collections/all", captionNumber: "01", captionText: "Arc shoulder bag\nCobalt leather \u00b7 $240", plusUrl: "/collections/all", plusLabel: "View the featured product" } },
           { type: "MarqueeSection", settings: { text: "Free shipping over $150 \u2726 Made in Montr\u00e9al \u2726 Repairs for life", separator: "\u2726", still: true, fontSize: 10, speed: 40, uppercase: true, bold: false, letterSpacing: 0.12 } },
           { type: "ProductShowcaseGridSection", settings: { overlayOpacity: 0, eyebrow: "The Arc collection", title: "Bags and small goods", columnsDesktop: 3, columnsMobile: 2, imageAspectRatio: "4:5", showCategoryTag: false, showQuickAdd: true, grainOpacity: 0 } },
-          { type: "ImageWithTextSection", settings: { eyebrow: "The atelier", title: "Four benches, one street", body: "Ondine started cutting bags at her kitchen table in 2014. Today four of us make every piece at the studio on Rue Bernard, and we still repair each one for free.", imageUrl: "/starters/aurel/atelier.jpg", imageAlt: "Leather and tools on a workbench in the studio", layout: "image-left" } },
+          { type: "ImageWithTextSection", settings: { eyebrow: "The atelier", title: "Four benches, one street", body: "Ondine started cutting bags at her kitchen table in 2014. Today four of us make every piece at the studio on Rue Bernard, and we still repair each one for free.", imageUrl: "/starters/aurel/atelier.jpg", imageAlt: "Leather and tools on a workbench in the studio", layout: "image-left", ctaText: "Visit the atelier", ctaUrl: "/page/about" } },
         ],
         globalSections: [{ type: "NewsletterSection", settings: { title: "First look at new pieces", description: "A short letter when a new collection is ready, never more than once a month.", align: "center", colorSchemeId: "scheme-inverse" } }],
       },
@@ -910,7 +911,7 @@ export const THEME_LIBRARY = [
         heroPage: [
           { type: "ImageBannerSection", settings: { eyebrow: "Hair studio \u00b7 Dundas West", title: "Good hair, no rush.", body: "Cuts, colour and care in a bright studio with four chairs. Every visit starts with a proper chat.", imageUrl: "/samples/beauty/opening.webp", imageAlt: "A stylist finishing a client's hair in a bright studio", height: "full", contentPosition: "bottom-left", textAlign: "left", overlayOpacity: 0.5, overlayStyle: "fade", colorSchemeId: "scheme-inverse", ctaText: "Book a time", ctaUrl: "/book", secondaryCtaText: "" } },
           { type: "ServiceMenuSection", settings: { eyebrow: "Prices", title: "What we offer", subtitle: "Every service, how long it takes and what it costs. Prices include a wash and finish.", buttonLabel: "Book", showLength: true, showDescription: true, showBook: true, align: "left", containerWidth: "md" } },
-          { type: "ImageWithTextSection", settings: { eyebrow: "About us", title: "Four chairs and plenty of light", body: "We opened Rosewater in 2019 in an old print shop with big windows. Tea is always on, nobody is rushed, and we only book one client per stylist at a time.", imageUrl: "/samples/beauty/about.webp", imageAlt: "The studio with its big windows and four chairs", layout: "image-left", colorSchemeId: "scheme-accent" } },
+          { type: "ImageWithTextSection", settings: { eyebrow: "About us", title: "Four chairs and plenty of light", body: "We opened Rosewater in 2019 in an old print shop with big windows. Tea is always on, nobody is rushed, and we only book one client per stylist at a time.", imageUrl: "/samples/beauty/about.webp", imageAlt: "The studio with its big windows and four chairs", layout: "image-left", ctaText: "Meet the team", ctaUrl: "/page/about", colorSchemeId: "scheme-accent" } },
           { type: "BookingTeamSection", settings: { eyebrow: "The team", title: "Who you'll see", showServices: true, align: "left" } },
           { type: "BookingHoursSection", settings: { eyebrow: "Visit", title: "Open times and where to find us", showMap: true, showCancelRule: true, align: "left", colorSchemeId: "scheme-inverse" } },
         ],
@@ -947,7 +948,7 @@ export const THEME_LIBRARY = [
             { title: "02 · Everything included", body: "Clay, tools, aprons, glazes, two firings and plenty of tea." },
             { title: "03 · Take it home", body: "Your glazed pieces are ready to collect two weeks after class." },
           ] } },
-          { type: "ImageWithTextSection", settings: { eyebrow: "Who teaches", title: "Hi, I'm Noor", body: "I've made pots for fifteen years and taught for ten. My classes are slow, messy and full of laughing, and nobody leaves without something they made.", imageUrl: "/samples/studio/story.webp", imageAlt: "Noor centring clay on the wheel", layout: "image-left" } },
+          { type: "ImageWithTextSection", settings: { eyebrow: "Who teaches", title: "Hi, I'm Noor", body: "I've made pots for fifteen years and taught for ten. My classes are slow, messy and full of laughing, and nobody leaves without something they made.", imageUrl: "/samples/studio/story.webp", imageAlt: "Noor centring clay on the wheel", layout: "image-left", ctaText: "More about the studio", ctaUrl: "/page/about" } },
           { type: "FAQSection", settings: { title: "Before you book", showSearch: false, items: [
             { question: "Do I need any experience?", answer: "None at all. The Saturday class is made for first-timers; the open studio hour is for people who have taken a class." },
             { question: "What should I bring?", answer: "Clothes you don't mind getting muddy and short nails. We have aprons, tools and towels." },
@@ -1011,4 +1012,4 @@ export const THEME_LIBRARY = [
       buttonColor: "#1f1a14", buttonTextColor: "#f3efe8", buttonHoverBgColor: "#7a4b2a", buttonHoverTextColor: "#ffffff", buttonRadius: 0, buttonUppercase: false,
       headerBg: "#f3efe8", headerColor: "#1f1a14", footerBg: "#1f1a14", footerTextColor: "#f3efe8", footerHeadingColor: "#d9cbb6", showAnnouncement: false,
       cartDrawerBg: "#f3efe8", cartDrawerText: "#1f1a14", checkoutAccentColor: "#7a4b2a", checkoutBgColor: "#f3efe8", linkColorHover: "#7a4b2a", navLinkActiveColor: "#7a4b2a" } },
-];
+]);

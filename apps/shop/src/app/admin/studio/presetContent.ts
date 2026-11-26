@@ -28,6 +28,11 @@ export type PresetContent = {
   sampleProducts?: StarterSampleProduct[];
   /** The made-up brand a starter's sample shop belongs to: the name a demo shows when no shop name is given. */
   sampleBrand?: string;
+  /** The starter's own words for its starter pages, by Studio › Pages starter id (starterPages.ts). */
+  pageWords?: Partial<Record<string, string>>;
+  /** A booking starter's own price list and team, shown in previews and demos in place of the general samples. */
+  sampleServices?: { name: string; minutes: number; price: number; description: string; group: string; photo: string; places?: number }[];
+  sampleTeam?: { name: string; bio: string }[];
 };
 
 export type StarterSampleProduct = {
@@ -88,6 +93,9 @@ export const PRESET_SECTION_TEMPLATES: Record<string, string> = {
   // Every-page section groups (starter websites step 3): what sits under the header and above the footer on every page.
   headerSections: "Under the header (every page)",
   globalSections: "Above the footer (every page)",
+  // A starter's own About and Contact pages (plan "Starters on par", step 2): shown when the page with that address exists.
+  "page:about": "About page",
+  "page:contact": "Contact page",
 };
 
 /** Where a preset's section list goes: a section group is a root list, any other id is a page template. */
@@ -201,7 +209,9 @@ export function presetPagesToAdd(preset: PresetLike, pages: { slug?: string }[])
   const added: ReturnType<typeof pageFromStarter>[] = [];
   for (const starter of presetStarterPages(preset)) {
     if (used.has(starter.slug)) continue;
-    const page = { ...pageFromStarter(starter, [...pages, ...added]), status: "draft" as const };
+    // The starter's own words take the prompts' place and arrive marked Sample until the owner saves the page.
+    const words = preset?.content?.pageWords?.[starter.id];
+    const page = { ...pageFromStarter(starter, [...pages, ...added]), status: "draft" as const, ...(words ? { body: words, sample: true } : {}) };
     added.push(page);
     used.add(page.slug);
   }

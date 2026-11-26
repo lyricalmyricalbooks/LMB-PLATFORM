@@ -45,7 +45,9 @@ describe("live demo shops", () => {
         expect(name).toMatch(/\S/);
         // No name asked: the starter's made-up brand, never "Your shop".
         expect(design.copy.siteName).toBe((libraryLook(starter) as any).content.sampleBrand);
-        expect(books.length).toBeGreaterThan(0);
+        // A services shop sells nothing (its price list is its shop); every other kind shows sample products.
+        if (kind === "studio" || kind === "beauty") expect(books).toEqual([]);
+        else expect(books.length).toBeGreaterThan(0);
         // Every picture sits under the demo's folder.
         expect(JSON.stringify({ design, books })).not.toMatch(/"\/(starters|samples)\//);
         // What shoppers read, as the storefront reads it.
@@ -72,5 +74,21 @@ describe("Show as: a demo as a products, services or both shop", () => {
       expect(both.books.length, starter).toBeGreaterThan(0);
       expect(JSON.stringify(both.design), starter).toMatch(/ServiceMenuSection|BookTimeSection/);
     }
+  });
+});
+
+describe("the booking starters show their own price list and team", () => {
+  it("Salon and Workshop bring their own services, never the general samples", () => {
+    for (const starter of ["starter-salon", "starter-workshop"]) {
+      const { bookingSamples } = demoDesign(demoChoice({ starter }), "/demo/");
+      expect(bookingSamples.starterServices.length, starter).toBeGreaterThanOrEqual(4);
+      expect(bookingSamples.starterTeam.length, starter).toBeGreaterThanOrEqual(2);
+      for (const s of bookingSamples.starterServices) {
+        expect(s.name).not.toMatch(/example|sample/i);
+        expect(s.photo).toMatch(/^\/demo\/samples\//);
+        expect(s.priceMinor).toBeGreaterThan(0);
+      }
+    }
+    expect(demoDesign(demoChoice({ starter: "aurel-editorial" }), "/demo/").bookingSamples.starterServices).toEqual([]);
   });
 });
