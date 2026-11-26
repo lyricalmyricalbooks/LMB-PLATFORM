@@ -1702,6 +1702,18 @@ Ways to sell › Bookings) or, behind a tick box, are cancelled with a full refu
 `bookingsAdmin`. The old "Sell products too" box and the kind switch are gone. Fixture: `?offer=…&offerDone=1`
 (`&changed=1` adds a change three days old); `__adminFixture.calls` records the writes, opens and cancels.
 
+**Part 4 (26 November 2026): the website follows.** After the change is saved, "follow" calls `shopTypeData.followWebsite`:
+the working website's starter (`websiteChoice.ts` `currentWebsite` on the draft, else the live design) goes through
+`chooseLook.ts` `applyChosenLook(starterTheme(id, style), settings, sells, { kind, lead, keepBefore: true })` into Studio's
+draft; the owner's own design (`id: null`) is never touched, and the dialog then defaults to "later" and hides follow.
+Leaving services closes the Book a time page (`bookingsAdmin("setLive")`) and records `before.bookingPage` so Switch back
+reopens it; Switch back also follows the website back when the change had followed. `functions/sellsSync.js` copies
+`shopKind` (products / services / both) into `settings/website` (`updateSettings` strips it); the storefront reads it:
+`servicesStorefront.ts` (Services hides bag, wishlist, currency, shipping and returns; Products never does), `useSiteData`
+lists no products for a Services shop (a product address reads not found), and `scripts/sitemapData.mjs`
+`listedProducts` keeps those products and the two policies out of the site map, page drawings, feeds and llms.txt. The
+Salon starter's Bag and "See the collection" were fixed by the starters thread's `servicesVersion` (#1052).
+
 ## One website picker (26 November 2026, plan https://claude.ai/artifact/Rfj5WFBC58QyUsgMyXbU9J, step 2)
 
 Online store (`DesignHome.tsx`) is the one place a shop chooses its website. `WebsitePicker.tsx` draws it; the rules live

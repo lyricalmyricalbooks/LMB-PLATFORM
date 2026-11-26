@@ -80,9 +80,12 @@ export function ChangeShopTypeDialog({ doc, onClose, onChanged }: { doc: FirstWe
   const [sure, setSure] = useState(false);
   const [problem, setProblem] = useState("");
   const [busy, setBusy] = useState(false);
+  // The website the owner is working on: a starter follows the type; their own design stays as it is.
+  const [site, setSite] = useState<{ id: string | null; name: string } | null>(null);
 
   useEffect(() => {
     let live = true;
+    shopTypeData.website().then((w) => { if (!live) return; setSite(w); if (!w.id) setWebsite("later"); }).catch(() => { if (live) setSite(null); });
     shopTypeData.counts().then((c) => { if (live) setCounts(c); }).catch(() => { if (live) setCounts({ products: null, orders: null, services: null, upcoming: null, clients: null }); });
     if (from !== "products") shopTypeData.upcoming().then((rows) => { if (live) setUpcoming(rows); }).catch(() => { if (live) setUpcoming([]); });
     return () => { live = false; };
@@ -117,7 +120,13 @@ export function ChangeShopTypeDialog({ doc, onClose, onChanged }: { doc: FirstWe
     if (bookingsToAnswer && bookingsKeep === "cancel") {
       for (const b of upcoming ?? []) { try { await shopTypeData.cancelOne(b); } catch { failed += 1; } }
     }
-    const write = typeChangeWrite(doc, to, answers, website, new Date().toISOString());
+    // Leaving services closes the Book a time page (Switch back opens it again); bookings already made stay.
+    let pageWasOpen = false;
+    if (leavesServices(from, to)) {
+      try { pageWasOpen = await shopTypeData.bookingPageOpen(); if (pageWasOpen) await shopTypeData.setBookingPage(false); }
+      catch { pageWasOpen = false; }
+    }
+    const write = typeChangeWrite(doc, to, answers, website, new Date().toISOString(), pageWasOpen);
     try {
       const { productGroups, ...rest } = write;
       await adminApi.updateFirstWeek(rest);
@@ -127,6 +136,12 @@ export function ChangeShopTypeDialog({ doc, onClose, onChanged }: { doc: FirstWe
       window.dispatchEvent(new CustomEvent(SELLS_PRODUCTS_CHANGED_EVENT, { detail: write.sellsProducts }));
       if (write.leadSide) window.dispatchEvent(new CustomEvent(LEAD_SIDE_CHANGED_EVENT, { detail: write.leadSide }));
       onChanged(nextDoc);
+      let followed = false;
+      if (website === "follow") {
+        try { followed = await shopTypeData.followWebsite(to, write.leadSide ?? doc?.leadSide, write.sells ?? doc?.sells ?? doc?.publishes ?? null); }
+        catch { toast.error("Your website couldn't follow just now. Pick its new version in Online store."); }
+      }
+      if (followed) toast.success(`${site?.name ?? "Your website"}'s ${typeName(to).toLowerCase()} version is in your draft. Publish it from Online store when you're happy.`);
       toast.success(failed ? `You're now ${typeName(to).toLowerCase()}. ${failed} booking${failed === 1 ? "" : "s"} couldn't be cancelled: they're still in your calendar.` : `You're now ${to === "products" ? "a product shop" : typeName(to).toLowerCase()}. You can switch back for 30 days.`);
       if (website === "pick") window.location.hash = "design";
       onClose();
@@ -192,7 +207,9 @@ export function ChangeShopTypeDialog({ doc, onClose, onChanged }: { doc: FirstWe
   const websiteStep = (
     <div style={{ display: "grid", gap: 12 }}>
       <p className="rp-hint" style={{ margin: 0 }}>Your website can follow your new type{to === "services" ? " with a Book a time page" : to === "products" ? " with your products up front" : ""}.</p>
-      <Choices name="type-website" label="Your website" value={website} onChange={setWebsite} options={WEBSITE_CHOICES} />
+      <Choices name="type-website" label="Your website" value={website} onChange={setWebsite}
+        options={site && !site.id ? WEBSITE_CHOICES.filter((c) => c.id !== "follow") : WEBSITE_CHOICES.map((c) => (c.id === "follow" && site ? { ...c, label: `Use ${site.name}'s ${to ? typeName(to).toLowerCase() : ""} version (recommended)` } : c))} />
+      {site && !site.id && <p className="rp-hint" style={{ margin: 0 }}>Your website is your own design, so it stays as it is unless you pick a new one.</p>}
     </div>
   );
 
@@ -201,7 +218,7 @@ export function ChangeShopTypeDialog({ doc, onClose, onChanged }: { doc: FirstWe
       <div data-type-summary style={{ display: "grid", gap: 4, padding: "16px 18px", borderRadius: "var(--rp-radius-lg)", background: "var(--rp-primary-tint)" }}>
         <span className="rp-hint" style={{ margin: 0 }}>{typeName(from)} becomes</span>
         <strong style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-0.01em" }}>{typeName(to)}</strong>
-        <span className="rp-hint" style={{ margin: 0, textTransform: "none" }}>Website: {WEBSITE_CHOICES.find((c) => c.id === website)?.label.replace(" (recommended)", "")}</span>
+        <span className="rp-hint" style={{ margin: 0, textTransform: "none" }}>Website: {website === "follow" ? `${site?.name ?? "your look"}'s ${typeName(to).toLowerCase()} version, in your draft` : website === "pick" ? "you'll pick another next" : "stays as it is"}</span>
       </div>
       {bookingsToAnswer > 0 && (
         <section style={{ display: "grid", gap: 10 }} data-type-bookings>

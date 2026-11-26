@@ -313,7 +313,10 @@ export function useSiteData() {
   useEffect(() => { setShopSocial(settings); }, [settings]);
   // A services shop with nothing on sale: a booking website, without the bag, wishlist, currency or shipping links.
   const shown = useMemo(() => withServicesStorefront(started, sellableBooks.length), [started, sellableBooks.length]);
-  return { books: sellableBooks, settings: { ...shown, design: resolveSurfaceDesign(shown.design, location.pathname) }, pages, loading, fresh, loadError, retry };
+  // A shop whose type is Services shows none of the products it had as a product shop: a product address then reads
+  // "not found" and the grids are empty, the same set the site map lists (scripts/sitemapData.mjs listedProducts).
+  const listedBooks = useMemo(() => ((settings as any)?.shopKind === "services" ? [] : sellableBooks), [settings, sellableBooks]);
+  return { books: listedBooks, settings: { ...shown, design: resolveSurfaceDesign(shown.design, location.pathname) }, pages, loading, fresh, loadError, retry };
 }
 
 /**

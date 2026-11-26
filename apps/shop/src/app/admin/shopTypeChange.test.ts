@@ -34,6 +34,7 @@ describe("changing the shop's type", () => {
     const w = typeChangeWrite({ sells: "hair" }, "products", { groups: ["books", "art"], otherWords: "Candles" }, "pick", AT);
     expect(w).toMatchObject({ sells: "books", productGroups: ["art", "books"], otherSells: "Candles", sellsProducts: false });
     expect(shopKindOf(w)).toBe("products");
+    expect(typeChangeWrite({ sells: "hair" }, "products", { groups: ["art"] }, "later", AT, true).typeChange.before.bookingPage).toBe(true);
     const both = typeChangeWrite({ sells: "hair", sellsProducts: true }, "services", {}, "follow", AT);
     expect(both.sells).toBeUndefined();
     expect(both.sellsProducts).toBe(false);

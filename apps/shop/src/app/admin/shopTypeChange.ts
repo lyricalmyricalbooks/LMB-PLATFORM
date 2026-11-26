@@ -15,7 +15,8 @@ export type { ShopType };
 export type WebsiteChoice = "follow" | "pick" | "later";
 
 /** What the shop was before a change, so Switch back can put it back. */
-export type TypeBefore = { sells: string; sellsProducts: boolean; leadSide: LeadSide };
+/** `bookingPage`: the Book a time page was open, so Switch back opens it again (leaving services closes it). */
+export type TypeBefore = { sells: string; sellsProducts: boolean; leadSide: LeadSide; bookingPage?: boolean };
 export type TypeChange = { at: string; from: ShopType; to: ShopType; before: TypeBefore; website: WebsiteChoice; undoneAt?: string };
 
 /** How long Switch back is offered. */
@@ -60,9 +61,9 @@ export function answersProblem(from: ShopType, to: ShopType, a: TypeAnswers): st
  * its `sells`; a services shop moving to products takes its kinds' word (books when it picked Books and paper, which
  * turns the book tools on, as in Settings). The record keeps the before so Switch back can put it back.
  */
-export function typeChangeWrite(doc: Doc, to: ShopType, a: TypeAnswers, website: WebsiteChoice, at: string) {
+export function typeChangeWrite(doc: Doc, to: ShopType, a: TypeAnswers, website: WebsiteChoice, at: string, bookingPage?: boolean) {
   const from = shopKindOf(doc ?? null);
-  const before: TypeBefore = { sells: savedSells(doc), sellsProducts: doc?.sellsProducts === true, leadSide: doc?.leadSide === "products" ? "products" : "services" };
+  const before: TypeBefore = { sells: savedSells(doc), sellsProducts: doc?.sellsProducts === true, leadSide: doc?.leadSide === "products" ? "products" : "services", ...(bookingPage ? { bookingPage: true } : {}) };
   const change: { sells?: string; sellsProducts: boolean; leadSide?: LeadSide; otherService?: string; otherSells?: string; productGroups?: string[]; typeChange: TypeChange } = {
     sellsProducts: to === "both",
     typeChange: { at, from, to, before, website },

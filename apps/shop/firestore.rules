@@ -442,7 +442,7 @@ service cloud.firestore {
             && request.resource.data.typeChange.get("website", "") in ["follow", "pick", "later"]
             && request.resource.data.typeChange.get("at", "") is string
             && request.resource.data.typeChange.get("before", {}) is map
-            && request.resource.data.typeChange.get("before", {}).keys().hasOnly(["sells", "sellsProducts", "leadSide"])))
+            && request.resource.data.typeChange.get("before", {}).keys().hasOnly(["sells", "sellsProducts", "leadSide", "bookingPage"])))
           // `offer`: when Get started's What you offer was answered, a small map.
           && (!("offer" in request.resource.data) || (request.resource.data.offer is map && request.resource.data.offer.size() <= 2))
           // Ways to sell (beta; Settings › General › Ways to sell): the owner's own switches, true or false for each

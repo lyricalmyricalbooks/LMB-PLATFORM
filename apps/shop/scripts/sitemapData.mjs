@@ -11,13 +11,16 @@ const absoluteUrl = (value, base) => {
   try { const url = new URL(value.trim(), base); return /^https?:$/.test(url.protocol) ? url.href : ''; } catch { return ''; }
 };
 const slugify = (value = '') => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+// A shop whose type is Services (settings/website `shopKind`, copied by functions/sellsSync.js when the owner changes
+// type) lists no products: the ones it had as a product shop stay out of sight until it sells things again.
+export const listedProducts = (books, settings) => (settings?.shopKind === 'services' ? [] : books);
 // productBase: "books" or "products", what the shop sells decides (src/shared/shopSells.ts productBase).
 export function sitemapArtifacts(siteUrl, books, pages, collections, settings = {}, { includeEmptyCollections = false, productBase = 'books' } = {}) {
   const base = siteUrl.replace(/\/$/, '');
   const urls = [{ loc: base + '/' }];
   // Same live-book set (and so the same collision-safe slugs) as the storefront's useSiteData / isLiveBook.
   const nowISO = new Date().toISOString();
-  const live = books.filter(book => (!book.status || book.status === 'published') && releaseArrived(book.scheduleDate, nowISO));
+  const live = listedProducts(books, settings).filter(book => (!book.status || book.status === 'published') && releaseArrived(book.scheduleDate, nowISO));
   for (const book of resolveProductRoutes(live)) {
     if (book.seoNoindex === true) continue;
     // A free-text slug the prerender cannot write as a file stays out of the sitemap (the book still works in the app).
@@ -34,6 +37,8 @@ export function sitemapArtifacts(siteUrl, books, pages, collections, settings = 
   // Store policies (Settings › General › Store policies) are public pages too; card networks and Google
   // must reach the refund and terms pages as real 200 documents.
   for (const key of ['shipping', 'returns', 'privacy', 'terms', 'accessibility']) {
+    // A services website drops the policies only a shop that ships needs (servicesStorefront.ts SHIPPING_POLICIES).
+    if (settings?.shopKind === 'services' && (key === 'shipping' || key === 'returns')) continue;
     const text = settings?.policies?.[key];
     if (typeof text === 'string' && text.trim()) urls.push({ loc: `${base}/page/policy-${key}` });
   }

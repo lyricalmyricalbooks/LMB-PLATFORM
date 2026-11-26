@@ -11,6 +11,7 @@ import { inventoryLinkApi } from "./inventoryLinkApi";
 import { SELLS_CHANGED_EVENT, SELLS_PRODUCTS_CHANGED_EVENT } from "./shopWords";
 import { SecondaryButton, SectionCard, TextField, Toggle, useConfirm } from "./riso/components";
 import { ChangeShopTypeDialog } from "./ChangeShopTypeDialog";
+import { shopTypeData } from "./shopTypeApi";
 import { switchBackOf, switchBackUntil, switchBackWrite, typeName } from "./shopTypeChange";
 import { FormField } from "./riso/FormKit";
 import { BookOpen, Check, X } from "lucide-react";
@@ -202,6 +203,14 @@ export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
     if (!undo) return;
     if (!(await ask({ title: `Switch back to ${typeName(undo.from).toLowerCase()}?`, message: "Your menu and words go back to how they were. Nothing is deleted.", confirmLabel: "Switch back" }))) return;
     await save("undo", switchBackWrite(undo, new Date().toISOString()), `You're ${undo.from === "products" ? "a product shop" : typeName(undo.from).toLowerCase()} again.`);
+    if (undo.before.bookingPage) {
+      try { await shopTypeData.setBookingPage(true); } catch { toast.error("Your Book a time page couldn't open again. Turn it on in Calendar."); }
+    }
+    // The website followed the change, so it follows back: the same look's version for the type you were.
+    if (undo.website === "follow") {
+      try { if (await shopTypeData.followWebsite(undo.from, undo.before.leadSide, undo.before.sells)) toast.success("Your website's earlier version is back in your draft. Publish it from Online store."); }
+      catch { toast.error("Your website couldn't switch back just now. Pick its version in Online store."); }
+    }
   };
 
   const groupNames = [...TYPE_GROUPS.filter((g) => groups.includes(g.id)).map((g) => g.name.toLowerCase()), ...(otherWords(doc?.otherSells) ? [otherWords(doc?.otherSells).toLowerCase()] : [])];
