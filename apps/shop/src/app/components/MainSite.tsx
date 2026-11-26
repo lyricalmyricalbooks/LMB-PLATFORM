@@ -298,6 +298,7 @@ function TypographyTokens({ design }: { design: any }) {
   const btnText = design?.buttonTextColor || "#100f0d";
   let css = `
 [data-fm-store]{
+  --body-font:'${t.body}',sans-serif;
   font-family:'${t.body}',sans-serif;
   font-size:${t.base}px;
   line-height:${t.lineHeight};

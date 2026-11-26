@@ -51,7 +51,9 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
     : linksAlign === "start" ? "md:grid-cols-[auto_minmax(0,1fr)]" : "md:grid-cols-[minmax(0,1fr)_auto]";
   const groupsLayout = linksAlign === "spread" ? "grid grid-cols-2"
     : `grid grid-cols-2 sm:flex sm:flex-wrap ${linksAlign === "start" ? "md:justify-self-start" : "md:justify-self-end"}`;
-  const email = settings?.info?.email || "owner@example.com";
+  // The shop's own email; a shop (or a sample starter) without one links to its Contact page instead of showing a
+  // made-up address in large type (plan "Starters on par", step 1).
+  const email = String(settings?.info?.email || "").trim();
   const footerAbout: string = String((settings?.design?.copy?.footerAbout != null ? getCopy(settings?.design, "footerAbout") : shopCopyFallback(settings, "footerAbout") || getCopy(settings?.design, "footerAbout")) ?? "");
   const footerLocation: string = String(getCopy(d, "footerLocation") ?? "");
   const badges = d?.showPaymentBadges !== false ? resolveFooterBadges(d, settings) : [];
@@ -74,7 +76,9 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
         <div className="fm-footer-contact fm-footer-text text-white" data-two={d.showFooterLocation !== false && footerLocation.trim() ? "" : undefined} data-studio-target="copy:Footer|style:footer" data-studio-label="Footer contact">
           <div className="min-w-0">
             <p className="fm-footer-heading text-white/55 text-[9px] uppercase tracking-[0.3em]"><span data-studio-copy="footerLinkContact">{getCopy(d, "footerLinkContact")}</span></p>
-            <p className="fm-footer-contact-big"><a href={`mailto:${email}`}>{email.split("@")[0]}@<wbr />{email.split("@").slice(1).join("@")}</a></p>
+            <p className="fm-footer-contact-big">{email
+              ? <a href={`mailto:${email}`}>{email.split("@")[0]}@<wbr />{email.split("@").slice(1).join("@")}</a>
+              : <Link to="/page/contact"><span data-studio-copy="footerLinkContact">{getCopy(d, "footerLinkContact")}</span> <span aria-hidden="true">→</span></Link>}</p>
           </div>
           {d.showFooterLocation !== false && footerLocation.trim() && <p className="fm-footer-contact-big"><span data-studio-copy="footerLocation">{footerLocation}</span></p>}
         </div>
@@ -137,12 +141,9 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
                 </Link>
               ))}
               {socialLinks.map((s) => <a key={s.key} href={s.url} target="_blank" rel="noopener noreferrer me" className="block hover:text-white transition-colors">{s.name}</a>)}
-              <a
-                href={`mailto:${settings?.info?.email || "owner@example.com"}`}
-                className="block hover:text-white transition-colors"
-              >
-                <span data-studio-copy="footerLinkContact">{getCopy(settings?.design, "footerLinkContact")}</span>
-              </a>
+              {email
+                ? <a href={`mailto:${email}`} className="block hover:text-white transition-colors"><span data-studio-copy="footerLinkContact">{getCopy(settings?.design, "footerLinkContact")}</span></a>
+                : !navPages.some(page => page.slug === "contact") && <Link to="/page/contact" className="block hover:text-white transition-colors"><span data-studio-copy="footerLinkContact">{getCopy(settings?.design, "footerLinkContact")}</span></Link>}
             </>
           )}
         </div>
@@ -161,12 +162,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
           <div className="space-y-3" data-studio-target="copy:Footer|style:footer" data-studio-label="Footer location">
             <p className="fm-footer-heading text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4"><span data-studio-copy="footerLocationHeading">{getCopy(settings?.design, "footerLocationHeading")}</span></p>
             <p><span data-studio-copy="footerLocation">{getCopy(settings?.design, "footerLocation")}</span></p>
-            <a
-              href={`mailto:${settings?.info?.email || "owner@example.com"}`}
-              className="block hover:text-white transition-colors"
-            >
-              {settings?.info?.email || "owner@example.com"}
-            </a>
+            {email && <a href={`mailto:${email}`} className="block hover:text-white transition-colors">{email}</a>}
           </div>
         )}
         </>}

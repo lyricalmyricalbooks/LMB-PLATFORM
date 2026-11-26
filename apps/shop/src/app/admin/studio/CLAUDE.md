@@ -87,3 +87,4 @@ Details of each feature live in [`docs/agent-notes/studio.md`](../../../../docs/
 - Starter phone header and photo first (26 November 2026, plan "Starters vs Shopify and Squarespace", step 4)
 - Starter product pages (26 November 2026, plan "Starters vs Shopify and Squarespace", step 5)
 - Starter fonts and "Good for" (26 November 2026, plan "Starters vs Shopify and Squarespace", step 6)
+- Starter page fixes (26 November 2026, plan "Starters on par", step 1)

@@ -1210,3 +1210,19 @@ show the photo first. The empty Reviews tab stays: it is where a shopper writes 
   does well" on the detail page) and Choose your website (`StarterCards.tsx`, `.rp-website-strengths` in `riso.css`).
   `starterStrengths.test.ts` keeps it to every starter, three lines of at most 48 characters, no full stops.
 - A new starter needs an entry here as well as in `STARTER_INFO` and `STARTER_BLURB`.
+
+## Starter page fixes (26 November 2026, plan "Starters on par", step 1)
+
+Plan https://claude.ai/artifact/3otgMHoTqFVWJGv57nLMQP (every page of all nine starters checked against the Shopify and
+Squarespace demos). Step 1 fixed what was broken:
+- **Search box:** `TEMPLATE_BASE_CSS` (`templateStyles.ts`) sets `.fm-search-input` to the body font, normal case, 16–22px.
+  The Riso search keeps its giant display type.
+- **Product page body font:** `BookDetail.tsx` set `fontFamily` to the bare `design.font` name and never loaded it, so
+  everything not given the heading font (tabs, Frequently bought together, related products) drew in the browser's serif.
+  It now loads the body font with the heading font and sets `--body-font` with a system fallback (MainSite sets
+  `--body-font` too).
+- **Photos stay in view:** `pdpStickyPhotos.ts` makes the photo column sticky on computers when it fits on screen and the
+  buy column is taller (default and "open" layouts only; never photos taller than the screen).
+- **Footer email:** `StoreFooter.tsx` no longer falls back to `owner@example.com`. With no shop email the Contact design
+  shows a large "Contact →" link to `/page/contact`, the Contact link goes to the page (unless the page is already in the
+  footer menu) and the four-column layout leaves the email out.

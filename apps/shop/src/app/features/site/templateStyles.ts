@@ -197,6 +197,7 @@ ${S} ::selection{background:var(--accent);color:var(--on-accent);}
 ${S} h1,${S} h2,${S} h3{text-wrap:balance;}
 ${S} .fm-card-price-old{opacity:.75 !important;}
 ${S} .fm-newsletter-btn{border:var(--template-btn-border) !important;box-shadow:var(--template-btn-shadow) !important;}
+${S} .fm-search-input{font-family:var(--body-font,inherit) !important;text-transform:none;letter-spacing:0;font-size:clamp(16px,1.6vw,22px);padding:.55rem .9rem;}
 @media (pointer:coarse){${S} .custom-btn{min-height:44px;}}
 @media (prefers-reduced-motion:reduce){${S} *{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important;}}
 `;
