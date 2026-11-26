@@ -1919,7 +1919,14 @@ if (new URLSearchParams(location.search).get("variants")) {
 }
 
 if (new URLSearchParams(location.search).get("page") === "design") {
-  const live = { themeBase: { id: "atlas", name: "Atlas" }, primaryColor: "#1f1e1b" };
+  // `&site=starter-gallery&style=stone` builds the live website on a starter; `&back=1` adds a website change from two
+  // days ago that can be switched back. Every starter is offered, two of them marked New.
+  const q = new URLSearchParams(location.search);
+  const site = q.get("site");
+  const live: any = site ? { themeBase: { id: site, name: site, style: q.get("style") || undefined }, primaryColor: "#1f1e1b" } : { themeBase: { id: "atlas", name: "Atlas" }, primaryColor: "#1f1e1b" };
+  const { startersData } = await import("../app/admin/platformStarters");
+  const { STARTER_SITES } = await import("../app/admin/lookGallery");
+  startersData.watch = (onChange) => { onChange({ known: STARTER_SITES, fresh: ["starter-larder", "starter-salon"] }); return () => {}; };
   const api = adminApi as any;
   api.getSettings = async () => ({ design: live, designPublishedAt: "2026-11-06T15:00:00.000Z" });
   api.getPages = async () => [
@@ -1929,7 +1936,10 @@ if (new URLSearchParams(location.search).get("page") === "design") {
   const { setThemeBackend } = await import("../app/admin/themeStore");
   const draft = { ...live, primaryColor: "#2a4d8f", copy: { cartTitle: "Your bag" } };
   setThemeBackend({
-    open: async () => ({ draft, rev: 1, savedThemes: [] }),
+    open: async () => ({ draft, rev: 1, savedThemes: q.get("back") ? [
+      { id: "switch-back", name: "Your website before Gallery", savedAt: new Date(Date.now() - 2 * 864e5).toISOString(), design: { themeBase: { id: "juniper-catalogue" } }, from: "Catalogue", to: "Gallery" },
+      { id: "spring", name: "Spring", savedAt: "2026-10-01T12:00:00.000Z", design: {} },
+    ] : [] }),
     write: async (rev: number) => rev + 1, saveThemes: async () => {}, fieldUpdate: async () => {}, readField: async () => undefined,
     watch: () => () => {},
   } as any);
