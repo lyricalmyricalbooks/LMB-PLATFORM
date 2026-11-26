@@ -17,6 +17,7 @@
   },
   "rules": {
     "react-hooks/rules-of-hooks": "error",
+    "react/jsx-no-comment-textnodes": "error",
     "no-unused-vars": [
       "error",
       {

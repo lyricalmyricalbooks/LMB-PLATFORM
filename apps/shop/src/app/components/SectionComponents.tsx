@@ -1876,8 +1876,8 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
             const category = book.categories?.[0] || "";
             return (
               <AnimationContainer className="min-w-0" key={book.id || idx} enabled={enableAnimations} delay={idx * 0.05}>
-                // The card's link lies over the whole card, so the card opens the product, can be opened in a new tab and is
-                // followed by search engines; the "+" button sits above it (a button can't sit inside a link).
+                {/* The card's link lies over the whole card, so the card opens the product, can be opened in a new tab and is
+                    followed by search engines; the "+" button sits above it (a button can't sit inside a link). */}
                 <div
                   {...blockEditAttrs({ id: book.id || productSlug(book) }, idx)}
                   className="fm-card group relative min-w-0"
