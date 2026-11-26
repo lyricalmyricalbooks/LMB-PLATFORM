@@ -11,7 +11,6 @@ export const GO_KEYS = [
   { key: "e", tab: "essentials", label: "Basics" },
   { key: "p", tab: "pages", label: "Pages" },
   { key: "n", tab: "menus", label: "Menus" },
-  { key: "h", tab: "themes", label: "Designs" },
   { key: "x", tab: "text", label: "Text & labels" },
   { key: "m", tab: "media", label: "Media" },
 ] as const;

@@ -18,7 +18,7 @@ import { regionFieldDevice } from "../../features/site/storefrontRegions";
 import { SHORTCUTS, type ShortcutAction } from "./shortcuts";
 import { MORE_SETTINGS, STYLE_SUBSECTIONS, THEME_HEADINGS, TEXT_HEADINGS, textSubsectionsFor } from "./settingsMap";
 
-export type StudioTab = "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
+export type StudioTab = "sections" | "style" | "text" | "menus" | "pages" | "media";
 export type StudioActionId =
   | "save" | "publish" | "discard" | "history" | "schedule" | "check" | "preview-tab" | "undo" | "redo"
   | "device-desktop" | "device-tablet" | "device-mobile" | "mode-toggle" | "autofit-page" | "add-section" | "fill-page-seo"
@@ -222,7 +222,6 @@ const TABS: { tab: StudioTab; title: string; keywords: string }[] = [
   { tab: "menus", title: "Menus", keywords: "menus navigation header footer categories links" },
   { tab: "pages", title: "Pages", keywords: "about journal custom page content" },
   { tab: "media", title: "Media", keywords: "media library images pictures photos uploads files alt text description srcset replace delete unused" },
-  { tab: "themes", title: "Designs", keywords: "my themes saved themes presets theme library looks share preview link private download import duplicate publish" },
 ];
 
 const MENU_PANELS: { panel: string; title: string; keywords: string }[] = [
@@ -240,7 +239,6 @@ const HOW_TO: { id: string; title: string; where: string; keywords: string; targ
 
 // What an owner might call a whole category. Matches the category card, which then outranks its single controls.
 const STYLE_GROUP_WORDS: Record<string, string> = {
-  themeLook: "dark mode light night noir presets themes templates looks styles saved download import start from",
   colors: "colour palette dark mode light night background page text accent theme brand shade",
   schemes: "palette sets dark light section colours",
   buttons: "colour round rounded corners radius shape hover cta call to action",

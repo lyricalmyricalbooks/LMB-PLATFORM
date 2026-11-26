@@ -37,7 +37,7 @@ const button = (el: HTMLElement, text: string, scope?: Element | null) =>
 const click = (b: HTMLElement) => act(async () => { b.click(); });
 afterEach(async () => { await act(async () => root?.unmount()); root = null; document.body.innerHTML = ""; vi.clearAllMocks(); });
 
-describe("Theme actions › Version history", () => {
+describe("Studio actions › Version history", () => {
   it("lists named, pinned checkpoints with their kind", async () => {
     const el = await mount(live);
     const rows = [...el.querySelectorAll("[data-version-id]")];

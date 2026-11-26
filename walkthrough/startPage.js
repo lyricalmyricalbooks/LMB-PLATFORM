@@ -51,7 +51,7 @@ export const START_SECTIONS = Object.freeze([
       { name: "Payments and emails", href: DEMO("/admin#settings/payments"), demo: true, who: "owner@example.com", try: "How the shop takes payments; then Email sender in the menu for the emails' words and look." },
       { name: "Studio, the designer", href: DEMO("/admin#designer"), demo: true, who: "owner@example.com", try: "Change any colour, word or section, see it on the page, then publish." },
       { name: "Themes, including Marquee and Shelf", href: DEMO("/admin#designer?tab=themes"), demo: true, who: "owner@example.com", try: "Every full template, tried on the shop before you choose." },
-      { name: "As a brand-new press", href: DEMO("/admin"), demo: true, who: "owner@example.com", try: "Start the demo with npm run demo -- --new-press: the admin opens on Choose your look, then Set up your shop." },
+      { name: "As a brand-new press", href: DEMO("/admin"), demo: true, who: "owner@example.com", try: "Start the demo with npm run demo -- --new-press: the admin opens on Choose your website, then Set up your shop." },
     ],
   },
   {

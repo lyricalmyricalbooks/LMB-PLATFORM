@@ -23,7 +23,7 @@ async function mount(run: () => HealthFinding[] | null) {
 const button = (text: string, scope: ParentNode = document.body) => [...scope.querySelectorAll("button")].find(b => b.textContent?.trim() === text) as HTMLButtonElement;
 afterEach(async () => { await act(async () => root?.unmount()); root = null; document.body.innerHTML = ""; });
 
-describe("Theme actions › Studio Health", () => {
+describe("Studio actions › Studio Health", () => {
   it("checks the page when it opens and lists what to fix first", async () => {
     const run = vi.fn(() => findings);
     const { onShow, onFix } = await mount(run);

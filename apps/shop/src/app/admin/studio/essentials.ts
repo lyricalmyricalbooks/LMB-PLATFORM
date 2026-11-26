@@ -13,14 +13,12 @@ export type EssentialStep = {
   /** Style keys. */
   style?: string[];
   /** A button that opens a whole workspace for this step. */
-  open?: { tab: "sections" | "themes" | "pages"; label: string };
+  open?: { tab: "sections" | "pages"; label: string };
 };
 
 export const ESSENTIALS: EssentialStep[] = [
   { id: "name", title: "Your shop's name", hint: "Shown in the header, the footer, checkout and every email.", copy: ["siteName"] },
   { id: "logo", title: "Logo", hint: "Optional: without a picture, the name above is your logo.", style: ["logoUrl", "faviconUrl"] },
-  { id: "look", title: "Start from a look", hint: "A ready-made set of colours, fonts and layout. Your words and books are kept.",
-    open: { tab: "themes", label: "Browse looks" } },
   { id: "colours", title: "Colours", hint: "The page, its words and your accent colour.", style: ["backgroundColor", "textColor", "primaryColor"] },
   { id: "fonts", title: "Fonts and buttons", hint: "One font for titles, one for reading.", style: ["headingFont", "bodyFont", "buttonStyle"] },
   { id: "announcement", title: "Announcement bar", hint: "A short line above the header, for news or free shipping.", style: ["showAnnouncement", "announcementText"] },

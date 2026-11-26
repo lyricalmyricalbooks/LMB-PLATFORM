@@ -1,6 +1,6 @@
 // First visit to Studio (round three, phase 4): four short stops pointing at the real parts of the screen, in place of
 // the green tips card. It never blocks the editor (no backdrop: everything stays clickable), it is remembered per
-// browser under the tips card's old key, and Theme actions › Take the tour starts it again.
+// browser under the tips card's old key, and Studio actions › Take the tour starts it again.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 
@@ -12,7 +12,7 @@ export type TourStop = { target: string; title: string; body: string };
 
 /** The four stops, each pointing at a part of Studio by a selector that is on screen on a computer and on a phone. */
 export const TOUR_STOPS: TourStop[] = [
-  { target: ".studio-rail", title: "Everything you can change", body: "Page arranges this page's sections. Style changes the look of every page. Pages and Designs hold the rest." },
+  { target: ".studio-rail", title: "Everything you can change", body: "Page arranges this page's sections. Style changes colours, fonts and buttons on every page. Pages holds the rest." },
   { target: ".studio-preview-frame", title: "Click your shop to edit it", body: "Click any part to open its settings. Double-click words to type over them." },
   { target: ".studio-picker", title: "Choose the page", body: "Switch between your home page, product pages and the rest. The phone button shows it on a phone." },
   { target: "[data-studio-publish]", title: "Save, then publish", body: "Save draft keeps your changes private. Publish puts them on your shop. Find, View website and history are under ⋯." },

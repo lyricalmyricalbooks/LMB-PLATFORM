@@ -1058,6 +1058,23 @@ The preview takes most of the screen. Nothing was removed; each thing moved to w
   starter's opening different from all of these.
 - A service whose lowest price is 0 shows Free, never "From $0.00".
 
+## Calmer Studio: no Designs (26 November 2026, one website picker plan step 3)
+
+Studio is for editing only; the website is chosen on Online store (admin notes › One website picker).
+- The Designs rail item and panel (`StudioThemes.tsx`) are gone with My themes, Import a theme file, the ready-made
+  looks list, Try this starter, Use only its look and Style › "Theme presets & saved themes" (Riso Noir buttons).
+  Old links with `tab=themes` open Style (`studioLocation.ts` `RETIRED_TABS`); the `g h` shortcut and the Basics step
+  "Start from a look" are gone.
+- **Share a preview link** is in ⋯ (Theme actions) and shares the draft (`StudioShareLink.tsx`).
+- **Compare with the starter** is in Version history (`StudioHistory` `starter`, `OwnEditsPanel` in `StarterChanges.tsx`):
+  the owner's edits over the starter, Use the starter's, and the "new version is ready" update with Preview it (closes
+  the window; the canvas banner has Back to the update). The panel notice and Online store's notice open it
+  (`#designer?starter=1`).
+- **Site styles** shows the starter's colour versions (control room's hidden ones left out) instead of the 8 palettes
+  when the website is built on a starter; an older look keeps the palettes.
+- Saved designs stay stored: Online store lists them (Bring one back: Use this, Remove). Media names them "Saved designs".
+- `themeCheck.ts` stays as a test helper (every look only sets keys Studio can change).
+
 ## Frame designs (26 November 2026, frame designs plan)
 
 Starters used to differ only in their home page: every one shared the header, product page, product card, shop page,

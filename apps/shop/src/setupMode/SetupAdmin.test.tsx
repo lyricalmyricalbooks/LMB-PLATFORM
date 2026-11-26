@@ -207,7 +207,7 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     expect(el.textContent).toContain("Your first shop is free for 14 days");
   });
 
-  it("a press browsing other looks can keep its own without saving", async () => {
+  it("a press looking at other websites can keep its own without saving", async () => {
     const d = door();
     const el = document.createElement("div");
     document.body.append(el);
@@ -215,14 +215,12 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     root = createRoot(el);
     act(() => root!.render(h(SetupAdmin, { press: { ...PRESS, look: "press-riso" }, door: d, lists, email: "owner@example.com", helpUrl: "/help/", onSignOut: () => {} })));
     await flush();
-    const change = [...el.querySelectorAll("button")].find((b) => b.textContent === "Choose another look") as HTMLButtonElement;
-    act(() => change.click());
-    await flush();
+    // The website chosen comes first, the starters below it, with Keep in place of Skip.
+    expect(el.querySelector("[data-testid=choose-website]")).not.toBeNull();
     expect(el.textContent).not.toContain("Skip for now");
     const keep = [...el.querySelectorAll("button")].find((b) => b.textContent?.startsWith("Keep ")) as HTMLButtonElement;
     act(() => keep.click());
     await flush();
-    expect(el.textContent).toContain("Choose another look");
     expect(d.save).not.toHaveBeenCalled();
   });
 

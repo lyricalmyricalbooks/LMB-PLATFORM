@@ -73,7 +73,7 @@ export const TOUR_STEPS: TourStep[] = [
     text: "Sales, visitors and best sellers, for any dates you pick." },
   { id: "design", chapter: "website", target: { nav: "design" },
     title: "Online store",
-    text: "How your shop looks. Open Studio to change colours, words and pages; shoppers see nothing until you Publish." },
+    text: "Your website and its colours. Change to another website here, or open Studio to change words, photos and pages; shoppers see nothing until you Publish." },
   { id: "settings", chapter: "website", target: { nav: "settings/general" },
     title: "Settings",
     text: "Your details, shipping, payments, taxes, your team and your plan. Shipping and payments come first, before you open." },

@@ -13,7 +13,6 @@ import { policiesToFill } from "../pressDetails";
 import { currentSells } from "../sells";
 import { BringShopStage } from "./BringShopStage";
 import type { BringMarker } from "../bringShop";
-import { ownBooks } from "../lookGallery";
 import { usePlatformStarters } from "../platformStarters";
 import { ShippingStage } from "./ShippingStage";
 import type { ShippingMarker } from "../shippingStage";
@@ -33,7 +32,7 @@ import { chosenDesign, chosenLook, keptFile, type SetupHandover } from "../setup
 import { SignupDesignStage } from "./SignupDesignStage";
 import { KeptFileCard } from "./KeptFileCard";
 import { ServicesStage } from "./ServicesStage";
-import { LEAD_SIDE_CHANGED_EVENT, servicesOnly, type BookingsFacts } from "../servicesSetup";
+import { LEAD_SIDE_CHANGED_EVENT, leadSideOf, servicesOnly, shopKindOf, type BookingsFacts } from "../servicesSetup";
 import { OfferStage } from "./OfferStage";
 import { offerSummary } from "../offerStage";
 import { SERVICE_CHOICES } from "../WhatYouSellCard";
@@ -192,8 +191,9 @@ export function SetupStart({ books, orders, readiness, settings, bookings, onOpe
         return <SignupDesignStage design={designed} settings={settings} onDone={done} onPickLook={() => setPickLook(true)} />;
       }
       return (
-        <Suspense fallback={<SectionCard title="Choose your look"><LoadingState label="Opening the looks…" /></SectionCard>}>
-          <ChooseLookWelcome publishes={doc.publishes} books={ownBooks(books)} settings={settings} onDone={done} onRetrySettings={onRetrySettings} chosen={chosenLook(handover)} starters={starters} />
+        <Suspense fallback={<SectionCard title="Choose your website"><LoadingState label="Opening the websites…" /></SectionCard>}>
+          <ChooseLookWelcome publishes={doc.publishes} settings={settings} onDone={done} onRetrySettings={onRetrySettings} chosen={chosenLook(handover)} starters={starters}
+            kind={shopKindOf(doc as any)} lead={leadSideOf(doc as any)} />
         </Suspense>
       );
     }

@@ -92,7 +92,7 @@ test("the shop drawer and the Setting up page show the looks, and both web doors
   assert.match(app, /"\/control\/shop-look"/);
   assert.match(app, /"\/control\/live-looks"/);
   assert.match(app, /"Website look"/);
-  assert.match(app, /"Looks live shops wear"/);
+  assert.match(app, /"Websites live shops use"/);
   assert.match(app, /"Templates live shops show"/);
   for (const door of ["../server/world.js", "../walkthrough/world.js"]) assert.match(readFileSync(new URL(door, import.meta.url), "utf8"), /shopLooksRoutes\(shopLooks\)/, door);
 });

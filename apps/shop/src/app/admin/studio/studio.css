@@ -824,7 +824,7 @@ ul.studio-update-notes { padding-left: 18px; }
 :root[data-admin-look="colophon"] .studio-editor .studio-theme-thumb { border-radius: 8px; }
 
 /* Phone top bar (13 November 2026): two rows instead of five. Row 1 is Exit, Find, the saved state, Save draft and
-   Publish; row 2 is the page picker, Browse mode, undo, redo and Theme actions (which holds View website on a phone).
+   Publish; row 2 is the page picker, Browse mode, undo, redo and Studio actions (which holds View website on a phone).
    Labels of icon buttons hide (their names stay for screen readers), and every button is a 44px tap target. */
 @media (max-width: 767px) {
   .studio-topbar { min-height: 0; gap: 6px; }

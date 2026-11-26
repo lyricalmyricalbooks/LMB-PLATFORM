@@ -1,12 +1,12 @@
 import { goHint } from "./shortcuts";
 import { Fragment, useEffect, useRef } from "react";
-import { FileText, Images, LayoutList, Navigation, Palette, Sparkles, SwatchBook, Type } from "lucide-react";
+import { FileText, Images, LayoutList, Navigation, Palette, Sparkles, Type } from "lucide-react";
 
-export type RailTab = "essentials" | "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
+export type RailTab = "essentials" | "sections" | "style" | "text" | "menus" | "pages" | "media";
 type Workspace = { id: RailTab; label: string; short: string; Icon: typeof Palette; hint: string; section?: string; home?: RailTab };
 /**
  * Every workspace, with the name the breadcrumb, Find and the panel heading use (starters and Studio rethink, step 6).
- * Four sit on the rail: Page, Style, Pages and Designs. Basics opens inside Style and Menus inside Pages (`home`), each
+ * Three sit on the rail: Page, Style and Pages (Designs left on 26 November 2026: the website is chosen on Online store). Basics opens inside Style and Menus inside Pages (`home`), each
  * with a switch at the top of the panel; Text & labels and Media sit under "More".
  */
 export const WORKSPACES: Workspace[] = [
@@ -15,7 +15,6 @@ export const WORKSPACES: Workspace[] = [
   { id: "style", label: "Style", short: "Style", Icon: Palette, hint: "The whole shop's look: colours, fonts, buttons and every part" },
   { id: "pages", label: "Pages", short: "Pages", Icon: FileText, hint: "About, Contact, policies and the menus that reach them" },
   { id: "menus", label: "Menus", short: "Menus", Icon: Navigation, hint: "Menus, shop categories and their order", home: "pages" },
-  { id: "themes", label: "Designs", short: "Designs", Icon: SwatchBook, hint: "Your design, saved designs and starter websites" },
   { id: "text", label: "Text & labels", short: "Words", Icon: Type, hint: "Every word shoppers see, including emails and checkout", section: "More" },
   { id: "media", label: "Media", short: "Media", Icon: Images, hint: "Your uploaded images: descriptions, sizes and where each is used" },
 ];

@@ -20,9 +20,9 @@ describe("Studio Essentials (plan 1.27)", () => {
     expect(new Set(ESSENTIALS.map((s) => s.id)).size).toBe(ESSENTIALS.length);
   });
 
-  it("opens inside Style, on the rail's four workspaces (Page, Style, Pages, Designs), with Words and Media under More", () => {
-    expect(RAIL_TABS.map((t) => t.id)).toEqual(["sections", "style", "pages", "themes", "text", "media"]);
-    expect(RAIL_TABS.map((t) => t.short)).toEqual(["Page", "Style", "Pages", "Designs", "Words", "Media"]);
+  it("opens inside Style, on the rail's three workspaces (Page, Style, Pages), with Words and Media under More", () => {
+    expect(RAIL_TABS.map((t) => t.id)).toEqual(["sections", "style", "pages", "text", "media"]);
+    expect(RAIL_TABS.map((t) => t.short)).toEqual(["Page", "Style", "Pages", "Words", "Media"]);
     expect(RAIL_TABS.find((t) => t.id === "text")?.section).toBe("More");
     expect(railHome("essentials")).toBe("style");
     expect(railHome("menus")).toBe("pages");

@@ -109,7 +109,7 @@ export type UsagePlace = { label: string; templateId?: string; sectionId?: strin
 export function snapshotUses(item: MediaItem, savedThemes: { name?: string; design?: any }[], versions: { label?: string; createdAt?: string; design?: any }[]): string[] {
   const has = (design: any) => usagePaths(collectStrings(design), item).length > 0;
   return [
-    ...(savedThemes || []).filter(t => has(t?.design)).map(t => `My themes › ${t.name || "Untitled theme"}`),
+    ...(savedThemes || []).filter(t => has(t?.design)).map(t => `Saved designs › ${t.name || "Untitled design"}`),
     ...(versions || []).filter(v => has(v?.design)).map(v => `Version history › ${v.label || "Saved version"}${v.createdAt ? ` (${new Date(v.createdAt).toLocaleDateString()})` : ""}`),
   ];
 }

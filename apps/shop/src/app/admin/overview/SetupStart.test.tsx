@@ -3,6 +3,7 @@ import { act, createElement as h } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { bringHelp } from "../bringShop";
+import { startersForKind } from "../websiteChoice";
 
 const api = vi.hoisted(() => ({
   getFirstWeek: vi.fn(), updateFirstWeek: vi.fn(async () => {}), updateSettings: vi.fn(async () => {}),
@@ -37,49 +38,46 @@ const mount = async (props: any) => {
   await flush();
   // The welcome loads lazily (it brings Studio's theme library): wait for it when the shop shows it.
   if (props.waitForWelcome !== false) {
-    for (let i = 0; i < 200 && !document.querySelector("ul[aria-label='Looks']") && /Opening the looks/.test(document.body.textContent || ""); i++) {
+    for (let i = 0; i < 200 && !document.querySelector("[data-testid=choose-website]") && /Opening the websites/.test(document.body.textContent || ""); i++) {
       await act(async () => { await new Promise(r => setTimeout(r, 25)); });
     }
   }
 };
 const button = (label: string) => [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === label) as HTMLButtonElement | undefined;
 const text = () => document.body.textContent || "";
+const shortlisted = () => [...document.querySelectorAll("ul[aria-label='All websites'] [data-starter-card]")].map((li) => li.getAttribute("data-starter-card")!);
+const useOn = (id: string) => [...document.querySelectorAll(`[data-starter-card='${id}'] button`)].find((b) => b.textContent?.trim() === "Use this") as HTMLButtonElement;
 
-describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
+describe("Choose your website, then Set up your shop (plans 6.3, 6.9)", () => {
   it("an existing shop (no setup document) sees neither", async () => {
     api.getFirstWeek.mockResolvedValue(null);
     await mount({});
     expect(text()).toBe("");
   });
 
-  it("a new shop sees the welcome first, with the press's name, suggestions and every look", async () => {
+  it("a new shop sees Choose your website first, with the press's name and the full list of websites", async () => {
     api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, sellingToday: "starting", publishes: "zines", plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
-    expect(text()).toContain("Welcome to Moth Press. Choose your look");
+    expect(text()).toContain("Welcome to Moth Press. Choose your website");
     expect(text()).not.toContain("Set up your shop");
-    expect(text()).not.toContain("Suggested for you");
-    // The guided start first: three questions and a shortlist of the starters, in the press's name.
-    expect(document.querySelectorAll("ul[aria-label='Your shortlist'] > li")).toHaveLength(3);
-    expect(document.body.innerHTML).toContain("Moth Press in this look");
-    await act(async () => { button("See every look")!.click(); });
-    expect(document.querySelectorAll("ul[aria-label='Looks'] > li")).toHaveLength(13);
+    expect(shortlisted()).toEqual(startersForKind("products"));
+    expect(text()).not.toContain("Picked for you");
+    expect(text()).not.toContain("See every look");
   });
 
-  it("choosing applies the look to the draft once, records it, and then shows the guide", async () => {
+  it("Use this puts the starter in the draft once, records it, and then shows the guide", async () => {
     api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, sellingToday: "starting", publishes: "books", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
-    await act(async () => { button("See every look")!.click(); });
-    await act(async () => { button("Use this look")!.click(); });
+    const id = shortlisted()[0];
+    await act(async () => { useOn(id).click(); });
     await settleChoice();
     expect(store.saveDraft).toHaveBeenCalledTimes(1);
     const [, draft, rev] = store.saveDraft.mock.calls[0] as any[];
     expect(rev).toBe(3);
-    expect(draft.themeLibraryPreset).toBe("press-marquee");
-    expect(draft.themeBase.id).toBe("press-marquee");
-    expect(draft.copy).toEqual({ heroTitle: "Kept" });
-    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: { theme: "press-marquee", at: expect.any(String), firstRun: true } });
+    expect(draft.themeBase.id).toBe(id);
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: { theme: id, at: expect.any(String), firstRun: true } });
     expect(text()).toContain("Set up your shop");
-    expect(text()).not.toContain("Choose your look.");
+    expect(document.querySelector("[data-testid=choose-website]")).toBeNull();
   });
 
   it("offers no admin look to pick: the admin has one look", async () => {
@@ -89,44 +87,41 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     expect(text()).not.toContain("Your admin");
   });
 
-  it("the guided start's shortlist puts the starter in the draft in the style that fits the feel", async () => {
+  it("the colours picked on a card come along into the draft", async () => {
     api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, sellingToday: "starting", publishes: "clothing", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
-    await act(async () => { (document.querySelector("[data-guided-feel='bold']") as HTMLButtonElement).click(); });
-    const names = [...document.querySelectorAll("ul[aria-label='Your shortlist'] > li > div > div > strong")].map(n => n.textContent);
-    expect(names).toEqual(["Slow Season Night", "Catalogue", "Aurel Night"]);
-    const aurel = [...document.querySelectorAll("[data-look-card='aurel-editorial'] button")].find((b) => b.textContent?.trim() === "Use this look") as HTMLButtonElement;
-    await act(async () => { aurel.click(); });
+    const night = [...document.querySelectorAll<HTMLButtonElement>("[data-starter-card='aurel-editorial'] [role=radio]")].find((b) => /Night/.test(b.textContent || ""))!;
+    await act(async () => { night.click(); });
+    await act(async () => { useOn("aurel-editorial").click(); });
     await settleChoice();
     const [, draft] = store.saveDraft.mock.calls[0] as any[];
-    expect(draft.themeLibraryPreset).toBe("aurel-editorial");
     expect(draft.themeBase).toMatchObject({ id: "aurel-editorial", style: "night", name: "Aurel Night" });
     expect(draft.backgroundColor).toBe("#121722");
   });
 
-  it("Skip takes the first suggestion and says so", async () => {
+  it("Skip takes the first of the list and says so", async () => {
     api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
     await act(async () => { button("Skip for now")!.click(); });
     await settleChoice();
-    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: expect.objectContaining({ theme: "press-folio", skipped: true }) });
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: expect.objectContaining({ theme: startersForKind("products")[0], skipped: true }) });
   });
 
-  it("a failed save keeps the welcome up with a plain message", async () => {
+  it("a failed save keeps the step up with a plain message", async () => {
     api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     store.saveDraft.mockRejectedValueOnce(new Error("offline"));
     await mount({});
-    await act(async () => { button("Use this look")!.click(); });
+    await act(async () => { useOn(shortlisted()[0]).click(); });
     await settleChoice();
     expect(document.querySelector("[role=alert]")).not.toBeNull();
     expect(api.updateFirstWeek).not.toHaveBeenCalledWith(expect.objectContaining({ welcome: expect.anything() }));
-    expect(text()).toContain("Choose your look");
+    expect(text()).toContain("Choose your website");
   });
 
   it("the welcome never shows again once done; the guide shows its three parts, opens the next step and saves its progress", async () => {
     api.getFirstWeek.mockResolvedValue({ plan: "both", welcome: { theme: "press-zine", at: "now" } });
     await mount({});
-    expect(text()).not.toContain("Choose your look.");
+    expect(document.querySelector("[data-testid=choose-website]")).toBeNull();
     expect([...document.querySelectorAll("section h3")].map(h => h.firstElementChild?.textContent)).toEqual(["Your shop", "Ready to sell", "Launch", "Reach more shoppers"]);
     expect(document.querySelectorAll("ol[aria-label='Your shop'] > li").length).toBe(3);
     // Rows open on a click: the next step has its own tile, with its button.
@@ -238,7 +233,7 @@ describe("Get started, contact details after the look and the products (plan 17.
     expect(document.querySelector("[data-row=bring]")?.getAttribute("data-state")).toBe("done");
     expect(text()).toContain("1 step to open Moth Press");
     expect(text()).toContain("We'll also fill in your shipping, returns, privacy and terms pages");
-    expect(text()).not.toContain("Choose your look");
+    expect(document.querySelector("[data-testid=choose-website]")).toBeNull();
     expect((field("Brand name") as HTMLInputElement).value).toBe("Moth Press");
     expect((field("Country") as HTMLSelectElement).value).toBe("Canada");
   });
@@ -273,7 +268,7 @@ describe("Get started, contact details after the look and the products (plan 17.
     // Shipping is in the same row: the row stays the one to do now, on its second part.
     await waitFor(() => !document.querySelector("input[name]") || /Ships from|shipping/i.test(text()));
     expect(document.querySelector("[data-row=delivery][aria-current=step]")).not.toBeNull();
-    expect(text()).not.toContain("Choose your look");
+    expect(document.querySelector("[data-testid=choose-website]")).toBeNull();
   });
 
   it("a failed save keeps the step open with a plain message, and records nothing", async () => {
@@ -302,7 +297,7 @@ describe("Get started, step 2: bring your shop with you (plan 17.3)", () => {
     await mount({ waitForWelcome: false });
     expect(text()).toContain("Bring your products");
     expect(text()).toContain("Where do you sell now?");
-    expect(text()).not.toContain("Choose your look");
+    expect(document.querySelector("[data-testid=choose-website]")).toBeNull();
     expect(document.querySelector("[data-row=bring][aria-current=step]")).not.toBeNull();
   });
 
@@ -341,20 +336,19 @@ describe("Get started, step 2: bring your shop with you (plan 17.3)", () => {
   it("a shop part-way through the older order (details and products done) is shown the look next", async () => {
     api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, plan: "both", details: { at: "then" }, bring: { at: "then" } });
     await mount({});
-    await waitFor(() => /Choose your look/.test(text()));
+    await waitFor(() => /Choose your website/.test(text()));
     expect(text()).not.toContain("Where do you sell now?");
   });
 });
 
-describe("Choose your look as the list's first open step, with the press's first book (plan 17.8, move 4)", () => {
-  it("the look is the step to do now, after the account and the name, and its previews show the first book's photo", async () => {
+describe("Choose your website as the list's first open step, with the press's first book (plan 17.8, move 4)", () => {
+  it("the website is the step to do now, after the account and the name", async () => {
     api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, sellingToday: "starting", publishes: "books", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({ books: [{ id: "b1", title: "Salt", photos: [{ url: "https://cdn.example/salt.jpg" }] }] });
     expect(document.querySelector("[data-row=look][aria-current=step]")).not.toBeNull();
     expect(document.querySelector("[data-row=account]")?.getAttribute("data-state")).toBe("done");
     expect(document.querySelector("[data-row=name]")?.getAttribute("data-state")).toBe("done");
-    expect(text()).toContain("Welcome to Moth Press. Choose your look");
-    expect(document.querySelector("img[src='https://cdn.example/salt.jpg']")).not.toBeNull();
+    expect(text()).toContain("Welcome to Moth Press. Choose your website");
   });
 });
 
@@ -433,18 +427,16 @@ describe("What the press set up before its shop existed (code plan 18.9)", () =>
     expect(text()).not.toContain("Your file from setup");
   });
 
-  it("the look step opens on the look chosen in setup, and every look is one tap away", async () => {
+  it("the website step opens on the one chosen in setup, with the starters below it", async () => {
     api.getFirstWeek.mockResolvedValue({ offer: { at: "then" }, plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true } });
     api.getSetupHandover.mockResolvedValue(kept);
     await mount({ waitForWelcome: false });
-    await waitFor(() => /look you chose/.test(text()));
-    expect(text()).toContain("Welcome to Moth Press. Here's the look you chose");
-    expect(document.querySelectorAll("ul[aria-label='The look you chose'] [data-look-card]").length).toBe(1);
-    expect(document.querySelector("[data-look-card='press-riso']")).not.toBeNull();
-    expect(document.querySelector("[role=radio][aria-checked=true]")).toBeNull();
-    await act(async () => { button("See every look")!.click(); });
-    expect(text()).toContain("Welcome to Moth Press. Choose your look");
-    expect(document.querySelector("ul[aria-label='Looks']")).not.toBeNull();
+    await waitFor(() => /website you chose/.test(text()));
+    expect(text()).toContain("Welcome to Moth Press. Here's the website you chose");
+    // An older look chosen in setup can still be used as it is; the starters follow.
+    expect(document.querySelector("[data-testid=website-chosen-older]")).not.toBeNull();
+    expect(shortlisted().length).toBeGreaterThan(0);
+    expect(text()).not.toContain("See every look");
   });
 });
 

@@ -41,6 +41,8 @@ test("plain words: short sentences, no code or tool names, never a rival", () =>
 test("every place an article says to click is a real page in the shop's admin menu", () => {
   const nav = readFileSync(new URL("../apps/shop/src/app/admin/riso/nav.ts", import.meta.url), "utf8");
   const top = [...nav.matchAll(/^  \{ id: "[^"]+", label: "([^"]+)"/gm)].map((m) => m[1]);
+  // The menu's own items name some pages differently (Design is "Online store" in the menu).
+  top.push(...[...nav.matchAll(/^  \{ label: "([^"]+)", icon:/gm)].map((m) => m[1]));
   const settings = [...nav.matchAll(/^    \{ id: "[^"]+", label: "([^"]+)"/gm)].map((m) => m[1]);
   assert.ok(top.includes("Books") && settings.includes("Shipping"), "read the menu");
   let checked = 0;
@@ -167,6 +169,7 @@ test("only a shop with books is asked for an ISBN; a shop that sells books and o
 test("worded answers still point at real admin pages, named the way that shop's admin names them, in short sentences", () => {
   const nav = readFileSync(new URL("../apps/shop/src/app/admin/riso/nav.ts", import.meta.url), "utf8");
   const top = [...nav.matchAll(/^  \{ id: "[^"]+", label: "([^"]+)"/gm)].map((m) => goodsWords(m[1]));
+  top.push(...[...nav.matchAll(/^  \{ label: "([^"]+)", icon:/gm)].map((m) => goodsWords(m[1])));
   assert.ok(top.includes("Products"));
   for (const a of articlesFor("both", "clothing")) {
     for (const path of a.where || []) assert.ok(top.includes(path.split(" › ")[0]), `${a.id}: "${path}"`);
