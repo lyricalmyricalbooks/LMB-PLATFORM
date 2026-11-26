@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { draftsWord, filledRows, rowProblems, rowProduct, type SeveralRow } from "./addSeveral";
+import { OTHER_TYPE, draftsWord, filledRows, ownTypeValue, rowProblems, rowProduct, rowType, rowTypeName, type SeveralRow } from "./addSeveral";
 import { typeById } from "../../shared/productTypes";
 
 const row = (key: string, r: Partial<SeveralRow>): SeveralRow => ({ key, name: "", typeId: "", price: "", stock: "", ...r });
@@ -24,5 +24,18 @@ describe("Add several at once", () => {
     expect(p).toMatchObject({ title: "Fig candle", typeId: "candles", retailPrice: 22.5, stockLevel: 6, status: "draft", format: "", trackInventory: true });
     expect(rowProduct(row("b", { name: "Poems", typeId: "printed-books" }), typeById("printed-books")!)).toMatchObject({ format: "Paperback", retailPrice: 0 });
     expect(draftsWord(1)).toBe("1 draft");
+  });
+
+  it("offers Something else and the shop's own types (Julian, 26 November 2026)", () => {
+    const own = [{ id: "tote-bags", name: "Tote bags", base: "candles" }];
+    expect(rowProblems([row("a", { name: "Kite", typeId: OTHER_TYPE })])).toEqual({});
+    expect(rowProblems([row("a", { name: "Tote", typeId: ownTypeValue(own[0]) })], own)).toEqual({});
+    expect(rowProblems([row("a", { name: "Tote", typeId: "own:gone" })], own)).toEqual({ a: ["Pick a type"] });
+    expect(rowTypeName(OTHER_TYPE)).toBe("Something else");
+    expect(rowTypeName(ownTypeValue(own[0]), own)).toBe("Tote bags");
+    const plain = rowProduct(row("a", { name: "Kite", typeId: OTHER_TYPE }), rowType(OTHER_TYPE)!);
+    expect(plain).toMatchObject({ title: "Kite", kind: "other", format: "", status: "draft" });
+    expect(plain.typeId).toBeUndefined();
+    expect(rowProduct(row("b", { name: "Tote", typeId: ownTypeValue(own[0]) }), rowType(ownTypeValue(own[0]), own)!)).toMatchObject({ typeId: "candles", typeName: "Tote bags" });
   });
 });

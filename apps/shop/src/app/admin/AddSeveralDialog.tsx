@@ -6,8 +6,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { ImagePlus, Plus, X } from "lucide-react";
 import { Dialog, PrimaryButton, SecondaryButton } from "./riso/components";
-import { PRODUCT_TYPES, TYPE_GROUPS, typeById, type TypeGroupId } from "../../shared/productTypes";
-import { blankRow, draftsWord, filledRows, rowProblems, rowProduct, type SeveralRow } from "./addSeveral";
+import { PRODUCT_TYPES, TYPE_GROUPS, type TypeGroupId } from "../../shared/productTypes";
+import { OTHER_TYPE, blankRow, draftsWord, filledRows, ownTypeValue, rowProblems, rowProduct, rowType, rowTypeName, type SeveralRow } from "./addSeveral";
+import { useOwnTypes } from "./ownTypes";
 import { adminApi } from "./api";
 import { uploadBookPhoto } from "./bookPhotoUpload";
 import { useShopWords } from "./shopWords";
@@ -28,7 +29,8 @@ export function AddSeveralDialog({ groups, onClose, onDone }: {
 
   const filled = useMemo(() => filledRows(rows), [rows]);
   const filledByKey = useMemo(() => new Map(filled.map((r) => [r.key, r])), [filled]);
-  const problems = useMemo(() => rowProblems(rows), [rows]);
+  const own = useOwnTypes();
+  const problems = useMemo(() => rowProblems(rows, own), [rows, own]);
   const problemCount = Object.keys(problems).length;
   const groupOrder = [...groups, ...TYPE_GROUPS.map((g) => g.id).filter((g) => !groups.includes(g))];
   const previews = useMemo(() => new Map(rows.filter((r) => r.photo).map((r) => [r.key, URL.createObjectURL(r.photo!)])), [rows]);
@@ -48,7 +50,7 @@ export function AddSeveralDialog({ groups, onClose, onDone }: {
     let made = 0;
     for (const row of filled) {
       try {
-        const product = rowProduct(row, typeById(row.typeId)!);
+        const product = rowProduct(row, rowType(row.typeId, own)!);
         if (row.photo) {
           // A photo that won't upload leaves the draft without it, never unsaved.
           try { product.photos = [{ ...(await uploadBookPhoto(row.photo)), id: Math.random().toString(36).slice(2, 11), altText: product.title }]; }
@@ -119,12 +121,20 @@ export function AddSeveralDialog({ groups, onClose, onDone }: {
                   <td data-label="Type">
                     <select className="rp-input as-type" value={row.typeId} aria-label={`Type, ${label}`} onChange={(e) => edit(row.key, { typeId: e.target.value })}
                       aria-invalid={issues?.includes("Pick a type") || undefined} data-copied={copiedType ? "" : undefined}>
-                      <option value="">{copiedType ? `Same: ${typeById(copiedType)?.name}` : "Pick a type"}</option>
+                      <option value="">{copiedType ? `Same: ${rowTypeName(copiedType, own)}` : "Pick a type"}</option>
+                      {own.length > 0 && (
+                        <optgroup label="Your own types">
+                          {own.map((o) => <option key={o.id} value={ownTypeValue(o)}>{o.name}</option>)}
+                        </optgroup>
+                      )}
                       {groupOrder.map((g) => (
                         <optgroup key={g} label={TYPE_GROUPS.find((x) => x.id === g)?.name}>
                           {PRODUCT_TYPES.filter((t) => t.group === g).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </optgroup>
                       ))}
+                      <optgroup label="Not in the list">
+                        <option value={OTHER_TYPE}>Something else (pick it on its page)</option>
+                      </optgroup>
                     </select>
                   </td>
                   <td className="as-num" data-label="Price">
