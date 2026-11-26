@@ -1,4 +1,5 @@
-import { useShopWords } from "../shopWords";
+import { useShopSells, useShopWords } from "../shopWords";
+import { sellsBooks } from "../../../shared/shopSells";
 import { alternatesFor } from "../../features/site/templateAlternates";
 import { useEffect, useState } from "react";
 import { adminApi } from "../api";
@@ -15,6 +16,7 @@ type Props = {
 };
 export function StudioCategories({ design, published, onChange, onReorder, onBooksChanged, confirm }: Props) {
   const w = useShopWords();
+  const isBookShop = sellsBooks(useShopSells());
   const cats = normalizeCategories(Array.isArray(design.categories) ? design.categories : [...CATEGORIES]);
   const live = normalizeCategories(published.categories ?? [...CATEGORIES]);
   const [books, setBooks] = useState<any[]>([]);
@@ -182,7 +184,7 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
           <p>{w("Counts show direct assignments, including earlier category names. Parent menus also include their children. PUBLICATIONS automatically shows every book on your website.")}</p>
           <p>{w("Assignments save immediately; Publish and Discard Draft do not undo them. They use the published category name so a discarded rename keeps books findable. Apply category details before changing assignments.")}</p>
           {!liveCurrent && <p>{w("Publish this new category before assigning books.")}</p>}
-          <TextField label={w("Find books by title, item code or ISBN")} value={bookSearch} onChange={e => setBookSearch(e.target.value)} disabled={busy} />
+          <TextField label={isBookShop ? "Find books by title, item code or ISBN" : w("Find books by title or item code")} value={bookSearch} onChange={e => setBookSearch(e.target.value)} disabled={busy} />
           <SelectField label={w("Show books")} value={membership} onChange={e => setMembership(e.target.value)} disabled={busy}><option value="all">{w("All books")}</option><option value="assigned">Assigned here</option><option value="unassigned">Not assigned here</option></SelectField>
           <SecondaryButton disabled={busy || !loaded} onClick={() => setSelected(prev => [...new Set([...prev, ...filteredBooks.map(b => b.id)])].slice(0, 400))}>{w("Select matching books (up to 400)")}</SecondaryButton>
           <SecondaryButton disabled={busy} onClick={() => setSelected([])}>Clear selection</SecondaryButton>

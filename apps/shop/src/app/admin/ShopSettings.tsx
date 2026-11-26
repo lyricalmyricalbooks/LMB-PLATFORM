@@ -256,9 +256,11 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
               } />
             </FormSection>
           </SettingsAnchor>
-          <FormSection title="How the shop runs" description="Sets the words in your admin and emails.">
-            <WhatYouSellCard bare />
-          </FormSection>
+          <SettingsAnchor id="gs-offer">
+            <FormSection title="What you offer" description="Your shop's type, and what fits it.">
+              <WhatYouSellCard bare />
+            </FormSection>
+          </SettingsAnchor>
           <SettingsAnchor id="gs-ways"><WaysToSellCard /></SettingsAnchor>
           <SettingsAnchor id="gs-policies">
             <FormSection title="Store policies" description="Footer links. Blank ones hide.">

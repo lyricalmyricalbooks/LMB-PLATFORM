@@ -47,6 +47,9 @@ export interface FirstWeekDoc {
   sellsProducts?: boolean;
   /** Which side a shop selling both leads with ("What do most customers come for?"; servicesSetup.ts `leadSideOf`). */
   leadSide?: "products" | "services";
+  /** The owner's own words when what they sell or what people book isn't in the list (offerStage.ts `otherWords`). */
+  otherSells?: string;
+  otherService?: string;
   /** Get started's What you offer, answered (offerStage.ts). */
   offer?: import("./offerStage").OfferMarker;
   /** The ways to sell (beta) the owner asked for at sign-up ("Anything else you'll sell?"); never changed from the admin. */

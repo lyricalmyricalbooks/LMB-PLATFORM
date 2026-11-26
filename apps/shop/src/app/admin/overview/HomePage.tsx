@@ -52,13 +52,18 @@ export function homeTodoCounts(orders: any[] | null, books: any[] | null, now = 
   };
 }
 
-export function HomePage({ setActiveTab, onSetWall, ownerName = "", services = false, tourWaiting = false, alerts = null }: {
+export function HomePage({ setActiveTab, onSetWall, ownerName = "", services = false, bookingsFirst = services, tourWaiting = false, alerts = null }: {
   /** The shop's alerts, drawn first in To do (change 4). */
   alerts?: ReactNode;
   /** The tour welcome has not been seen yet: Connect Google waits for it (change 3). */
   tourWaiting?: boolean;
   /** A services shop that sells no products (Dashboard's menu kind): Home is its appointments, not parcels and stock. */
   services?: boolean;
+  /**
+   * Home leads with today's appointments (shop types plan, part 2): a services shop, or one doing both whose customers
+   * mostly come to book. A shop doing both keeps the product to-dos (parcels, stock) under them.
+   */
+  bookingsFirst?: boolean;
   setActiveTab?: (tab: string) => void;
   onSetWall?: (on: boolean) => Promise<boolean>;
   /** The signed-in person's name, for the greeting. */
@@ -74,7 +79,7 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "", services = f
   const [launch, setLaunch] = useState<{ parts: any | null; error: boolean }>({ parts: null, error: false });
   const stockroomTodos = useStockroomTodos(COMBINED);
   const fair = useFairToday(COMBINED);
-  const homeBookings = useHomeBookings(services);
+  const homeBookings = useHomeBookings(bookingsFirst);
   const seenShared = useRef<any[] | null>(null);
 
   useEffect(() => {
@@ -215,7 +220,7 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "", services = f
         onOpen={go} onSetWall={onSetWall} onRetrySettings={refresh} />
       {/* Plan 6.17: Connect Google, on a shop run by Colophon, until it is connected; change 3: only once setup and the tour are done. */}
       {firstStepNow(setupShowing, tourWaiting) === "google" && <ConnectGoogleCard variant="prompt" />}
-      {services ? <HomeServices ownerName={ownerName} bookings={homeBookings} todo={servicesTodoRow} extra={fundraiser} onOpen={go} /> :
+      {bookingsFirst ? <HomeServices ownerName={ownerName} bookings={homeBookings} todo={services ? servicesTodoRow : todoRow} extra={fundraiser} onOpen={go} /> :
       <HomeToday ownerName={ownerName} orders={shopOrders} ordersFailed={allOrders.error} fair={fair} combined={COMBINED} todo={todoRow} extra={fundraiser} glance={glance}
         onOpen={go} onOpenTill={() => stockroomBridge.openPage("pos")} onRetry={refresh} />}
     </>

@@ -6,25 +6,32 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { currentSells } from "./sells";
-import { sellsServices } from "../../shared/shopSells";
+import { hasPublisherTools, sellsServices } from "../../shared/shopSells";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { SELLS_CHANGED_EVENT, SELLS_PRODUCTS_CHANGED_EVENT } from "./shopWords";
-import { SectionCard, SelectField, PrimaryButton, useConfirm } from "./riso/components";
-import { useBookingsOn } from "./bookingsApi";
+import { SectionCard, TextField, Toggle, useConfirm } from "./riso/components";
 import { FormField } from "./riso/FormKit";
-import { Check, X } from "lucide-react";
+import { BookOpen, Check, X } from "lucide-react";
 import { TYPE_GROUPS, sellsGroups, typeById, type TypeGroupId } from "../../shared/productTypes";
-import { saveProductGroups, useProductGroups } from "./productGroups";
+import { groupsFor, saveProductGroups, useProductGroups } from "./productGroups";
+import { LEAD_SIDE_CHANGED_EVENT, leadSideOf, shopKindOf } from "./servicesSetup";
+import { OTHER_LABEL, OTHER_MAX, OTHER_SERVICE, goodsSellsFor, otherWords } from "./offerStage";
+import type { FirstWeekDoc } from "./firstWeek";
 import { removeOwnType, useOwnTypes } from "./ownTypes";
 
 /** The kinds of things you sell (product types plan, change 12): tap a group on or off; "What is it?" offers its types first. */
-export function ProductGroupsPicker({ sells }: { sells: string | null }) {
+export function ProductGroupsPicker({ sells, other = "", onOther }: {
+  sells: string | null;
+  /** The owner's own words for Something else ("" when it isn't picked), and how to save them ("" takes it off). */
+  other?: string; onOther?: (words: string) => Promise<void>;
+}) {
   const fallback = useMemo(() => sellsGroups(sells), [sells]);
   const groups = useProductGroups(fallback);
   const [busy, setBusy] = useState(false);
+  const [otherOn, setOtherOn] = useState(!!other);
   const toggle = async (id: TypeGroupId) => {
     const next = TYPE_GROUPS.map((g) => g.id).filter((g) => (g === id ? !groups.includes(id) : groups.includes(g)));
-    if (!next.length) { toast.error("Keep at least one kind of thing."); return; }
+    if (!next.length && !other) { toast.error("Keep at least one kind of thing."); return; }
     setBusy(true);
     try { await saveProductGroups(next); }
     catch { toast.error("Couldn't save that. Check your connection and try again."); }
@@ -38,9 +45,39 @@ export function ProductGroupsPicker({ sells }: { sells: string | null }) {
           const on = groups.includes(g.id);
           return <button key={g.id} type="button" aria-pressed={on} disabled={busy} className="rp-group-chip" onClick={() => { void toggle(g.id); }}>{on && <Check size={14} aria-hidden />}{g.name}</button>;
         })}
+        {onOther && (
+          <button type="button" aria-pressed={otherOn} disabled={busy} className="rp-group-chip" data-group-other
+            onClick={() => {
+              if (!otherOn) { setOtherOn(true); return; }
+              if (!groups.length && other) { toast.error("Keep at least one kind of thing."); return; }
+              setOtherOn(false); if (other) void onOther("");
+            }}>{otherOn && <Check size={14} aria-hidden />}{OTHER_LABEL}</button>
+        )}
       </div>
+      {onOther && otherOn && <OtherWords label="What else do you sell?" placeholder="e.g. Surfboards" saved={other} onSave={onOther} data="data-group-other-words" />}
       <span className="rp-fk-hint">Adding a product offers these kinds first. Your products stay as they are.</span>
     </section>
+  );
+}
+
+/**
+ * The box for the owner's own words when their answer isn't in the list (Julian, 26 November 2026: "always have the
+ * other option"). Saves when the box is left or Enter is pressed, only when the words changed.
+ */
+export function OtherWords({ label, placeholder, saved, onSave, data }: { label: string; placeholder: string; saved: string; onSave: (words: string) => Promise<void>; data: string }) {
+  const [text, setText] = useState(saved);
+  const [busy, setBusy] = useState(false);
+  const commit = async () => {
+    const words = otherWords(text);
+    if (words === saved || !words) return;
+    setBusy(true);
+    try { await onSave(words); } finally { setBusy(false); }
+  };
+  return (
+    <TextField label={label} placeholder={placeholder} maxLength={OTHER_MAX} value={text} disabled={busy} {...{ [data]: "" }}
+      hint={!otherWords(text) ? "A few words is plenty." : undefined}
+      onChange={(e) => setText(e.target.value)} onBlur={() => { void commit(); }}
+      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void commit(); } }} />
   );
 }
 
@@ -130,30 +167,24 @@ export function stockroomWordsNote(saved: string | null | undefined, heardFromSt
   return "Your stockroom switches to these words the next time you open it.";
 }
 
-/** `bare` drops the card around it, for a form kit section that already names it (Settings › General, v4). */
+const TYPE_NAME = { products: "Product shop", services: "Services", both: "Products and services" } as const;
+
+/**
+ * Settings › General › What you offer (shop types plan, part 2): the shop's type on top, then what fits it. A product
+ * shop picks its kinds of things, and a shop that sells books (and only one) sees the Book tools switch: authors, ISBNs
+ * and royalties. A shop taking bookings picks what people book; one doing both says what most customers come for,
+ * which leads its menu. Products already made are never touched. `bare` drops the card around it, for a form kit
+ * section that already names it (Settings › General, v4).
+ */
 export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
-  const [saved, setSaved] = useState<string | null | undefined>(undefined);
-  const [value, setValue] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [doc, setDoc] = useState<FirstWeekDoc | null | undefined>(undefined);
+  const [busy, setBusy] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
   const [heard, setHeard] = useState<string | null>(null);
-  // A services shop (made so at sign-up) picks what it does, and may also sell a few products.
-  const [servicesShop, setServicesShop] = useState(false);
-  const [products, setProducts] = useState(false);
-  const [productsBusy, setProductsBusy] = useState(false);
-  const bookingsOn = useBookingsOn(true);
   const [ask, confirmNode] = useConfirm();
   useEffect(() => {
     let live = true;
-    Promise.resolve().then(() => adminApi.getFirstWeek()).then((doc) => {
-      if (!live) return;
-      const now = currentSells(doc);
-      setSaved(now);
-      setServicesShop(sellsServices(now) || sellsServices(doc?.publishes));
-      setProducts(doc?.sellsProducts === true);
-      // "A mix" from sign-up is books and other publications: show it as Books.
-      setValue(now === "mix" ? "books" : now || "books");
-    }).catch(() => { if (live) setSaved(null); });
+    Promise.resolve().then(() => adminApi.getFirstWeek()).then((d) => { if (live) setDoc(d ?? null); }).catch(() => { if (live) setDoc(null); });
     return () => { live = false; };
   }, []);
   useEffect(() => {
@@ -161,68 +192,95 @@ export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
     Promise.resolve().then(() => inventoryLinkApi.state()).then((st) => { if (live) setHeard(typeof st?.app?.wordsSells === "string" ? st.app.wordsSells : null); }).catch(() => {});
     return () => { live = false; };
   }, []);
-  if (saved === undefined) return null;
-  const changed = value !== (saved === "mix" ? "books" : saved || "books");
-  const save = async () => {
-    const question = kindSwitchQuestion(saved, value);
-    if (question && !(await ask(question))) return;
-    setBusy(true);
+  const groups = useProductGroups(useMemo(() => groupsFor(doc), [doc]));
+  if (doc === undefined) return null;
+  const saved = currentSells(doc);
+  const type = shopKindOf(doc);
+  const lead = leadSideOf(doc);
+  // The switch shows only to a shop that sells books: a book answer, "Books and other things", or the Books kind picked.
+  const bookTools = type === "products" && hasPublisherTools(saved);
+  const showBookTools = type === "products" && (bookTools || groups.includes("books"));
+
+  const save = async (key: string, change: Parameters<typeof adminApi.updateFirstWeek>[0], done: string) => {
+    setBusy(key);
     try {
-      await adminApi.updateFirstWeek({ sells: value });
-      setSaved(value);
-      setServicesShop(sellsServices(value));
-      setJustSaved(true);
-      window.dispatchEvent(new CustomEvent(SELLS_CHANGED_EVENT, { detail: value }));
-      toast.success(question ? (sellsServices(value) ? "You're a services shop now." : "You're a product shop now.") : "Saved. The admin now uses the words for what you sell.");
+      await adminApi.updateFirstWeek(change);
+      setDoc({ ...(doc ?? {}), ...change } as FirstWeekDoc);
+      if (change.sells) { setJustSaved(true); window.dispatchEvent(new CustomEvent(SELLS_CHANGED_EVENT, { detail: change.sells })); }
+      if (change.sellsProducts !== undefined) window.dispatchEvent(new CustomEvent(SELLS_PRODUCTS_CHANGED_EVENT, { detail: change.sellsProducts }));
+      if (change.leadSide) window.dispatchEvent(new CustomEvent(LEAD_SIDE_CHANGED_EVENT, { detail: change.leadSide }));
+      toast.success(done);
     } catch {
       toast.error("Couldn't save that. Check your connection and try again.");
-    } finally { setBusy(false); }
+    } finally { setBusy(null); }
   };
-  const groups = sellsGroupsFor(servicesShop, servicesShop || bookingsOn);
-  const options = groups.map((g) => g.label
-    ? <optgroup key={g.label} label={g.label}>{g.choices.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}</optgroup>
-    : g.choices.map((c) => <option key={c.id} value={c.id}>{c.label}</option>));
-  const question = sellsServices(value) ? "What do you do?" : "What do you sell?";
-  const setSellsProducts = async (on: boolean) => {
-    setProductsBusy(true);
-    try {
-      await adminApi.updateFirstWeek({ sellsProducts: on });
-      setProducts(on);
-      window.dispatchEvent(new CustomEvent(SELLS_PRODUCTS_CHANGED_EVENT, { detail: on }));
-      toast.success(on ? "Products, stock and shipping are back in your menu." : "Your menu is back to bookings and clients.");
-    } catch {
-      toast.error("Couldn't save that. Check your connection and try again.");
-    } finally { setProductsBusy(false); }
+  const setBookTools = async (on: boolean) => {
+    if (!on && !(await ask({ title: "Turn off book tools?", message: "Authors, ISBNs and royalties leave your admin. Nothing is deleted, and turning them back on brings everything back.", confirmLabel: "Turn off" }))) return;
+    const sells = on ? "books" : goodsSellsFor(groups.filter((g) => g !== "books"));
+    await save("books", { sells }, on ? "Book tools are on: authors, ISBNs and royalties." : "Book tools are off.");
   };
-  const productsSwitch = servicesShop ? (
-    <label style={{ display: "flex", gap: 10, alignItems: "flex-start", margin: "14px 0 0", cursor: "pointer" }}>
-      <input type="checkbox" checked={products} disabled={productsBusy} onChange={(e) => { void setSellsProducts(e.target.checked); }} style={{ marginTop: 3 }} />
-      <span><strong style={{ display: "block", fontWeight: 600 }}>Sell products too</strong>
-        <span className="rp-hint">Adds the Products, stock and shipping pages, for aftercare or merchandise. Gift cards work either way.</span></span>
-    </label>
-  ) : null;
-  const body = (<>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "end" }}>
-        <SelectField label={question} value={value} onChange={(e) => setValue(e.target.value)}>{options}</SelectField>
-        <PrimaryButton onClick={save} busy={busy} disabled={!changed || busy}>Save</PrimaryButton>
-      </div>
-      <p className="rp-hint" role="status" style={{ margin: "12px 0 0" }}>{stockroomWordsNote(saved, heard, justSaved)}</p>
-      {productsSwitch}
-      {!sellsServices(value) && <div style={{ marginTop: 16, display: "grid", gap: 16 }}><ProductGroupsPicker sells={saved ?? null} /><OwnTypesList /></div>}
-      {confirmNode}
-  </>);
-  return (
-    bare ? (<>
-      <FormField label={sellsServices(value) ? "What you do" : "What you sell"} hint={stockroomWordsNote(saved, heard, justSaved)}>
-        {(a) => <span style={{ display: "flex", gap: 10, width: "100%" }}>
-          <select {...a} className="rp-select" style={{ flex: 1, minWidth: 0, width: "auto" }} value={value} onChange={(e) => setValue(e.target.value)}>{options}</select>
-          <PrimaryButton onClick={save} busy={busy} disabled={!changed || busy}>Save</PrimaryButton>
-        </span>}
-      </FormField>
-      {productsSwitch}
-      {(!servicesShop || products) && <ProductGroupsPicker sells={saved ?? null} />}
-      {(!servicesShop || products) && <OwnTypesList />}
-      {confirmNode}
-    </>) : <SectionCard title="What you sell" description="Sets the words in your admin and emails. Products you already have stay as they are.">{body}</SectionCard>
+  const setSellsProducts = (on: boolean) => save("products", { sellsProducts: on }, on ? "Products, stock and shipping are back in your menu." : "Your menu is back to bookings and clients.");
+
+  const groupNames = [...TYPE_GROUPS.filter((g) => groups.includes(g.id)).map((g) => g.name.toLowerCase()), ...(otherWords(doc?.otherSells) ? [otherWords(doc?.otherSells).toLowerCase()] : [])];
+  const summary = type === "services"
+    ? SERVICE_CHOICES.find((c) => c.id === saved)?.label ?? "Services"
+    : [type === "both" ? SERVICE_CHOICES.find((c) => c.id === saved)?.label : "", groupNames.length ? `${type === "both" ? "sells " : "Sells "}${groupNames.join(", ")}` : ""].filter(Boolean).join(" · ");
+  const typeCard = (
+    <div data-shop-type={type} style={{ display: "grid", gap: 4, padding: "16px 18px", borderRadius: "var(--rp-radius-lg)", background: "var(--rp-primary-tint)" }}>
+      <span className="rp-hint" style={{ margin: 0 }}>Your shop is</span>
+      <strong style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-0.01em" }}>{TYPE_NAME[type]}</strong>
+      {summary && <span className="rp-hint" style={{ margin: 0, textTransform: "none" }}>{summary.charAt(0).toUpperCase() + summary.slice(1)}</span>}
+    </div>
   );
+  const pill = (on: boolean, label: string, onClick: () => void, data: Record<string, string>) => (
+    <button key={label} type="button" className="rp-group-chip" role="radio" aria-checked={on} disabled={!!busy} onClick={onClick} {...data}>{on && <Check size={14} aria-hidden />}{label}</button>
+  );
+  const body = (<>
+    {typeCard}
+    {type !== "products" && (
+      <FormField label="What people book" hint="Sets the words in your admin, emails and calendar.">
+        {(a) => <select {...a} className="rp-select" value={saved ?? ""} disabled={!!busy}
+          onChange={(e) => { void save("does", { sells: e.target.value }, "Saved."); }}>
+          {SERVICE_CHOICES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+        </select>}
+      </FormField>
+    )}
+    {type !== "products" && saved === OTHER_SERVICE && (
+      <OtherWords label="What do people book with you?" placeholder="e.g. Dog grooming" saved={otherWords(doc?.otherService)} data="data-other-service"
+        onSave={(words) => save("other-service", { otherService: words }, "Saved.")} />
+    )}
+    {type === "both" && (
+      <section className="rp-fk-field" aria-labelledby="lead-side-label">
+        <div className="rp-fk-label-row"><h3 id="lead-side-label" className="rp-fk-label" style={{ margin: 0 }}>What most customers come for</h3></div>
+        <div className="rp-group-chips" role="radiogroup" aria-labelledby="lead-side-label">
+          {pill(lead === "services", "Booking a time", () => { void save("lead", { leadSide: "services" }, "Your menu leads with Calendar."); }, { "data-lead": "services" })}
+          {pill(lead === "products", "Buying things", () => { void save("lead", { leadSide: "products" }, "Your menu leads with Orders and products."); }, { "data-lead": "products" })}
+        </div>
+        <span className="rp-fk-hint">That side leads your menu. Both stay in.</span>
+      </section>
+    )}
+    {type !== "products" && (
+      <label style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer" }}>
+        <input type="checkbox" checked={type === "both"} disabled={!!busy} onChange={(e) => { void setSellsProducts(e.target.checked); }} style={{ marginTop: 3 }} />
+        <span><strong style={{ display: "block", fontWeight: 600 }}>Sell products too</strong>
+          <span className="rp-hint">Adds the Products, stock and shipping pages, for aftercare or merchandise. Gift cards work either way.</span></span>
+      </label>
+    )}
+    {type !== "services" && <ProductGroupsPicker sells={saved} other={otherWords(doc?.otherSells)} onOther={(words) => save("other", { otherSells: words }, words ? "Saved." : "Something else is off.")} />}
+    {showBookTools && (
+      <div data-book-tools style={{ display: "flex", gap: 16, alignItems: "center", justifyContent: "space-between", padding: "14px 16px", border: "1px solid var(--rp-border)", borderRadius: "var(--rp-radius-lg)" }}>
+        <span style={{ display: "grid", gap: 2 }}>
+          <strong style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}><BookOpen size={16} aria-hidden />Book tools</strong>
+          <span className="rp-hint" style={{ margin: 0 }}>Authors, ISBNs and royalties. Only shops that sell books see this.</span>
+        </span>
+        <Toggle label={bookTools ? "On" : "Off"} checked={bookTools} disabled={!!busy} onChange={(on) => { void setBookTools(on); }} />
+      </div>
+    )}
+    {type !== "services" && <OwnTypesList />}
+    {stockroomWordsNote(saved, heard, justSaved) && <p className="rp-hint" role="status" style={{ margin: 0 }}>{stockroomWordsNote(saved, heard, justSaved)}</p>}
+    {confirmNode}
+  </>);
+  return bare
+    ? <div data-what-you-offer style={{ display: "grid", gap: 20 }}>{body}</div>
+    : <SectionCard title="What you offer" description="Your shop's type, and what fits it. Products stay as they are."><div data-what-you-offer style={{ display: "grid", gap: 20 }}>{body}</div></SectionCard>;
 }

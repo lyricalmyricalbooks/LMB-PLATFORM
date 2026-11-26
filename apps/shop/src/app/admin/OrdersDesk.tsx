@@ -433,7 +433,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   const listPane = (
     <aside aria-label="Ship queue" className="od-list">
       <div className="od-list-head">
-        <SearchField label="Find an order" placeholder={w("Order, name, email, phone, postcode, book or ISBN")} value={query} onChange={(e) => setQuery(e.target.value)} />
+        <SearchField label="Find an order" placeholder={goods ? w("Order, name, email, phone, postcode or product") : "Order, name, email, phone, postcode, book or ISBN"} value={query} onChange={(e) => setQuery(e.target.value)} />
         <div className="od-head-actions" style={{ gap: 8 }}>
           <SecondaryButton size="sm" disabled={!toPack.length} onClick={printPickList} title={toPack.length ? `Every book for the ${toPack.length} order${toPack.length === 1 ? "" : "s"} still to pack` : "Nothing to pack right now"}>
             Print pick list

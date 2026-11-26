@@ -188,3 +188,15 @@ test("the help page's copy of the sells rules is the shared one, word for word, 
   assert.match(page, /renderHelp\(\{[^}]*sells/);
   assert.match(page, /renderTopics\(\{ plan, sells \}\)/);
 });
+
+test("Help follows the shop's type: no booking answers for a product shop, no stock or shipping for services", () => {
+  const ids = (kind) => articlesFor("both", "other", kind).map((a) => a.id);
+  assert.ok(!ids("products").includes("take-bookings"));
+  assert.ok(ids("products").includes("shipping"));
+  assert.ok(ids("services").includes("take-bookings"));
+  assert.ok(!ids("services").includes("shipping"));
+  assert.ok(!ids("services").includes("add-a-book"));
+  assert.ok(ids("both").includes("take-bookings") && ids("both").includes("shipping"));
+  assert.deepEqual(ids(null), articlesFor("both", "other").map((a) => a.id));
+  for (const a of ARTICLES) assert.ok(!a.side || a.side === "products" || a.side === "services", a.id);
+});

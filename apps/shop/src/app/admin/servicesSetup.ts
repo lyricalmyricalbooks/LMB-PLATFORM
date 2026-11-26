@@ -27,6 +27,8 @@ export function shopKindOf(doc: SellsDoc): ShopType {
 
 /** Which side a Both shop leads with ("What do most customers come for?"): bookings unless it said products. */
 export type LeadSide = "products" | "services";
+/** Sent when the owner changes the lead side, so the menu follows at once (detail: the new LeadSide). */
+export const LEAD_SIDE_CHANGED_EVENT = "lm-lead-side-changed";
 export const leadSideOf = (doc: SellsDoc): LeadSide => (doc?.leadSide === "products" ? "products" : "services");
 
 /** The services a client can book now. */

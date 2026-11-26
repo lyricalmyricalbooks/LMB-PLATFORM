@@ -15,9 +15,10 @@
 import { sellsBooks, wordsFor } from "./sells.js";
 
 /**
- * @typedef {{ id: string, topic: string, question: string, answer: string[], steps?: string[], where?: string[], plans?: string[], books?: boolean, goods?: { question?: string, answer?: string[] } }} Article
+ * @typedef {{ id: string, topic: string, question: string, answer: string[], steps?: string[], where?: string[], plans?: string[], books?: boolean, side?: "products" | "services", goods?: { question?: string, answer?: string[] } }} Article
  * `where`: click paths in the shop's admin, written "Page › Part". `plans`: only for presses whose plan includes these
- * apps ("shop", "stockroom"); missing means everyone. `books`: only for shops that have books. `goods`: the words for a
+ * apps ("shop", "stockroom"); missing means everyone. `books`: only for shops that have books. `side`: only for shops
+ * that sell things ("products") or take bookings ("services"); a shop that does both sees both. `goods`: the words for a
  * shop that doesn't sell books, used as written.
  */
 
@@ -44,7 +45,7 @@ export const ARTICLES = Object.freeze([
     where: ["Settings › Your shop", "Settings › Your data"],
   },
   {
-    id: "add-a-book",
+    id: "add-a-book", side: "products",
     topic: "Getting started",
     question: "How do I add my first book?",
     answer: [
@@ -54,7 +55,7 @@ export const ARTICLES = Object.freeze([
     where: ["Books › Add book"],
   },
   {
-    id: "take-bookings",
+    id: "take-bookings", side: "services",
     topic: "Getting started",
     question: "How do I take bookings?",
     answer: [
@@ -63,7 +64,7 @@ export const ARTICLES = Object.freeze([
     ],
   },
   {
-    id: "booking-calendar",
+    id: "booking-calendar", side: "services",
     topic: "Selling",
     question: "How do I use the bookings calendar?",
     answer: [
@@ -110,7 +111,7 @@ export const ARTICLES = Object.freeze([
     ],
   },
   {
-    id: "booking-reminders",
+    id: "booking-reminders", side: "services",
     topic: "Selling",
     question: "How do booking reminders work, and what do texts cost?",
     answer: [
@@ -120,7 +121,7 @@ export const ARTICLES = Object.freeze([
     ],
   },
   {
-    id: "booking-no-shows",
+    id: "booking-no-shows", side: "services",
     topic: "Selling",
     question: "How do I stop people missing their bookings?",
     answer: [
@@ -130,7 +131,7 @@ export const ARTICLES = Object.freeze([
     ],
   },
   {
-    id: "packs-of-visits",
+    id: "packs-of-visits", side: "services",
     topic: "Selling",
     question: "Can I sell a pack of visits?",
     answer: [
@@ -139,7 +140,7 @@ export const ARTICLES = Object.freeze([
     ],
   },
   {
-    id: "editions",
+    id: "editions", side: "products",
     topic: "Getting started",
     question: "How do I sell one book in more than one edition?",
     answer: [
@@ -156,7 +157,7 @@ export const ARTICLES = Object.freeze([
     },
   },
   {
-    id: "sizes-and-colours",
+    id: "sizes-and-colours", side: "products",
     topic: "Getting started",
     question: "How do I sell something that comes in sizes or colours?",
     answer: [
@@ -176,7 +177,7 @@ export const ARTICLES = Object.freeze([
     where: ["Settings › Your shop"],
   },
   {
-    id: "stock-places",
+    id: "stock-places", side: "products",
     topic: "Stockroom",
     question: "Some of my copies are at a market stall. Can the stockroom track that?",
     answer: [
@@ -186,7 +187,7 @@ export const ARTICLES = Object.freeze([
     plans: ["stockroom"],
   },
   {
-    id: "size-guide",
+    id: "size-guide", side: "products",
     topic: "Getting started",
     question: "How do I add a size guide?",
     answer: [
@@ -234,7 +235,7 @@ export const ARTICLES = Object.freeze([
     where: ["Overview › Get started"],
   },
   {
-    id: "import-spreadsheet",
+    id: "import-spreadsheet", side: "products",
     topic: "Getting started",
     question: "How do I bring in my books from a spreadsheet?",
     answer: [
@@ -244,7 +245,7 @@ export const ARTICLES = Object.freeze([
     where: ["Books"],
   },
   {
-    id: "photos",
+    id: "photos", side: "products",
     topic: "Getting started",
     question: "How do I add photos to my books?",
     answer: [
@@ -254,7 +255,7 @@ export const ARTICLES = Object.freeze([
     where: ["Books"],
   },
   {
-    id: "isbn",
+    id: "isbn", side: "products",
     topic: "Getting started",
     question: "Where do I put a book's ISBN?",
     answer: [
@@ -265,7 +266,7 @@ export const ARTICLES = Object.freeze([
     books: true,
   },
   {
-    id: "publish",
+    id: "publish", side: "products",
     topic: "Getting started",
     question: "How do I put a book on sale?",
     answer: [
@@ -275,7 +276,7 @@ export const ARTICLES = Object.freeze([
     where: ["Books"],
   },
   {
-    id: "bring-books",
+    id: "bring-books", side: "products",
     topic: "Bringing your shop over",
     question: "How do I bring my books over from my old shop?",
     answer: [
@@ -360,7 +361,7 @@ export const ARTICLES = Object.freeze([
     where: ["Settings › Your shop"],
   },
   {
-    id: "shipping",
+    id: "shipping", side: "products",
     topic: "Selling",
     question: "How do I set my shipping prices?",
     answer: [
@@ -448,7 +449,7 @@ export const ARTICLES = Object.freeze([
     plans: ["shop"],
   },
   {
-    id: "pre-orders",
+    id: "pre-orders", side: "products",
     topic: "Selling",
     question: "Can I take pre-orders for a book that isn't out yet?",
     answer: [
@@ -513,7 +514,7 @@ export const ARTICLES = Object.freeze([
     plans: ["shop"],
   },
   {
-    id: "new-order",
+    id: "new-order", side: "products",
     topic: "Orders",
     question: "What happens when someone places an order?",
     answer: [
@@ -524,7 +525,7 @@ export const ARTICLES = Object.freeze([
     plans: ["shop"],
   },
   {
-    id: "send-order",
+    id: "send-order", side: "products",
     topic: "Orders",
     question: "How do I send an order and let the customer know?",
     answer: [
@@ -535,7 +536,7 @@ export const ARTICLES = Object.freeze([
     plans: ["shop"],
   },
   {
-    id: "fairs",
+    id: "fairs", side: "products",
     topic: "Stockroom",
     question: "How do I sell at a fair or a market?",
     answer: [
@@ -545,7 +546,7 @@ export const ARTICLES = Object.freeze([
     plans: ["stockroom"],
   },
   {
-    id: "stock-everywhere",
+    id: "stock-everywhere", side: "products",
     topic: "Stockroom",
     question: "How do I keep my stock right on the website and in the stockroom?",
     answer: [
@@ -669,11 +670,14 @@ function worded(a, w) {
 
 /**
  * The articles for a plan ("both", "shop" or "stockroom"); everyone gets the ones with no plan. `sells` is the shop's
- * answer to "What do you sell?": a books shop (or no answer) gets the articles exactly as written.
+ * answer to "What do you sell?": a books shop (or no answer) gets the articles exactly as written. `kind` is the
+ * shop's type ("products", "services" or "both"); a product shop sees no booking answers and a services shop no
+ * stock or shipping ones. Missing means every answer.
  */
-export function articlesFor(plan, sells = null) {
+export function articlesFor(plan, sells = null, kind = null) {
   const apps = plan === "both" ? ["shop", "stockroom"] : [plan];
-  const list = ARTICLES.filter((a) => (!a.plans || a.plans.some((p) => apps.includes(p))) && !(a.books && noBooks(sells)));
+  const list = ARTICLES.filter((a) => (!a.plans || a.plans.some((p) => apps.includes(p))) && !(a.books && noBooks(sells))
+    && !(a.side && kind && kind !== "both" && a.side !== kind));
   if (sellsBooks(sells)) return list;
   const w = wordsFor(sells);
   return list.map((a) => worded(a, w));

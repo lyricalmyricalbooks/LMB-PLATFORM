@@ -12,9 +12,10 @@ const ATTRS = /^(label|placeholder|title|aria-label|hint|description|helper|empt
 /**
  * Files left on purpose: Home's To do lines (as before), and Studio (shopper words live in Text & labels). Bookings.tsx
  * says "book" as the verb (book a time), which every kind of shop reads the same way. OfferStage.tsx asks a new shop
- * whether it sells books (the only way the book tools turn on), so it must say books to every shop.
+ * whether it sells books (the only way the book tools turn on), so it must say books to every shop. WhatYouSellCard.tsx
+ * names the Book tools switch, which only a shop that sells books is shown.
  */
-const KEEP = new Set(["overview/HomePage.tsx", "Dashboard.tsx", "BookEditor.tsx", "Bookings.tsx", "overview/OfferStage.tsx"]);
+const KEEP = new Set(["overview/HomePage.tsx", "Dashboard.tsx", "BookEditor.tsx", "Bookings.tsx", "overview/OfferStage.tsx", "WhatYouSellCard.tsx"]);
 
 function files(dir: string, out: string[] = []) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
