@@ -4,7 +4,8 @@ import { inEditorPreview } from "../../lib/trackingGuard";
 import { relatedRow } from "./relatedArtist";
 import { shownDetailRows } from "./detailRows";
 import { m } from "motion/react";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { STICKY_PHOTO_LAYOUTS, useStickyPhotos } from "./pdpStickyPhotos";
 import toast from "react-hot-toast";
 import { useParams, Link, useNavigate, useLocation } from "react-router";
 import {
@@ -139,7 +140,6 @@ export default function BookDetail() {
   const { currency, formatPrice, formatBookPrice, getBookPrice, convertPrice } = useCurrency();
 
   const primaryColor  = settings?.design?.primaryColor || "#e8402a";
-  const font          = settings?.design?.font || "Inter";
 
   const [activePhoto, setActivePhoto] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -362,7 +362,13 @@ export default function BookDetail() {
   const pdpDetailsBelow   = (tokenSource.pdpDetailsPlacement || "below") === "below";
   const pdpSpecsRecord    = (tokenSource.pdpSpecsStyle || "record") === "record";
   const headingFontName   = tokenSource.headingFont || tokenSource.font || tokenSource.bodyFont;
-  const pageFontNames     = Array.from(new Set([headingFontName, ...productPageFontNames(tokenSource)].filter(Boolean).map(String)));
+  // The body font is loaded and given a real fallback: a bare family name the page never loaded drew tabs, "Frequently
+  // bought together" and related products in the browser's default serif (plan "Starters on par", step 1).
+  const photoColumnRef    = useRef<HTMLDivElement | null>(null);
+  const infoColumnRef     = useRef<HTMLDivElement | null>(null);
+  const stickyPhotos      = useStickyPhotos(photoColumnRef, infoColumnRef, (STICKY_PHOTO_LAYOUTS as readonly string[]).includes(productPageLayout(tokenSource)));
+  const bodyFontName      = tokenSource.font || tokenSource.bodyFont || "Inter";
+  const pageFontNames     = Array.from(new Set([headingFontName, bodyFontName, ...productPageFontNames(tokenSource)].filter(Boolean).map(String)));
   const titleAutoSize     = productTitleSize === "medium" ? "clamp(28px, 3.4vw, 44px)" : productTitleSize === "xlarge" ? "clamp(40px, 6vw, 84px)" : undefined;
 
   const css = `
@@ -379,6 +385,7 @@ export default function BookDetail() {
       --badge-text-secondary: ${badgeTextSecondary};
       --badge-bg-secondary: ${badgeBgSecondary};
       --low-inventory-color: ${lowInventoryColor};
+      --body-font: '${String(bodyFontName).replace(/['"\\;{}<>]/g, "")}', system-ui, -apple-system, 'Segoe UI', sans-serif;
       --heading-font: ${headingFontName ? `'${String(headingFontName).replace(/['"\\;{}<>]/g, "")}', Impact, sans-serif` : "inherit"};
     }
     [data-fm-store] .custom-btn {
@@ -1423,7 +1430,7 @@ export default function BookDetail() {
       data-seo-reviews={reviewsReady && shippingProfiles !== undefined ? "ready" : undefined}
       className="min-h-screen selection:bg-white/20"
       style={{
-        fontFamily: font,
+        fontFamily: "var(--body-font)",
         backgroundColor: storefrontBg,
         color: storefrontText,
       }}
@@ -1491,8 +1498,9 @@ export default function BookDetail() {
             <div
               data-section="products"
               data-studio-target="style:productCard" data-studio-label="Product photos"
+              ref={photoColumnRef}
               onPointerEnter={warmGallery} onTouchStart={warmGallery} onFocus={warmGallery}
-              className="fm-pdp-photos w-full min-w-0 mx-auto lg:mx-0 lg:justify-self-end"
+              className={`fm-pdp-photos w-full min-w-0 mx-auto lg:mx-0 lg:justify-self-end${stickyPhotos ? " lg:sticky lg:top-[calc(var(--fm-header-offset,0px)+1.5rem)]" : ""}`}
               style={{ maxWidth: productImageMaxWidth + (showThumbRail && pdpThumbPosition === "side" ? thumbRailWidth : 0) }}
             >
               {productImageLayout === "slider" ? (
@@ -1768,7 +1776,7 @@ export default function BookDetail() {
             </div>
 
             {/* ── INFO COLUMN ── */}
-            <div data-section="products" className="fm-pdp-info flex flex-col gap-8 lg:sticky lg:top-[calc(var(--fm-header-offset,0px)+1.5rem)] w-full min-w-0">
+            <div ref={infoColumnRef} data-section="products" className="fm-pdp-info flex flex-col gap-8 lg:sticky lg:top-[calc(var(--fm-header-offset,0px)+1.5rem)] w-full min-w-0">
               <div className="fm-pdp-card" data-studio-target="style:productCard|copy:Product page" data-studio-label="Buy card">
 
                 {(pdpRuledRows ? ruledSections(cardSections(buyBlocks)) : cardSections(buyBlocks)).map((section, index) => {
