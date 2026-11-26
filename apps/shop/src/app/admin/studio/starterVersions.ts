@@ -60,8 +60,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
     releases: [
       { version: 1, date: "2026-11-25", note: "The first version, in Harvest, Olive and Night." },
       { version: 2, date: "2026-11-26", note: "A new frame: links in a row under your name, the title first on product pages, framed products and your email large in the footer." },
+      { version: 3, date: "2026-11-26", note: "A redesign: a golden card beside a rounded photo, round photo links, rounded shelf cards, a dark gift band and your story." },
     ],
-    looks: { harvest: "1mw54g8", olive: "gih6xw", night: "1nn8r8l" },
+    looks: { harvest: "tj3slb", olive: "41eokb", night: "siuvw" },
   },
   "starter-salon": {
     releases: [

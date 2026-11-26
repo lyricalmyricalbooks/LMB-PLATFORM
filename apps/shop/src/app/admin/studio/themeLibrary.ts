@@ -823,7 +823,7 @@ export const THEME_LIBRARY = [
       ],
       sections: {
         heroPage: [
-          { type: "SplitOpeningSection", settings: { eyebrow: "New this week", title: "Heavy knits are back", body: "Say in one line what you sell and why it is worth a look.", accentWord: "", ctaText: "Shop the new things", ctaUrl: "/collections/all", imageUrl: "/samples/clothing/opening.webp", imageAlt: "Your shop", layout: "image-right", titleSizePx: 120, titleSizePxMobile: 56 } },
+          { type: "SplitOpeningSection", settings: { eyebrow: "A short line about your shop", title: "Your headline, big and bold", body: "Say in one line what you sell and why it is worth a look.", accentWord: "", ctaText: "Shop the new things", ctaUrl: "/collections/all", imageUrl: "/samples/clothing/opening.webp", imageAlt: "Your shop", layout: "image-right", titleSizePx: 120, titleSizePxMobile: 56 } },
           { type: "CollectionListSection", settings: { title: "Shop by category", columns: 4, align: "left", containerWidth: "full" } },
           { type: "MarqueeSection", settings: { text: "New in every week ✳ Easy to find ✳ Sent out fast", separator: "✳", still: false, fontSize: 36, speed: 30, uppercase: true, bold: true, letterSpacing: 0, background: "#111111", color: "#ffe14a" } },
           { type: "ProductShowcaseGridSection", settings: { overlayOpacity: 0, eyebrow: "", title: "New this week", productLimit: 8, columnsDesktop: 4, columnsMobile: 2, imageAspectRatio: "4:5", showCategoryTag: true, showQuickAdd: true, showFormatLine: false, grainOpacity: 0, tagBg: "#ffe14a", tagText: "#111111", containerWidth: "full" } },
@@ -847,9 +847,9 @@ export const THEME_LIBRARY = [
       cartDrawerBg: "#f4f4f1", cartDrawerText: "#111111", checkoutAccentColor: "#111111", checkoutBgColor: "#f4f4f1", linkColorHover: "#d63f12", navLinkActiveColor: "#111111",
       showCategoryChips: true, categoryChipShowCounts: true, showCatalogCount: true, catalogHeading: "Everything" } },
   { id: "starter-larder", name: "Larder",
-    mood: "Warm and generous for food and drink: a centred headline on a big photo, a running line, four products to a row, how it's made in staggered photos and the questions people ask",
+    mood: "Warm and generous for food and drink: a golden card beside a rounded photo, round photo aisles, rounded shelf cards, a dark gift band, your story and the questions people ask",
     palettePreset: "larder", font: "DM Sans", buttonStyle: "solid", productCardStyle: "minimal", productHoverEffect: "zoom", imageAspectRatio: "4:5",
-    productColumnsDesktop: 4, productColumnsMobile: 2, cardRadius: 0, productCTA: "Add to bag", catalogLayoutStyle: "modern", showCatalogControls: true, homeLayoutTemplate: "starter-larder",
+    productColumnsDesktop: 4, productColumnsMobile: 2, cardRadius: 16, productCTA: "Add to bag", catalogLayoutStyle: "modern", showCatalogControls: true, homeLayoutTemplate: "starter-larder",
     content: {
       starterPages: ["about", "shipping", "contact"],
       sampleProducts: [
@@ -864,14 +864,18 @@ export const THEME_LIBRARY = [
       ],
       sections: {
         heroPage: [
-          { type: "ImageBannerSection", settings: { eyebrow: "A short line about your shop", title: "Your headline, made by hand.", body: "Say what you make, where it comes from and how it reaches people.", imageUrl: "/samples/food/opening.webp", imageAlt: "Your opening photo", height: "large", contentPosition: "center-center", textAlign: "center", overlayOpacity: 0.6, ctaText: "Shop the larder", ctaUrl: "/collections/all", secondaryCtaText: "" } },
-          { type: "MarqueeSection", settings: { text: "Your first message ✺ A second short line ✺ Something shoppers should know", separator: "✺", still: false, colorSchemeId: "scheme-accent", fontSize: 14, speed: 40, uppercase: false, bold: true, letterSpacing: 0 } },
-          { type: "ProductShowcaseGridSection", settings: { overlayOpacity: 0, eyebrow: "This week", title: "In the larder", columnsDesktop: 4, columnsMobile: 2, imageAspectRatio: "4:5", showCategoryTag: false, showQuickAdd: true, grainOpacity: 0 } },
-          { type: "ImageCollageSection", settings: { title: "How it's made", layout: "stagger", gap: 16, showCaptions: true, items: [
-            { imageUrl: "/samples/food/story.webp", alt: "Your kitchen", caption: "Say where it's made", linkUrl: "" },
-            { imageUrl: "/samples/food/about.webp", alt: "Your ingredients", caption: "Say where it comes from", linkUrl: "" },
-            { imageUrl: "/samples/food/banner.webp", alt: "Your food on the table", caption: "Say how it's best eaten", linkUrl: "" },
+          { type: "SplitOpeningSection", settings: { eyebrow: "A short line about your shop", title: "Your headline, made by hand.", accentWord: "", body: "Say what you make, where it comes from and how it reaches people.", ctaText: "Shop the shelf", ctaUrl: "/collections/all", imageUrl: "/samples/food/opening.webp", imageAlt: "Your opening photo", layout: "image-right", titleSizePx: 76, titleSizePxMobile: 44, colorSchemeId: "scheme-accent", cornerRadius: "xl", outerGap: 32 } },
+          { type: "MulticolumnSection", settings: { title: "", columns: 6, align: "center", containerWidth: "full", items: [
+            { title: "New in", body: "", imageUrl: "/samples/food/sourdough.webp" },
+            { title: "Best sellers", body: "", imageUrl: "/samples/food/jam.webp" },
+            { title: "Gifts", body: "", imageUrl: "/samples/food/olive-oil.webp" },
+            { title: "Seasonal", body: "", imageUrl: "/samples/food/coffee.webp" },
+            { title: "Small batch", body: "", imageUrl: "/samples/food/loose-tea.webp" },
+            { title: "Sale", body: "", imageUrl: "/samples/food/chocolate.webp" },
           ] } },
+          { type: "ProductShowcaseGridSection", settings: { overlayOpacity: 0, eyebrow: "This week", title: "On the shelf", productLimit: 8, columnsDesktop: 4, columnsMobile: 2, imageAspectRatio: "4:3", showCategoryTag: false, showQuickAdd: true, showFormatLine: false, grainOpacity: 0, containerWidth: "full" } },
+          { type: "ImageWithTextSection", settings: { eyebrow: "A short label", title: "Say what makes a good gift here", body: "Tell shoppers how they can send something to someone, in a sentence or two.", imageUrl: "/samples/food/banner.webp", imageAlt: "A gift from your shop", layout: "text-left", ctaText: "See gift ideas", ctaUrl: "/collections/all", colorSchemeId: "scheme-inverse", cornerRadius: "xl", outerGap: 32 } },
+          { type: "ImageWithTextSection", settings: { eyebrow: "", title: "Tell your story", body: "Who you are, how you make things and why. A few warm lines help shoppers trust a new shop.", imageUrl: "/samples/food/story.webp", imageAlt: "Your kitchen", layout: "image-left", ctaText: "Read our story", ctaUrl: "/page/about" } },
           { type: "FAQSection", settings: { title: "Good to know", showSearch: false, items: [
             { question: "When do you deliver?", answer: "Say which days you send orders and where you deliver." },
             { question: "How long does it keep?", answer: "Say how long your food keeps and how to store it." },

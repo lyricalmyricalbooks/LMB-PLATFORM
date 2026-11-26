@@ -36,7 +36,7 @@ export const STARTERS = Object.freeze([
   { id: "aurel-editorial", name: "Aurel", version: 2, styles: [{ id: "cobalt", name: "Cobalt" }, { id: "sand", name: "Sand" }, { id: "night", name: "Night" }] },
   { id: "starter-gallery", name: "Gallery", version: 4, styles: [{ id: "linen", name: "Linen" }, { id: "stone", name: "Stone" }, { id: "night", name: "Night" }] },
   { id: "starter-warehouse", name: "Warehouse", version: 3, styles: [{ id: "signal", name: "Signal" }, { id: "cobalt", name: "Cobalt" }, { id: "night", name: "Night" }] },
-  { id: "starter-larder", name: "Larder", version: 2, styles: [{ id: "harvest", name: "Harvest" }, { id: "olive", name: "Olive" }, { id: "night", name: "Night" }] },
+  { id: "starter-larder", name: "Larder", version: 3, styles: [{ id: "harvest", name: "Harvest" }, { id: "olive", name: "Olive" }, { id: "night", name: "Night" }] },
   { id: "starter-salon", name: "Salon", version: 2, styles: [{ id: "blush", name: "Blush" }, { id: "sage", name: "Sage" }, { id: "night", name: "Night" }] },
   { id: "starter-workshop", name: "Workshop", version: 2, styles: [{ id: "sunny", name: "Sunny" }, { id: "mint", name: "Mint" }, { id: "night", name: "Night" }] },
   { id: "starter-commission", name: "Commission", version: 2, styles: [{ id: "walnut", name: "Walnut" }, { id: "chalk", name: "Chalk" }, { id: "night", name: "Night" }] },
