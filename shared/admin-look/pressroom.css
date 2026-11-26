@@ -2759,5 +2759,5 @@ div.rp-listcard-main { cursor: default; }
 .rp-group-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .rp-group-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border: 1px solid var(--rp-border); border-radius: 999px; background: var(--rp-surface); color: var(--rp-text-muted); font: 600 var(--rp-text-sm) var(--rp-font-body); cursor: pointer; }
 .rp-group-chip:hover { border-color: var(--rp-border-strong); color: var(--rp-text); }
-.rp-group-chip[aria-pressed="true"] { background: var(--rp-primary); border-color: var(--rp-primary); color: var(--rp-on-primary); }
+.rp-group-chip[aria-pressed="true"], .rp-group-chip[aria-checked="true"] { background: var(--rp-primary); border-color: var(--rp-primary); color: var(--rp-on-primary); }
 .rp-group-chip:disabled { cursor: progress; opacity: .7; }

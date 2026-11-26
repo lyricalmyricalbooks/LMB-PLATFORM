@@ -14,6 +14,7 @@ const PHONE_CONTENT_WIDTH = 328;
 
 // Each stage's screen, as the Overview draws it (overview/SetupStart.tsx).
 const STAGE_SCREENS: Record<string, string> = {
+  offer: "overview/OfferStage.tsx",
   details: "overview/PressDetailsStage.tsx",
   bring: "overview/BringShopStage.tsx",
   look: "overview/ChooseLookWelcome.tsx",

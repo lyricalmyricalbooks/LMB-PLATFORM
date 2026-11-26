@@ -263,6 +263,7 @@ test("the start, connected path: every stage of Get started is walked in order, 
   };
 
   assert.equal(doc().details, undefined, "the run starts at Your press: nothing done yet");
+  await stage("offer", { offer: { at: at() } }); // What you offer: what the shop sells
   await stage("details", { details: { at: at() } });
   await stage("bring", { bring: { at: at(), skipped: true } }); // the press brings the shop over later
   await stage("look", { welcome: { theme: "press-zine", at: at() } });

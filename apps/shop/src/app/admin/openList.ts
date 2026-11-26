@@ -5,7 +5,7 @@
 
 import type { RunStep } from "./startRun";
 
-export type OpenRowId = "account" | "name" | "look" | "bring" | "services" | "payments" | "delivery";
+export type OpenRowId = "account" | "name" | "offer" | "look" | "bring" | "services" | "payments" | "delivery";
 export type OpenRowState = "done" | "now" | "next";
 
 export interface OpenRow {
@@ -23,6 +23,8 @@ export interface OpenFacts {
   look?: string | null;
   lookStyle?: string | null;
   provider?: "stripe" | "square" | null;
+  /** What you offer, once answered: "A product shop.", "Hair and beauty, with products too." (offerStage.ts offerSummary). */
+  offer?: string | null;
 }
 
 /** "press-marquee" → "Marquee", "aurel" → "Aurel": a look's id read as its name. */
@@ -50,6 +52,9 @@ export function openRows(steps: RunStep[], step: RunStep | null, facts: OpenFact
   const words: Record<OpenRowId, (state: OpenRowState) => [string, string]> = {
     account: () => ["Made your account", facts.email ? `Signed in as ${facts.email}` : "You're signed in."],
     name: () => ["Named your shop", [facts.name, facts.country].filter(Boolean).join(" · ") || "Change it anytime in Settings."],
+    offer: (s) => s === "done"
+      ? ["Told us what you offer", facts.offer || "Change it anytime in Settings."]
+      : ["Tell us what you offer", "What you sell or the services you offer, so your menu and website fit."],
     look: (s) => s === "done"
       ? ["Picked a starting look", `${look || "Your look"}${style ? `, in ${style}` : ""}. Make it yours whenever you like.`]
       : ["Pick a starting look", "Keep the look you saw at sign-up, or try another. You can change it anytime."],

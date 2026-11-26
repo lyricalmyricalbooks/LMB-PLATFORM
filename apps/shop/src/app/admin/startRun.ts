@@ -2,6 +2,7 @@
 // Overview doesn't carry its own gates. Order since the sign-up to open shop plan (move 4, 25 November 2026): the look
 // (6.3, 17.8, picked at sign-up so it is one press), your products (17.3), Get paid (17.10, only for a press whose cards
 // go through the platform), where customers reach you (17.2) and shipping (17.11), and opening the shop (17.13).
+// What you offer (shop types plan, part 1, 26 November 2026) comes before the look: sign-up only asks the kind of shop.
 // Home shows them as one list (openList.ts, OpenListCard.tsx).
 // Google (17.9) left the run on 11 November 2026: it is optional and the Overview's own Connect Google card asks for it,
 // so a step that mostly said "coming soon" was filler. Older documents keep their `google` marker; nothing reads it here.
@@ -15,16 +16,17 @@ import { paymentsStepShows } from "./paymentsStage";
 import { shippingStepShows } from "./shippingStage";
 import { servicesOnly } from "./servicesSetup";
 
-export type RunStep = "details" | "bring" | "services" | "look" | "payments" | "shipping" | "final";
+export type RunStep = "offer" | "details" | "bring" | "services" | "look" | "payments" | "shipping" | "final";
 
 export type RunDoc = {
-  details?: unknown; bring?: unknown; welcome?: { firstRun?: boolean } | unknown; payments?: unknown; shipping?: unknown; finalCheck?: unknown;
+  offer?: unknown; details?: unknown; bring?: unknown; welcome?: { firstRun?: boolean } | unknown; payments?: unknown; shipping?: unknown; finalCheck?: unknown;
   plan?: string;
   sells?: string | null; publishes?: string | null; sellsProducts?: boolean;
 } | null;
 
 /** The step names (the release notes and older words still use them). */
 export const RUN_LABELS: Record<RunStep, string> = {
+  offer: "What you offer",
   details: "Your brand",
   bring: "Your products",
   services: "Your services",
@@ -37,8 +39,8 @@ export const RUN_LABELS: Record<RunStep, string> = {
 /** The steps this press walks, in order: Get paid only when its cards go through the platform. */
 export function runSteps(platform: "stripe" | "square" | null, services = false): RunStep[] {
   const paid = platform ? ["payments" as const] : [];
-  if (services) return ["look", "services", ...paid, "details", "final"];
-  return ["look", "bring", ...paid, "details", "shipping", "final"];
+  if (services) return ["offer", "look", "services", ...paid, "details", "final"];
+  return ["offer", "look", "bring", ...paid, "details", "shipping", "final"];
 }
 
 /** `platform` is the card provider the shop's cards go through on the platform (Stripe or Square), or null on its own keys. */
@@ -48,6 +50,9 @@ export function nextRunStep(doc: RunDoc, settings: any, platform: "stripe" | "sq
   const services = servicesOnly(doc);
   const firstRun = !!(doc.welcome as { firstRun?: boolean } | undefined)?.firstRun;
   if (doc.welcome && !firstRun && !doc.details && !doc.bring) return null;
+  // What you offer (shop types plan) comes first for a shop that hasn't picked its look yet; a shop past the look
+  // step before this step existed carries on without it.
+  if (!doc.welcome && !doc.offer) return "offer";
   if (!doc.welcome) return "look";
   if (!doc.bring) return services ? "services" : "bring";
   if (paymentsStepShows(doc, platform)) return "payments";

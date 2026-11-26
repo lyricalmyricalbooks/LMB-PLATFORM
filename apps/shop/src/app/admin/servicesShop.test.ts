@@ -131,12 +131,12 @@ describe("setting up a services shop", () => {
   });
 
   it("walks Get started without the products and shipping steps", () => {
-    expect(runSteps("stripe", true)).toEqual(["look", "services", "payments", "details", "final"]);
-    expect(runSteps(null, true)).toEqual(["look", "services", "details", "final"]);
-    expect(runSteps("stripe")).toEqual(["look", "bring", "payments", "details", "shipping", "final"]);
+    expect(runSteps("stripe", true)).toEqual(["offer", "look", "services", "payments", "details", "final"]);
+    expect(runSteps(null, true)).toEqual(["offer", "look", "services", "details", "final"]);
+    expect(runSteps("stripe")).toEqual(["offer", "look", "bring", "payments", "details", "shipping", "final"]);
     const at = { at: "2026-11-14T10:00:00.000Z" };
     const look = { ...at, theme: "x", firstRun: true };
-    const salon = { publishes: "hair" };
+    const salon = { publishes: "hair", offer: at };
     expect(nextRunStep(salon, settings, null)).toBe("look");
     expect(nextRunStep({ ...salon, welcome: look }, settings, null)).toBe("services");
     expect(nextRunStep({ ...salon, welcome: look, bring: at }, settings, null)).toBe("details");

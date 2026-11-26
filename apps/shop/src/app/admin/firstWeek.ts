@@ -45,6 +45,10 @@ export interface FirstWeekDoc {
   sells?: string | null;
   /** A services shop that also sells a few products (Settings › What you sell): it keeps the Products and stock pages. */
   sellsProducts?: boolean;
+  /** Which side a shop selling both leads with ("What do most customers come for?"; servicesSetup.ts `leadSideOf`). */
+  leadSide?: "products" | "services";
+  /** Get started's What you offer, answered (offerStage.ts). */
+  offer?: import("./offerStage").OfferMarker;
   /** The ways to sell (beta) the owner asked for at sign-up ("Anything else you'll sell?"); never changed from the admin. */
   alsoSells?: string[];
   /** The kinds of things a product shop sells (product groups' ids): sign-up's "Pick all that fit", changed in Settings. */

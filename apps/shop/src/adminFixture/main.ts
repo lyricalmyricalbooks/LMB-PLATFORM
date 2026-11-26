@@ -1905,6 +1905,18 @@ if (new URLSearchParams(location.search).get("variants")) {
   }
 }
 
+// ── What you offer (shop types plan): `?offer=products|services|both` is a new shop at Get started's first step, just
+// signed up as that kind. In memory. ──
+{
+  const offer = new URLSearchParams(location.search).get("offer");
+  if (offer === "products" || offer === "services" || offer === "both") {
+    const week: any = { publishes: offer === "products" ? "other" : "hair", plan: "both", country: "CA", ...(offer === "both" ? { sellsProducts: true } : {}) };
+    const api = adminApi as any;
+    api.getFirstWeek = async () => JSON.parse(JSON.stringify(week));
+    api.updateFirstWeek = async (change: any) => { Object.assign(week, change); };
+  }
+}
+
 if (new URLSearchParams(location.search).get("page") === "design") {
   const live = { themeBase: { id: "atlas", name: "Atlas" }, primaryColor: "#1f1e1b" };
   const api = adminApi as any;
