@@ -93,3 +93,4 @@ Details of each feature live in [`docs/agent-notes/studio.md`](../../../../docs/
 - Starter shop page: intro line, chips and one Filter button (26 November 2026, plan "Starters on par", step 4)
 - Starter bag: free-shipping bar, estimate behind a link (26 November 2026, plan "Starters on par", step 5)
 - Starter product pages, finished (26 November 2026, plan "Starters on par", step 6)
+- Starter footers and the missing page (27 November 2026, plan "Starters on par", step 7)

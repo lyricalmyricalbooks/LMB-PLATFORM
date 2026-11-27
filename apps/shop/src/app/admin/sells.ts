@@ -56,6 +56,7 @@ const WRITTEN: Record<string, string> = {
   cartTabReminder: "({count}) Your picks are waiting",
   newsletterText: "New arrivals, limited runs and shop news — delivered quietly.",
   footerAbout: "An independent shop of carefully made things.",
+  footerConnectHeading: "Help",
   pdpAskToggle: "Ask a question about this product",
   bookNotFound: "Product not found",
   categoryFallback: "Product",

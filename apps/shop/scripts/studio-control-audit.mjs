@@ -76,7 +76,11 @@ const ROUTES = {
 };
 // Site-wide controls whose only drawing on the home page is a loading placeholder (gone once photos load,
 // so the result depended on the network): check them where they are drawn at rest.
-const KEY_ROUTES = { surfaceRaisedColor: ROUTES.cartPage }; // checkout's order summary panel
+const KEY_ROUTES = {
+  surfaceRaisedColor: ROUTES.cartPage, // checkout's order summary panel
+  // The missing page's own switches (Style › Custom pages) only draw on a missing page.
+  showNotFoundMessage: ROUTES.page404, showNotFoundBack: ROUTES.page404, showNotFoundSearch: ROUTES.page404, showNotFoundProducts: ROUTES.page404,
+};
 const pageFor = (f) => {
   if (KEY_ROUTES[f.key]) return { route: KEY_ROUTES[f.key] };
   const where = f.where || {};

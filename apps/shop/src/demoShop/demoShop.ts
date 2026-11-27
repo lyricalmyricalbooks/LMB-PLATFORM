@@ -81,7 +81,10 @@ export function demoDesign(choice: DemoChoice, base = "/", asked = DEMO_NAME): {
   const books = demoProducts(choice, sells);
   // A finished shop has its shelves in Studio › Menus › Shop categories: the demo lists the sample products' shelves.
   const shelves = [...new Set(books.flatMap((b: any) => b.categories || []).filter((c: string) => c && c !== "Featured"))];
-  const worded = withStarterWords({ ...applied, copy: { ...(applied.copy || {}), siteName: shopName } }, sells);
+  // The footer's line is the sample brand's own (its shop-page sentence), as a finished shop's would be; a real shop keeps
+  // the words of its kind until the owner writes them.
+  const brandLine = typeof theme?.global?.catalogIntro === "string" ? { footerAbout: theme.global.catalogIntro } : {};
+  const worded = withStarterWords({ ...applied, copy: { ...(applied.copy || {}), ...brandLine, siteName: shopName } }, sells);
   // The starting menu (Publications, Zines…) is a bookshop's: a demo always shows its own sample shelves instead.
   const design = !shelves.length ? worded : { ...worded, categories: shelves.map((name, i) => ({ id: `demo-cat-${i + 1}`, name, description: "", showInNav: true })) };
   return { design: underBase(design, base), books: underBase(books, base), pages: demoPages(shop), name: styledName(theme), sells, shopName, bookingSamples: underBase(starterBookingSamples(theme), base) };

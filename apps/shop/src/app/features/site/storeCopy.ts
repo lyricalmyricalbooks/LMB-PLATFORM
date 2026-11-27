@@ -185,7 +185,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "footerNavHeading", label: "Navigation heading", default: "Navigate" },
       { key: "footerWordmark", label: "Footer wordmark (single-line style)", default: "{name}", hint: "Shown in capitals. {name} is the site name." },
       { key: "footerLinkShop", label: "Link: Shop", default: "Shop" },
-      { key: "footerLinkTrack", label: "Link: Track order", default: "Track Order" },
+      { key: "footerLinkTrack", label: "Link: Track order", default: "Track order" },
       { key: "bookTimeFooterLink", label: "Link: Book a time (shows while you take bookings)", default: "Book a time" },
       { key: "eventsFooterLink", label: "Link: Events (shows while you have events coming up)", default: "Events" },
       { key: "classesFooterLink", label: "Link: Classes (shows while you have classes on your timetable)", default: "Classes" },
@@ -396,7 +396,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       },
       { key: "notFoundCode", label: "404 number", default: "404" },
       { key: "notFoundTitle", label: "404 message", default: "Page not found" },
-      { key: "notFoundBack", label: "404 back link", default: "BACK TO HOME" },
+      { key: "notFoundBack", label: "404 back link", default: "Back to home" },
     ],
   },
   {

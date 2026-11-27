@@ -30,8 +30,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 8, date: "2026-11-26", note: "The shop page opens with a line about the range and your categories as buttons, and the filters sit behind one Filter button with sort beside it." },
       { version: 9, date: "2026-11-26", note: "A calmer bag: a free-shipping bar, shipping estimate behind one link, quieter type and no trust badges." },
       { version: 10, date: "2026-11-26", note: "Product pages: a sticky Add to bag bar on phones, details that fold open on phones and “You may also like”; Northline Supply adds a size guide." },
+      { version: 11, date: "2026-11-26", note: "Footers: the brand's line, a plain Help heading, social and card icons when set up, a readable copyright line; the missing page offers search and four products." },
     ],
-    looks: { terracotta: "lkez59", sage: "cv3ca4", night: "1bonkb8" },
+    looks: { terracotta: "68692i", sage: "1vtvs3t", night: "aa9ma9" },
   },
   "juniper-catalogue": {
     releases: [
@@ -42,8 +43,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 5, date: "2026-11-26", note: "The shop page opens with a line about the range and your categories as buttons, and the filters sit behind one Filter button with sort beside it." },
       { version: 6, date: "2026-11-26", note: "A calmer bag: a free-shipping bar, shipping estimate behind one link, quieter type and no trust badges." },
       { version: 7, date: "2026-11-26", note: "Product pages: a sticky Add to bag bar on phones, details that fold open on phones and “You may also like”; Northline Supply adds a size guide." },
+      { version: 8, date: "2026-11-26", note: "Footers: the brand's line, a plain Help heading, social and card icons when set up, a readable copyright line; the missing page offers search and four products." },
     ],
-    looks: { acid: "1wy3dew", blueprint: "89qpl3", night: "ahkjyi" },
+    looks: { acid: "2bnd6t", blueprint: "41uh9g", night: "dsfjmv" },
   },
   "aurel-editorial": {
     releases: [
@@ -56,8 +58,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 7, date: "2026-11-26", note: "The shop page opens with a line about the range and your categories as buttons, and the filters sit behind one Filter button with sort beside it." },
       { version: 8, date: "2026-11-26", note: "A calmer bag: a free-shipping bar, shipping estimate behind one link, quieter type and no trust badges." },
       { version: 9, date: "2026-11-26", note: "Product pages: a sticky Add to bag bar on phones, details that fold open on phones and “You may also like”; Northline Supply adds a size guide." },
+      { version: 10, date: "2026-11-26", note: "Footers: the brand's line, a plain Help heading, social and card icons when set up, a readable copyright line; the missing page offers search and four products." },
     ],
-    looks: { cobalt: "15f9pe6", sand: "2gcbu", night: "1qrl6ua" },
+    looks: { cobalt: "15rz1yj", sand: "1yu4yv", night: "gu8btr" },
   },
   "starter-gallery": {
     releases: [
@@ -72,8 +75,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 9, date: "2026-11-26", note: "The shop page opens with a line about the range and your categories as buttons, and the filters sit behind one Filter button with sort beside it." },
       { version: 10, date: "2026-11-26", note: "A calmer bag: a free-shipping bar, shipping estimate behind one link, quieter type and no trust badges." },
       { version: 11, date: "2026-11-26", note: "Product pages: a sticky Add to bag bar on phones, details that fold open on phones and “You may also like”; Northline Supply adds a size guide." },
+      { version: 12, date: "2026-11-26", note: "Footers: the brand's line, a plain Help heading, social and card icons when set up, a readable copyright line; the missing page offers search and four products." },
     ],
-    looks: { linen: "1mm3zf8", stone: "yfimeq", night: "1abjjyv" },
+    looks: { linen: "mnkd81", stone: "34plin", night: "1ajeplg" },
   },
   "starter-warehouse": {
     releases: [
@@ -89,8 +93,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 10, date: "2026-11-26", note: "The shop page opens with a line about the range and your categories as buttons, and the filters sit behind one Filter button with sort beside it." },
       { version: 11, date: "2026-11-26", note: "A calmer bag: a free-shipping bar, shipping estimate behind one link, quieter type and no trust badges." },
       { version: 12, date: "2026-11-26", note: "Product pages: a sticky Add to bag bar on phones, details that fold open on phones and “You may also like”; Northline Supply adds a size guide." },
+      { version: 13, date: "2026-11-26", note: "Footers: the brand's line, a plain Help heading, social and card icons when set up, a readable copyright line; the missing page offers search and four products." },
     ],
-    looks: { signal: "1ibbny5", cobalt: "u1ydn4", night: "1qymjbr" },
+    looks: { signal: "l2t8fu", cobalt: "1ocvw25", night: "1w9trqs" },
   },
   "starter-larder": {
     releases: [
@@ -106,8 +111,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 10, date: "2026-11-26", note: "The shop page opens with a line about the range and your categories as buttons, and the filters sit behind one Filter button with sort beside it." },
       { version: 11, date: "2026-11-26", note: "A calmer bag: a free-shipping bar, shipping estimate behind one link, quieter type and no trust badges." },
       { version: 12, date: "2026-11-26", note: "Product pages: a sticky Add to bag bar on phones, details that fold open on phones and “You may also like”; Northline Supply adds a size guide." },
+      { version: 13, date: "2026-11-26", note: "Footers: the brand's line, a plain Help heading, social and card icons when set up, a readable copyright line; the missing page offers search and four products." },
     ],
-    looks: { harvest: "1kblmvo", olive: "ujgo0k", night: "1csfhu9" },
+    looks: { harvest: "i5ptqp", olive: "381mup", night: "fqqlpq" },
   },
   "starter-salon": {
     releases: [
@@ -120,8 +126,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 7, date: "2026-11-26", note: "On phones the menu button opens a full-screen menu with big links, and Book a time sits right in it." },
       { version: 8, date: "2026-11-26", note: "A calmer bag: shipping estimate behind one link, quieter type and no trust badges." },
       { version: 9, date: "2026-11-26", note: "Product pages: a sticky Add to bag bar on phones and details that fold open on phones." },
+      { version: 10, date: "2026-11-26", note: "Footers: a plain Help heading, social and card icons when set up, a readable copyright line; the missing page offers search." },
     ],
-    looks: { blush: "19i5b1k", sage: "k5zurc", night: "1k9yc5w" },
+    looks: { blush: "157nihx", sage: "m69g45", night: "1stjm0h" },
   },
   "starter-workshop": {
     releases: [
@@ -134,8 +141,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 7, date: "2026-11-26", note: "On phones the menu button opens a full-screen menu with big links, and Book a time sits right in it." },
       { version: 8, date: "2026-11-26", note: "A calmer bag: shipping estimate behind one link, quieter type and no trust badges." },
       { version: 9, date: "2026-11-26", note: "Product pages: a sticky Add to bag bar on phones and details that fold open on phones." },
+      { version: 10, date: "2026-11-26", note: "Footers: a plain Help heading, social and card icons when set up, a readable copyright line; the missing page offers search." },
     ],
-    looks: { sunny: "oocfi9", mint: "1u9eb9v", night: "1xoxeij" },
+    looks: { sunny: "1ux72ta", mint: "1g8lldc", night: "1420ta0" },
   },
   "starter-commission": {
     releases: [
@@ -149,8 +157,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 8, date: "2026-11-26", note: "The shop page opens with a line about the range and your categories as buttons, and the filters sit behind one Filter button with sort beside it." },
       { version: 9, date: "2026-11-26", note: "A calmer bag: a free-shipping bar, shipping estimate behind one link, quieter type and no trust badges." },
       { version: 10, date: "2026-11-26", note: "Product pages: a sticky Add to bag bar on phones, details that fold open on phones and “You may also like”; Northline Supply adds a size guide." },
+      { version: 11, date: "2026-11-26", note: "Footers: the brand's line, a plain Help heading, social and card icons when set up, a readable copyright line; the missing page offers search and four products." },
     ],
-    looks: { walnut: "19ycdhr", chalk: "1q1ry6w", night: "1j7v24m" },
+    looks: { walnut: "1lq2ab0", chalk: "b095zp", night: "1ofbajn" },
   },
 };
 
