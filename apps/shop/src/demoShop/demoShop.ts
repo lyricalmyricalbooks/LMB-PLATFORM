@@ -4,13 +4,13 @@ import { STARTER_SITES } from "../app/admin/lookGallery";
 import { stylesFor, styledName, withStyle } from "../app/admin/studio/starterStyles";
 import { sampleShopBooks } from "../designFirst/beforeShop";
 import { defaultSettings } from "../app/admin/defaultSettings";
-import { applyStarter, starterForShop, starterPagesToAdd, type LeadSide, type StarterKind } from "../app/admin/studio/starterDesign";
+import { applyStarter, starterForShop, type LeadSide, type StarterKind } from "../app/admin/studio/starterDesign";
 import { getSectionMeta } from "../app/admin/ThemeEditorExtensions";
 import { starterPhotos } from "../app/admin/studio/starterPhotos";
 import { withStarterWords } from "../app/admin/sells";
 import { shopKind, wordsFor } from "../shared/shopSells";
 import { libraryLook } from "../app/admin/lookGallery";
-import { starterBookingSamples } from "../app/admin/studio/starterPages";
+import { sampleShipping, starterBookingSamples, starterSamplePages, starterShelves } from "../app/admin/studio/starterWalkthrough";
 
 export const DEMO_KEY = "colophon-demo-shop";
 /** The name a sample shop shows: the visitor's own goes in when they start. */
@@ -62,15 +62,12 @@ export function demoShopName(asked?: string | null): string {
   return name || DEMO_NAME;
 }
 
-/** The design and sample products a demo shows, and its name ("Aurel Sand"). */
-/**
- * The starter's own pages (About, Shipping, Contact), published, so a demo's header and footer show the links a finished
- * shop has (About and Contact in the menu, Shipping in the footer). A real shop gets the same pages as drafts (chooseLook.ts).
- */
-export function demoPages(shop: any): any[] {
-  return starterPagesToAdd(shop, []).map((page: any, i: number) => ({ ...page, id: `demo-${page.slug}`, status: "published", order: i }));
-}
+/** The starter's own pages, published (a real shop gets the same pages as drafts, chooseLook.ts). */
+export const demoPages = starterSamplePages;
+/** The sample shipping rule a demo's bag reads. */
+export const demoShipping = sampleShipping;
 
+/** The design and sample products a demo shows, and its name ("Aurel Sand"). */
 export function demoDesign(choice: DemoChoice, base = "/", asked = DEMO_NAME): { design: any; books: any[]; pages: any[]; name: string; sells: string; shopName: string; bookingSamples: { starterServices: any[]; starterTeam: any[] } } {
   const sells = DEMO_SELLS[choice.sells];
   const theme = withStyle(libraryLook(choice.starter), choice.style);
@@ -80,13 +77,14 @@ export function demoDesign(choice: DemoChoice, base = "/", asked = DEMO_NAME): {
   const applied = applyStarter(defaultSettings().design, shop, getSectionMeta, wordsFor(sells), starterPhotos(sells, base));
   const books = demoProducts(choice, sells);
   // A finished shop has its shelves in Studio › Menus › Shop categories: the demo lists the sample products' shelves.
-  const shelves = [...new Set(books.flatMap((b: any) => b.categories || []).filter((c: string) => c && c !== "Featured"))];
+  const shelves = starterShelves(books);
   // The footer's line is the sample brand's own (its shop-page sentence), as a finished shop's would be; a real shop keeps
   // the words of its kind until the owner writes them.
   const brandLine = typeof theme?.global?.catalogIntro === "string" ? { footerAbout: theme.global.catalogIntro } : {};
   const worded = withStarterWords({ ...applied, copy: { ...(applied.copy || {}), ...brandLine, siteName: shopName } }, sells);
-  // The starting menu (Publications, Zines…) is a bookshop's: a demo always shows its own sample shelves instead.
-  const design = !shelves.length ? worded : { ...worded, categories: shelves.map((name, i) => ({ id: `demo-cat-${i + 1}`, name, description: "", showInNav: true })) };
+  // The starting menu (Publications, Zines…) is a bookshop's: a demo always shows its own sample shelves instead, and a
+  // shop with nothing to sell shows none.
+  const design = { ...worded, categories: shelves };
   return { design: underBase(design, base), books: underBase(books, base), pages: demoPages(shop), name: styledName(theme), sells, shopName, bookingSamples: underBase(starterBookingSamples(theme), base) };
 }
 
@@ -101,17 +99,4 @@ function demoProducts(choice: DemoChoice, sells: string): any[] {
   const own = sampleShopBooks(sells, choice.starter);
   if (choice.kind !== "both" || own.length) return own;
   return sampleShopBooks("other");
-}
-
-/**
- * The sample shipping rule a demo's bag reads (plan "Starters on par", step 5): free shipping over about twice a typical
- * sample product, rounded, so one item shows how far away free shipping is and two usually reach it. A shop with nothing
- * to ship has no rule, so its bag shows no bar.
- */
-export function demoShipping(books: any[]): any[] {
-  const prices = books.map((b: any) => Number(b.retailPrice ?? b.price) || 0).filter((p) => p > 0).sort((a, b) => a - b);
-  if (!prices.length) return [];
-  const typical = prices[Math.floor(prices.length / 2)];
-  const step = typical >= 100 ? 100 : typical >= 25 ? 25 : 5;
-  return [{ id: "demo-shipping", name: "Standard shipping", freeShippingOver: Math.ceil((typical * 2) / step) * step }];
 }

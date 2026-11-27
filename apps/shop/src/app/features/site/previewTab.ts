@@ -52,6 +52,10 @@ export type PreviewMessage = {
   settings?: Record<string, any>;
   books?: any[];
   pages?: any[];
+  /** Online store › Preview of a starter: its sample services, team and shipping rule, as a live demo shop has them. */
+  starterServices?: any[];
+  starterTeam?: any[];
+  shippingProfiles?: any[];
   status?: StudioDraftStatus;
 };
 type PreviewListener = (message: PreviewMessage) => void;
@@ -79,6 +83,9 @@ export function readPreviewMessage(event: MessageEvent, win: Window = window): P
     settings: data.settings,
     books: Array.isArray(data.books) ? data.books : undefined,
     pages: Array.isArray(data.pages) ? data.pages : undefined,
+    ...(Array.isArray(data.starterServices) ? { starterServices: data.starterServices } : {}),
+    ...(Array.isArray(data.starterTeam) ? { starterTeam: data.starterTeam } : {}),
+    ...(Array.isArray(data.shippingProfiles) ? { shippingProfiles: data.shippingProfiles } : {}),
     status: DRAFT_STATUSES.includes(data.studioStatus) ? data.studioStatus : undefined,
   };
 }
@@ -90,7 +97,8 @@ function listen(win: Win): () => void {
     const message = readPreviewMessage(event, win);
     if (!message) return;
     if (message.type === "STUDIO_PREVIEW_STATE") {
-      (win as any).__studioPreviewState = { settings: message.settings, books: message.books, pages: message.pages };
+      const { starterServices, starterTeam, shippingProfiles } = message;
+      (win as any).__studioPreviewState = { settings: message.settings, books: message.books, pages: message.pages, ...(starterServices ? { starterServices } : {}), ...(starterTeam ? { starterTeam } : {}), ...(shippingProfiles ? { shippingProfiles } : {}) };
     }
     win.__studioPreviewDesign = message.design;
     if (win === (globalThis as any).window) {

@@ -1342,3 +1342,16 @@ Squarespace demos). Step 1 fixed what was broken:
   through its shorthand (`text-align-*`, `text-decoration-*`): jsdom 31 and browsers list shorthands by longhands, so
   allowed alignment/underline was being stripped. jsdom 31's `getComputedStyle` is empty on detached elements: append the
   host to `document.body` before reading styles in a test.
+
+## Website preview walks every page (27 November 2026)
+
+- Online store › Preview (`admin/StarterPreview.tsx`) now hands the frame what the live demo shops hand theirs, from one
+  helper both use (`studio/starterWalkthrough.ts`): the starter's own pages published (About, Contact, and Shipping &
+  returns for starters that sell things), its sample shelves as menu categories, its made-up brand's name (`siteName`
+  and `info.name`) and footer line, its sample services and team (`bookingsLive` when it has services and isn't shown as
+  Products), and a sample shipping rule for the bag. Before, the preview had no pages (About, Contact and Shipping opened
+  "Page not found"), the shop's own name and Publications/Zines menu, and no Book a time services.
+- The preview message (`features/site/previewTab.ts`) carries `starterServices`, `starterTeam` and `shippingProfiles`
+  into `__studioPreviewState`, where `bookTimePreview.ts` and `shippingProfilesLoad.ts` already read them for the demo.
+- `demoShop.ts` keeps `demoPages`/`demoShipping` as names for the shared helpers. Keep the preview and the demo on the
+  helper so a page added to one shows in the other.
