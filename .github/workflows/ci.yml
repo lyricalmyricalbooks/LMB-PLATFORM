@@ -256,6 +256,9 @@ jobs:
             timeout 600 pnpm exec playwright install-deps chromium
           fi
       - run: pnpm run test:speed
+      # Plan "Starters on par", step 9: every starter website page by page at desktop and phone width (no sideways
+      # scroll, no words left to replace, its own fonts, every picture loads; scripts/starter-check.mjs).
+      - run: pnpm run test:starters
 
   # Plan 13.11: every stockroom screen at phone width in a real browser (no sideways scroll, bottom bar big enough to
   # tap), then the fair-day tap-through. Same fake cloud as the unit tests; nothing real is touched.

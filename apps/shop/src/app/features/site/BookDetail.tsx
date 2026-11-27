@@ -363,6 +363,8 @@ export default function BookDetail() {
     query.addEventListener?.("change", sync);
     return () => query.removeEventListener?.("change", sync);
   }, [thumbsPhoneRow, phoneFoldOpen]);
+  // Style › Book page › "You may also like" heading: a small label (as before) or a section heading in the heading font.
+  const relatedAsHeading  = tokenSource.relatedHeadingStyle === "heading";
   const pdpDetailsBelow   = (tokenSource.pdpDetailsPlacement || "below") === "below";
   const pdpSpecsRecord    = (tokenSource.pdpSpecsStyle || "record") === "record";
   const headingFontName   = tokenSource.headingFont || tokenSource.font || tokenSource.bodyFont;
@@ -392,6 +394,7 @@ export default function BookDetail() {
       --body-font: '${String(bodyFontName).replace(/['"\\;{}<>]/g, "")}', system-ui, -apple-system, 'Segoe UI', sans-serif;
       --heading-font: ${headingFontName ? `'${String(headingFontName).replace(/['"\\;{}<>]/g, "")}', Impact, sans-serif` : "inherit"};
     }
+    [data-fm-store] :where(h1,h2,h3,h4,h5,h6){font-family:var(--heading-font);}
     [data-fm-store] .custom-btn {
       background-color: var(--btn-bg) !important;
       color: var(--btn-text) !important;
@@ -1852,7 +1855,12 @@ export default function BookDetail() {
           <section data-section="products" {...regionProps("relatedBooks")} data-ga-list="Related books" className="relative z-10 mt-16 border-t border-white/[0.06]">
             <div className="mx-auto px-6 py-20" style={{ maxWidth: pageMaxWidth }}>
               <div {...regionProps("relatedHeading")} className="flex items-center gap-6 mb-12">
-                <h2 className="text-[10px] font-black tracking-[0.5em] text-white/30 uppercase">
+                <h2
+                  className={relatedAsHeading ? "fm-related-title" : "text-[10px] font-black tracking-[0.5em] text-white/30 uppercase"}
+                  style={relatedAsHeading
+                    ? { fontFamily: "var(--heading-font)", fontSize: "clamp(22px, 2.4vw, 30px)", lineHeight: 1.2, letterSpacing: "normal", textTransform: "none", color: "var(--text-color)" }
+                    : { fontFamily: "var(--body-font)" }}
+                >
                   {related.artist ? getCopy(settings?.design, "relatedArtistHeading", { artist: related.artist }) : getCopy(settings?.design, "relatedHeading")}
                 </h2>
                 <div className="flex-1 h-px bg-white/[0.06]" />

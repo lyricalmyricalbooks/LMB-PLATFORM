@@ -221,7 +221,7 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
     defaults: {
       title: "STAY IN TOUCH",
       description: "Get our latest news.",
-      placeholder: "email@example.com",
+      placeholder: "Email address",
       buttonLabel: "JOIN",
     },
   },

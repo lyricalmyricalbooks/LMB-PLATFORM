@@ -14,13 +14,19 @@ import { NotFoundPicks } from "./extras/not-found-picks/NotFoundPicks";
 
 export function NotFoundContent({ design, books = [] }: { design: any; books?: any[] }) {
   design = resolveSurfaceDesign(design, "/studio-missing-page");
-  return <main {...regionProps("notFoundPanel")} data-fm-store className="fm-page min-h-screen flex flex-col items-center justify-center gap-6 px-6 py-16" style={{ color: "var(--text-color)", background: "var(--bg-color)" }}>
+  // The message, back link and picks sit centred in their own padded column; the page's sections and the every-page
+  // sections below run the full width (inside the centred column they grew past a phone screen).
+  return <main {...regionProps("notFoundPanel")} data-fm-store className="fm-page min-h-screen flex flex-col" style={{ color: "var(--text-color)", background: "var(--bg-color)" }}>
     <StorefrontThemeStyle design={design} />
-    {design?.showNotFoundMessage !== false && <><p {...regionProps("notFoundCode")} className="text-7xl font-bold opacity-40">{getCopy(design, "notFoundCode")}</p><h1 {...regionProps("notFoundHeading")}>{getCopy(design, "notFoundTitle")}</h1></>}
-    {design?.showNotFoundBack !== false && <Link to="/" className="min-h-11 px-6 py-3 underline">{getCopy(design, "notFoundBack")}</Link>}
-    <NotFoundPicks design={design} books={books} />
-    <TemplateSections design={design} templateId="page404" books={books} />
-    <GlobalSections design={design} books={books} />
+    <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-16">
+      {design?.showNotFoundMessage !== false && <><p {...regionProps("notFoundCode")} className="text-7xl font-bold opacity-40">{getCopy(design, "notFoundCode")}</p><h1 {...regionProps("notFoundHeading")}>{getCopy(design, "notFoundTitle")}</h1></>}
+      {design?.showNotFoundBack !== false && <Link to="/" className="min-h-11 px-6 py-3 underline">{getCopy(design, "notFoundBack")}</Link>}
+      <NotFoundPicks design={design} books={books} />
+    </div>
+    <div className="w-full min-w-0">
+      <TemplateSections design={design} templateId="page404" books={books} />
+      <GlobalSections design={design} books={books} />
+    </div>
   </main>;
 }
 export default function NotFoundPage() {

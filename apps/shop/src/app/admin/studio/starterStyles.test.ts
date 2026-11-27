@@ -71,3 +71,18 @@ describe("starter styles (next starters plan phase 2)", () => {
     expect(offeredStyles("press-atlas")).toEqual([]);
   });
 });
+
+describe("a starter's body font reaches the shop", () => {
+  // The Website font (`font`) wins over Body font on the shop (resolveTypography), so the two must agree.
+  it("draws every starter, in every style, in the body font it names", () => {
+    for (const t of THEME_LIBRARY as any[]) {
+      if (!t.content?.sampleBrand) continue;
+      for (const s of [{ id: undefined }, ...stylesFor(t.id)]) {
+        const look = withStyle(t, s.id) as any;
+        const design = applyLook({}, look);
+        const named = look.global?.bodyFont;
+        if (named) expect(design.font ?? design.bodyFont, `${t.id}/${s.id ?? "own"}`).toBe(named);
+      }
+    }
+  });
+});

@@ -15,7 +15,7 @@ export const SECTION_FALLBACKS: Record<string, string> = {
   "FollowUsSection.title": "Follow us",
   "NewsletterSection.title": "Join the Catalogue",
   "NewsletterSection.description": "Occasional dispatches about new publications and limited editions.",
-  "NewsletterSection.placeholder": "email@example.com",
+  "NewsletterSection.placeholder": "Email address",
   "NewsletterSection.buttonLabel": "JOIN",
   "TestimonialsSection.title": "Testimonials",
   "FAQSection.title": "FAQ",

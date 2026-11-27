@@ -1320,3 +1320,19 @@ Squarespace demos). Step 1 fixed what was broken:
   "How we work", Catalogue "How the catalogue works" + "Eleven makers, one shelf", Aurel "Made on Rue Bernard" +
   Questions, Gallery and Warehouse a short FAQ, Salon "Before your visit". Larder, Workshop and Commission already had
   six or more sections.
+
+## Starter check, page by page (27 November 2026, plan "Starters on par", step 9)
+
+- `scripts/starter-check.mjs` (`pnpm run test:starters`, CI job `shop-speed`): every starter with a `sampleBrand` in the
+  demo (`demo.html` on a Vite server, local requests only, reduced motion) at 1440 and 390 wide: home, shop, the first
+  product (product starters), About, Contact and the missing page. Fails on a page error, sideways scroll, words left to
+  replace (`LEFTOVER`: "Your headline", "Example …", "Say what …", `@example.com`, braces, "undefined"), a heading not in
+  the starter's heading font, a paragraph not in its body font (`font` wins over `bodyFont`, as in `resolveTypography`)
+  and a picture that didn't load. `STARTERS=a,b` checks only those.
+- What the first run fixed: the product page's headings now take `--heading-font` (`:where(h1…h6)` in BookDetail's css);
+  starters set `pdpMetaFont`/`checkoutMetaFont` to their body font and `hideNewsletter` (the shop page drew a second
+  "Join the Catalogue" box under the starter's own); the Newsletter placeholder fallback is "Email address"; `withStyle`
+  moves `font` with a style's `bodyFont` (the Website font hid every style's own body font; `starterStyles.test.ts`);
+  Salon's `font` is Nunito, its body font; the missing page's sections sit outside the centred column (they ran 38px past
+  a phone screen). New Style control `relatedHeadingStyle` (Book page › Related row heading: Small label, the default
+  and today's look in the body font, or Section heading in the heading font); starters use Section heading.
