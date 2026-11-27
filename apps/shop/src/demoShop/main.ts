@@ -10,7 +10,7 @@
 //
 // The starter library (/demo/starters/ and /demo/starters/<id>, round three phase 2b) is served by the same page: it
 // draws itself (libraryPage.ts) and opens sample shops in frames, which leave out the sample bar (`frame=1`).
-import { demoDesign, demoChoice, demoShopName, DEMO_KEY } from "./demoShop";
+import { demoDesign, demoChoice, demoShopName, demoShipping, DEMO_KEY } from "./demoShop";
 import { libraryRoute } from "./starterLibrary";
 
 const route = libraryRoute(location.pathname, import.meta.env.BASE_URL);
@@ -39,7 +39,7 @@ async function showShop() {
   win.__studioPreviewOnly = true;
   // A shop with services takes bookings, so its header, phone menu and footer show "Book a time" as a live one's do.
   const takesBookings = bookingSamples.starterServices.length > 0 && choice.kind !== "products";
-  win.__studioPreviewState = { settings: { design, sells, ...(choice.kind === "both" ? { sellsProducts: true } : {}), ...(takesBookings ? { bookingsLive: true } : {}), info: { name: shownName } }, books, pages, ...bookingSamples };
+  win.__studioPreviewState = { settings: { design, sells, ...(choice.kind === "both" ? { sellsProducts: true } : {}), ...(takesBookings ? { bookingsLive: true } : {}), info: { name: shownName } }, books, pages, ...bookingSamples, shippingProfiles: demoShipping(books) };
 
   if (params.get("preview") !== "true") {
     const url = new URL(location.href);

@@ -37,10 +37,21 @@ export function CartShippingPreview({ cart, design, formatPrice, onEstimate }: {
     } catch { if (id === request.current) { setStatus("error"); setQuotes([]); onEstimate(null); } }
   };
   const c = (key: string) => getCopy(design, key);
-  return <section data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Cart shipping preview" className="fm-bag-pad fm-bag-rule border-t py-5 space-y-3">
+  // Style › Bag › Shipping cost preview: show "Behind one link" keeps the bag calm: one line until the shopper asks.
+  // A shopper who already estimated (their place is remembered) sees the form straight away.
+  const behindLink = design.cartDrawerShippingPreviewLayout === "link";
+  const [opened, setOpened] = useState(() => Boolean(saved?.postalCode));
+  const open = !behindLink || opened;
+  const countryBox = useRef<HTMLSelectElement>(null);
+  const asked = useRef(false);
+  useEffect(() => { if (opened && asked.current) countryBox.current?.focus(); }, [opened]);
+  if (!open) return <div data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Cart shipping preview" className="fm-bag-pad fm-bag-rule border-t py-3">
+    <button type="button" aria-expanded={false} aria-controls={`${id}-form`} onClick={() => { asked.current = true; setOpened(true); }} className="fm-bag-estimate-link fm-bag-meta min-h-[44px] underline underline-offset-4">{c("cartEstimateOpen")}</button>
+  </div>;
+  return <section id={`${id}-form`} data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Cart shipping preview" className="fm-bag-pad fm-bag-rule border-t py-5 space-y-3">
     <h3 className="fm-bag-name">{c("cartEstimateHeading")}</h3>
     <form className="space-y-3" data-clarity-mask="true" onSubmit={event => { event.preventDefault(); estimate(); }}>
-      <div><label className="block fm-bag-meta" htmlFor={`${id}-country`}>{c("cartEstimateCountry")}</label><select id={`${id}-country`} className="fm-bag-input w-full mt-2" value={country} onChange={event => setCountry(event.target.value)} autoComplete="country-name">{COUNTRIES.map(value => <option key={value.code} value={value.name}>{value.name}</option>)}</select></div>
+      <div><label className="block fm-bag-meta" htmlFor={`${id}-country`}>{c("cartEstimateCountry")}</label><select ref={countryBox} id={`${id}-country`} className="fm-bag-input w-full mt-2" value={country} onChange={event => setCountry(event.target.value)} autoComplete="country-name">{COUNTRIES.map(value => <option key={value.code} value={value.name}>{value.name}</option>)}</select></div>
       <div><label className="block fm-bag-meta" htmlFor={`${id}-postal`}>{c("cartEstimatePostal")}</label><input id={`${id}-postal`} className="fm-bag-input w-full mt-2" autoComplete="postal-code" maxLength={20} required value={postalCode} onChange={event => setPostalCode(event.target.value)} /></div>
       <button type="submit" className="fm-bag-upsell-btn min-h-[44px] px-4" disabled={status === "loading" || !postalCode.trim()}>{c(status === "loading" ? "cartEstimateLoading" : "cartEstimateButton")}</button>
     </form>

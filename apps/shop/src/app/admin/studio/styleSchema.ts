@@ -592,6 +592,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "glowIntensity", label: "Glow strength", kind: "range", defaultValue: 18, min: 0, max: 60, step: 1, suffix: "%" },
       { key: "productImageGlowColor", label: "Glow color", kind: "color" },
       { key: "productDetailsLayout", label: "Details layout", kind: "select", options: [{ value: "sections", label: "Sections" }, { value: "tabs", label: "Tabs" }, { value: "accordions", label: "Accordions" }] },
+      { key: "productDetailsLayoutPhone", label: "Details on phones", kind: "select", defaultValue: "same", options: [{ value: "same", label: "Same as computers" }, { value: "accordions", label: "Fold-open rows (when the layout is Tabs: a row of tabs wraps on a phone)" }] },
       { key: "productCtaWidth", label: "Add-to-bag width", kind: "select", options: [{ value: "full", label: "Full" }, { value: "auto", label: "Auto" }] },
       { key: "productCtaSize", label: "Add-to-bag size", kind: "select", defaultValue: "large", options: [{ value: "medium", label: "Medium" }, { value: "large", label: "Large" }] },
       { key: "productCtaAnimation", label: "Add-to-bag animation", kind: "select", options: [{ value: "none", label: "None" }, { value: "pulse", label: "Pulse" }, { value: "glow", label: "Glow" }, { value: "scale", label: "Scale" }] },
@@ -856,6 +857,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "cartDrawerTitleCase", label: "Heading & book title case", kind: "select", defaultValue: "uppercase", options: [{ value: "uppercase", label: "UPPERCASE" }, { value: "none", label: "As typed" }] },
       { key: "cartDrawerMetaFont", label: "Small labels font", kind: "select", options: [{ value: "", label: "DM Mono (default)" }, ...FONT_SELECT_OPTIONS] },
       { key: "cartDrawerMetaSize", label: "Small labels size", kind: "range", defaultValue: 11, min: 8, max: 14, step: 1, suffix: "px" },
+      { key: "cartDrawerMetaCase", label: "Small labels case", kind: "select", defaultValue: "uppercase", options: [{ value: "uppercase", label: "SPACED CAPITALS" }, { value: "none", label: "As typed" }] },
       { key: "cartDrawerShowCount", label: "Show item count under the heading", kind: "toggle", defaultValue: true },
       // Free shipping
       { key: "showFreeShipBar", label: "Free-shipping progress bar (amount comes from Settings › Shipping)", kind: "toggle", defaultValue: true },
@@ -893,6 +895,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "cartDrawerCheckoutShadow", label: "Offset shadow on the checkout button", kind: "toggle", defaultValue: true },
       { key: "cartDrawerShowCheckoutArrow", label: "Arrow on the checkout button", kind: "toggle", defaultValue: true },
       { key: "cartDrawerShowShippingPreview", label: "Shipping cost preview in cart", kind: "toggle", defaultValue: true },
+      { key: "cartDrawerShippingPreviewLayout", label: "Shipping cost preview: show", kind: "select", defaultValue: "open", options: [{ value: "open", label: "Open in the bag" }, { value: "link", label: "Behind one “Estimate shipping” link (a calmer bag; words: Text & labels › Cart)" }] },
       { key: "cartDrawerShowDiscountCode", label: "Discount code box above the total (“Have a discount code?” — the code is filled in and checked at checkout; words: Text & labels › Cart)", kind: "toggle", defaultValue: false },
       { key: "cartDrawerShowOrderNote", label: "Order note box above the total (“Add a note to your order” — also turns on the order note box at checkout, where it is sent with the order; words: Text & labels › Cart)", kind: "toggle", defaultValue: false },
       { key: "cartDrawerShowTermsCheckbox", label: "Terms checkbox above the checkout button (“I agree to the Terms of service” — the bag’s button waits for the tick; links to your terms when Settings has them; words: Text & labels › Cart)", kind: "toggle", defaultValue: false },

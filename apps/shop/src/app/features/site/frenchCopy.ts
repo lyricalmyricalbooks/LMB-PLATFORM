@@ -47,6 +47,7 @@ export const FRENCH_COPY: Record<string, string> = {
   cartEstimateCountry: "Pays",
   cartEstimatePostal: "Code postal / ZIP",
   cartEstimateButton: "Estimer la livraison",
+  cartEstimateOpen: "Estimer la livraison",
   cartEstimateLoading: "Vérification de la livraison…",
   cartEstimateOptions: "Options de livraison estimées",
   cartEstimateNone: "Nous ne pouvons pas encore estimer la livraison vers cet endroit. Entrez votre adresse complète au paiement pour voir les choix de livraison.",

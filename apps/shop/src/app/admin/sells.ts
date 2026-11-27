@@ -52,6 +52,7 @@ const WRITTEN: Record<string, string> = {
   seoBookLoadingTitle: "Product",
   seoCollectionDescription: "Browse the {category} collection from {name}.",
   cartBoxSetIncludes: "Includes {count} items",
+  relatedHeading: "You may also like",
   cartTabReminder: "({count}) Your picks are waiting",
   newsletterText: "New arrivals, limited runs and shop news — delivered quietly.",
   footerAbout: "An independent shop of carefully made things.",

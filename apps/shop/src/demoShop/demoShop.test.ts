@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { STARTER_SITES, libraryLook } from "../app/admin/lookGallery";
 import { stylesFor } from "../app/admin/studio/starterStyles";
 import { withShopStartFor } from "../app/admin/sells";
-import { DEMO_NAME, DEMO_SELLS, demoChoice, demoDesign, demoShopName, underBase } from "./demoShop";
+import { DEMO_NAME, DEMO_SELLS, demoChoice, demoDesign, demoShipping, demoShopName, underBase } from "./demoShop";
 
 describe("live demo shops", () => {
   it("falls back to the first starter, its own style and a clothing shop for an unknown answer", () => {
@@ -95,5 +95,18 @@ describe("the booking starters show their own price list and team", () => {
       }
     }
     expect(demoDesign(demoChoice({ starter: "aurel-editorial" }), "/demo/").bookingSamples.starterServices).toEqual([]);
+  });
+});
+
+describe("the demo bag's sample free-shipping rule", () => {
+  it("sits at about twice a typical sample product, rounded, and is left out when nothing ships", () => {
+    expect(demoShipping([{ retailPrice: 9 }, { retailPrice: 10 }, { retailPrice: 30 }])).toEqual([{ id: "demo-shipping", name: "Standard shipping", freeShippingOver: 20 }]);
+    expect(demoShipping([{ retailPrice: 420 }, { retailPrice: 360 }, { retailPrice: 1100 }])[0].freeShippingOver).toBe(900);
+    expect(demoShipping([])).toEqual([]);
+    for (const starter of STARTER_SITES) {
+      const { books } = demoDesign(demoChoice({ starter, kind: "products" }));
+      const [rule] = demoShipping(books);
+      expect(rule.freeShippingOver, starter).toBeGreaterThan(Math.min(...books.map((b: any) => b.retailPrice)));
+    }
   });
 });

@@ -351,14 +351,18 @@ export default function BookDetail() {
   // "Thumbnails on several rows" is on (CSS in productPageStyle.ts `phoneThumbsCss`; ThumbStrip then sizes a line).
   const thumbsPhoneRow    = tokenSource.pdpThumbsPhone === "row";
   const [onPhone, setOnPhone] = useState(() => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(`(max-width:${PHONE_MAX}px)`).matches);
+  // Style › Product details tabs › On phones (productDetailsLayoutPhone): "accordions" folds the tabs open one under
+  // another on phones, where a row of tabs wraps (plan "Starters on par", step 6). Computers keep the tabs.
+  const phoneFoldOpen     = productDetailsLayout === "tabs" && tokenSource.productDetailsLayoutPhone === "accordions";
+  const detailsLayout     = phoneFoldOpen && onPhone ? "accordions" : productDetailsLayout;
   useEffect(() => {
-    if (!thumbsPhoneRow || typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    if (!(thumbsPhoneRow || phoneFoldOpen) || typeof window === "undefined" || typeof window.matchMedia !== "function") return;
     const query = window.matchMedia(`(max-width:${PHONE_MAX}px)`);
     const sync = () => setOnPhone(query.matches);
     sync();
     query.addEventListener?.("change", sync);
     return () => query.removeEventListener?.("change", sync);
-  }, [thumbsPhoneRow]);
+  }, [thumbsPhoneRow, phoneFoldOpen]);
   const pdpDetailsBelow   = (tokenSource.pdpDetailsPlacement || "below") === "below";
   const pdpSpecsRecord    = (tokenSource.pdpSpecsStyle || "record") === "record";
   const headingFontName   = tokenSource.headingFont || tokenSource.font || tokenSource.bodyFont;
@@ -821,7 +825,7 @@ export default function BookDetail() {
     ...(regionVisible(regionDesign, "productDescription") && (bk.description || inEditorPreview()) ? [{ id: "description" as const, label: getCopy(settings?.design, "tabDescription") }] : []),
     ...(artistBio ? [{ id: "artist" as const, label: getCopy(settings?.design, "tabArtistBio") }] : []),
     ...(sizeGuide || sizeGuidePhoto ? [{ id: "size" as const, label: getCopy(settings?.design, "tabSizeGuide") }] : []),
-    ...(hasSpecs ? [{ id: "specs" as const, label: getCopy(settings?.design, productDetailsLayout === "accordions" ? "tabSpecs" : "tabDetails") }] : []),
+    ...(hasSpecs ? [{ id: "specs" as const, label: getCopy(settings?.design, detailsLayout === "accordions" ? "tabSpecs" : "tabDetails") }] : []),
     ...(policyEntries.length ? [{ id: "policies" as const, label: getCopy(settings?.design, "tabShippingReturns") }] : []),
     ...(regionVisible(regionDesign, "productReviews") ? [{ id: "reviews" as const, label: getCopy(settings?.design, "tabReviews") }] : []),
   ], storefrontDesign);
@@ -864,7 +868,7 @@ export default function BookDetail() {
   // Inactive tab/accordion text stays in the shop's HTML (hidden) for search engines; Studio's preview leaves it
   // out so its page scan and click-to-edit see each part once.
   const keepHiddenText = !inEditorPreview();
-  const detailsBlock = !book || !detailTabs.length ? null : productDetailsLayout === "tabs" ? (
+  const detailsBlock = !book || !detailTabs.length ? null : detailsLayout === "tabs" ? (
     <div className="fm-pdp-tabs w-full" data-studio-target="style:productCard|copy:Product page" data-studio-label="Product details tabs">
       <div role="tablist" aria-label={getCopy(settings?.design, "pdpDetailsAria")}>
         {detailTabs.map((t, i) => (
@@ -893,7 +897,7 @@ export default function BookDetail() {
         ))}
       </div>
     </div>
-  ) : productDetailsLayout === "accordions" ? (
+  ) : detailsLayout === "accordions" ? (
     <div className="w-full flex flex-col gap-2.5" data-studio-target="style:productCard|copy:Product page" data-studio-label="Product details tabs">
       {detailTabs.map((t) => (
         <div key={t.id} className="fm-pdp-panel" style={{ padding: 0 }}>
