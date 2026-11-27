@@ -128,7 +128,10 @@ export function footerStyleCss(d: any = {}): string {
   const heading = colour(d.footerHeadingColor);
   const hover = colour(d.footerLinkHoverColor);
   const divider = colour(d.footerDividerColor);
-  if (text) css += `${s} .fm-footer-text,${s} .fm-footer-text a,${s} .fm-footer-icon{color:${text} !important;}`;
+  if (text) css += `${s} .fm-footer-text,${s} .fm-footer-text a,${s} .fm-footer-icon,${s} .fm-footer-name{color:${text} !important;}`
+    // The copyright line keeps its small faint type but follows the footer's text colour, so an inverted footer
+    // (dark band, light words) never draws it in the page's ink on the same dark colour.
+    + `${s} .fm-footer-copy{color:${text} !important;opacity:1;}`;
   if (heading) css += `${s} .fm-footer-heading{color:${heading} !important;}`;
   if (hover) css += `${s} a:hover,${s} a:focus-visible{color:${hover} !important;}`;
   if (divider) css += `${s} .fm-footer-rule{border-color:${divider} !important;}`;

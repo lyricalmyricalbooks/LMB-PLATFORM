@@ -193,11 +193,15 @@ function MotionWatcher({ sectionId }: { sectionId: string }) {
   return <span ref={ref} hidden data-motion-watch="" />;
 }
 
+/** Style › Animations › "Sections appear as you scroll": the gentle site-wide entrance (empty = none, today's look). */
+export const siteRevealMode = (v: unknown) => (v === "fade" ? "gentle-fade" : v === "fade-zoom" ? "gentle-zoom" : "");
+
 /** Entrance animation wrapper driven by section.settings.animation. */
-function SectionReveal({ animation, enableAnimations, timing, children }: any) {
+function SectionReveal({ animation, enableAnimations, timing, siteReveal = "", children }: any) {
   // Landing here as server-rendered HTML: the section is already on screen, so it doesn't animate in again.
   const [arrived] = useState(arrivedPrerendered);
-  const mode = animation || (enableAnimations ? "" : "none");
+  // A section's own Animation wins; otherwise Style › Animations › "Sections appear as you scroll" (siteReveal).
+  const mode = animation || (enableAnimations ? siteRevealMode(siteReveal) : "none");
   if (arrived || mode === "none" || mode === "" || prefersReducedMotion()) return children;
   const initials: Record<string, any> = {
     "fade-up": { opacity: 0, y: 36 },
@@ -205,6 +209,8 @@ function SectionReveal({ animation, enableAnimations, timing, children }: any) {
     "slide-left": { opacity: 0, x: 60 },
     "slide-right": { opacity: 0, x: -60 },
     zoom: { opacity: 0, scale: 0.92 },
+    "gentle-fade": { opacity: 0, y: 16 },
+    "gentle-zoom": { opacity: 0, scale: 0.97 },
   };
   const initial = initials[mode];
   if (!initial) return children;
@@ -376,7 +382,7 @@ export function SectionList({
             <SectionScopedCss sectionId={section.id} css={s.customCss} />
             {hasGlowHover && <style>{HOVER_GLOW_CSS}</style>}
             <ShapeDivider style={s.shapeDividerTop} position="top" color={s.shapeDividerTopColor} />
-            <SectionReveal animation={s.animation} enableAnimations={enableAnimations} timing={entranceTiming(s)}>
+            <SectionReveal animation={s.animation} enableAnimations={enableAnimations} timing={entranceTiming(s)} siteReveal={index > 0 && !LAZY_EXCLUDED_GROUPS.has(dataSection) ? design?.sectionReveal : ""}>
               <SectionBoundary sectionId={section.id} type={section.type}>
                 <SectionPriorityContext.Provider value={sectionHasPriority(dataSection, index)}>
                   <SectionComponent

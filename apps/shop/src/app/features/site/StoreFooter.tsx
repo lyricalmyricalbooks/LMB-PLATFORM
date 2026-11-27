@@ -98,11 +98,11 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
             />
           )}
           {footerLogoSrc && footerLogoMode === "image" ? null : d?.wordmarkStyle === "two-part" ? (
-            <p className="text-white text-xl" style={{ fontFamily: wordmarkFontFamily, fontWeight: d?.wordmarkWeight ?? 600, letterSpacing: "-0.01em" }}>
+            <p className="fm-footer-name text-white text-xl" style={{ fontFamily: wordmarkFontFamily, fontWeight: d?.wordmarkWeight ?? 600, letterSpacing: "-0.01em" }}>
               <span data-studio-style-text="wordmarkPrimary">{d.wordmarkPrimary ?? nameWords.first}</span> <span data-studio-style-text="wordmarkSecondary" style={wordmarkSecondaryStyle(d)}>{d.wordmarkSecondary ?? nameWords.rest}</span>
             </p>
           ) : (
-            <p className="text-white font-bold tracking-widest text-xs uppercase"><span data-studio-copy="footerWordmark">{getCopy(settings?.design, "footerWordmark")}</span></p>
+            <p className="fm-footer-name text-white font-bold tracking-widest text-xs uppercase"><span data-studio-copy="footerWordmark">{getCopy(settings?.design, "footerWordmark")}</span></p>
           )}
           {/* A blank line is hidden (data-empty) so it can't push a centred logo off centre. */}
           <p className="leading-relaxed max-w-xs" data-empty={footerAbout.trim() ? undefined : ""}>
@@ -182,7 +182,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
       {/* Bottom bar: copyright on the left; payment icons, social icons and the Admin link on the right. */}
       <div {...regionProps("footerBottom")} data-studio-target="copy:Footer|style:footer|style:catalogElements" data-studio-label="Footer bottom bar"
         className="fm-footer-rule fm-footer-bar border-t border-white/20 flex flex-col items-start gap-4 md:flex-row md:items-center md:justify-between">
-        <p className="text-[9px] tracking-widest text-white/55 uppercase">
+        <p className="fm-footer-copy text-[9px] tracking-widest text-white/55 uppercase">
           <span data-studio-copy="footerCopyright">{getCopy(settings?.design, "footerCopyright")}</span>
           {/* Shoppers can always change their cookie answer (EU/UK and Quebec rules); words in Text & labels › Footer. */}
           {d.showCookieBanner !== false && <>{" · "}<button type="button" onClick={openCookieSettings} className="fm-footer-text text-white/80 uppercase tracking-widest underline-offset-2 hover:text-white hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rp-focus)]">

@@ -1296,3 +1296,27 @@ Squarespace demos). Step 1 fixed what was broken:
   like" is a starter word for every shop that doesn't sell books (`sells.ts` `WRITTEN`).
 - `bundleAdd` default is sentence case ("Add both to bag").
 
+## Starter footers and the missing page (27 November 2026, plan "Starters on par", step 7)
+
+- New extra `features/site/extras/not-found-picks/`: `showNotFoundSearch` (a search form to `/collections/all?q=`) and
+  `showNotFoundProducts` (four buyable products, `emptyBagPicks` order), both off by default, under Style › Custom pages.
+  The control check now opens the missing page for every `showNotFound*` switch (`KEY_ROUTES`), so all four are visible.
+- `.fm-footer-name` (the footer's shop name) follows `footerTextColor`, and `.fm-footer-copy` (the copyright line, full strength: at 70% the 9px line failed contrast in press-lantern); both used the page's ink, which vanished
+  in footers whose band is the ink colour (seven starters).
+- Starters: missing-page search and products, social and payment icons on (they draw only once set up). Non-book shops
+  get `footerConnectHeading` "Help" (`sells.ts`). The demo's footer line is the sample brand's `catalogIntro`.
+- Sentence case defaults: `footerLinkTrack` "Track order", `notFoundBack` "Back to home".
+
+
+## Starter fade-in and more home sections (27 November 2026, plan "Starters on par", step 8)
+
+- New Style control `sectionReveal` (Animations & hover effects › "Sections appear as you scroll": Off / Gentle fade /
+  Fade and zoom; default Off = today's look). `SectionReveal` (`components/sectionRender.tsx`) uses it, through
+  `siteRevealMode`, for sections without their own Animation, from the second section on and never in the shared
+  header/footer/pop-up groups. Gentle values: fade = opacity 0, y 16; fade and zoom = opacity 0, scale .97. The page
+  animations switch, reduced motion and prerendered landings still turn it off. Baseline `none` (the check runs with
+  reduced motion).
+- All nine starters set `sectionReveal: "fade-zoom"`. New home sections (no reviews, ratings or press): Slow Season
+  "How we work", Catalogue "How the catalogue works" + "Eleven makers, one shelf", Aurel "Made on Rue Bernard" +
+  Questions, Gallery and Warehouse a short FAQ, Salon "Before your visit". Larder, Workshop and Commission already had
+  six or more sections.
