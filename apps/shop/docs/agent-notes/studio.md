@@ -1338,3 +1338,7 @@ Squarespace demos). Step 1 fixed what was broken:
   and today's look in the body font, or Section heading in the heading font); starters use Section heading.
 - Numbered cards (`cardTypography.ts` "numbered") count on the title and reset at every `section` and `.fm-shop-grid`:
   the card-level increment lost to looks that number rows (`counter-increment:row`), and every card read "00".
+- 27 November 2026 (jsdom 31): `richText.ts` checks a style longhand
+  through its shorthand (`text-align-*`, `text-decoration-*`): jsdom 31 and browsers list shorthands by longhands, so
+  allowed alignment/underline was being stripped. jsdom 31's `getComputedStyle` is empty on detached elements: append the
+  host to `document.body` before reading styles in a test.
