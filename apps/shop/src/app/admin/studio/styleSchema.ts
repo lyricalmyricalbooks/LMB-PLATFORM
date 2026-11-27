@@ -751,6 +751,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
     title: "Animations & hover effects",
     fields: [
       { key: "enableAnimations", label: "Page animations", kind: "toggle" },
+      { key: "sectionReveal", label: "Sections appear as you scroll", kind: "select", defaultValue: "", options: [{ value: "", label: "Off" }, { value: "fade", label: "Gentle fade" }, { value: "fade-zoom", label: "Fade and zoom" }] },
       { key: "density", label: "Space above and below shop sections", kind: "select", options: [{ value: "compact", label: "Compact" }, { value: "comfortable", label: "Comfortable" }, { value: "spacious", label: "Spacious" }] },
       { key: "cardShadowDepth", label: "Book card shadow", kind: "select", defaultValue: "", options: [{ value: "", label: "Off (no shadow)" }, { value: "subtle", label: "Subtle" }, { value: "medium", label: "Medium" }, { value: "raised", label: "Raised" }, { value: "dramatic", label: "Dramatic" }] },
       { key: "successTextColor", label: "Text on success colour", kind: "color" },

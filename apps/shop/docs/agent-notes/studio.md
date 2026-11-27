@@ -1307,3 +1307,16 @@ Squarespace demos). Step 1 fixed what was broken:
   get `footerConnectHeading` "Help" (`sells.ts`). The demo's footer line is the sample brand's `catalogIntro`.
 - Sentence case defaults: `footerLinkTrack` "Track order", `notFoundBack` "Back to home".
 
+
+## Starter fade-in and more home sections (27 November 2026, plan "Starters on par", step 8)
+
+- New Style control `sectionReveal` (Animations & hover effects › "Sections appear as you scroll": Off / Gentle fade /
+  Fade and zoom; default Off = today's look). `SectionReveal` (`components/sectionRender.tsx`) uses it, through
+  `siteRevealMode`, for sections without their own Animation, from the second section on and never in the shared
+  header/footer/pop-up groups. Gentle values: fade = opacity 0, y 16; fade and zoom = opacity 0, scale .97. The page
+  animations switch, reduced motion and prerendered landings still turn it off. Baseline `none` (the check runs with
+  reduced motion).
+- All nine starters set `sectionReveal: "fade-zoom"`. New home sections (no reviews, ratings or press): Slow Season
+  "How we work", Catalogue "How the catalogue works" + "Eleven makers, one shelf", Aurel "Made on Rue Bernard" +
+  Questions, Gallery and Warehouse a short FAQ, Salon "Before your visit". Larder, Workshop and Commission already had
+  six or more sections.
