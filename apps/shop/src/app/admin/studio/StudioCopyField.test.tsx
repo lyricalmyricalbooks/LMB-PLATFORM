@@ -96,10 +96,12 @@ it("explicit review title styling wins over its parent review-list styling", asy
   style.textContent = storefrontRegionCss({ regions: { reviewsTitleSize: 30, reviewsListSize: 12,
     reviewsTitleColor: "#ff0000", reviewsListColor: "#0000ff" } });
   document.head.append(style);
+  // Styles only apply to an element in the document (jsdom 31 returns nothing for a detached one, as browsers do).
+  document.body.append(host);
   root = createRoot(host);
   act(() => root.render(h("div", { "data-fm-store": true }, h("ul", regionProps("reviewsList"), h("li", {}, h("h4", regionProps("reviewsTitle"), "Review title"))))));
   try {
     expect(getComputedStyle(host.querySelector("h4")!).fontSize).toBe("30px");
     expect(getComputedStyle(host.querySelector("h4")!).color).toBe("rgb(255, 0, 0)");
-  } finally { style.remove(); }
+  } finally { style.remove(); host.remove(); }
 });
