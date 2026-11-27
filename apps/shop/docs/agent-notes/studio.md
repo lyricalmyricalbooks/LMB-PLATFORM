@@ -1301,7 +1301,7 @@ Squarespace demos). Step 1 fixed what was broken:
 - New extra `features/site/extras/not-found-picks/`: `showNotFoundSearch` (a search form to `/collections/all?q=`) and
   `showNotFoundProducts` (four buyable products, `emptyBagPicks` order), both off by default, under Style › Custom pages.
   The control check now opens the missing page for every `showNotFound*` switch (`KEY_ROUTES`), so all four are visible.
-- `.fm-footer-name` (the footer's shop name) follows `footerTextColor`, and `.fm-footer-copy` (the copyright line) at 70%; both used the page's ink, which vanished
+- `.fm-footer-name` (the footer's shop name) follows `footerTextColor`, and `.fm-footer-copy` (the copyright line, full strength: at 70% the 9px line failed contrast in press-lantern); both used the page's ink, which vanished
   in footers whose band is the ink colour (seven starters).
 - Starters: missing-page search and products, social and payment icons on (they draw only once set up). Non-book shops
   get `footerConnectHeading` "Help" (`sells.ts`). The demo's footer line is the sample brand's `catalogIntro`.

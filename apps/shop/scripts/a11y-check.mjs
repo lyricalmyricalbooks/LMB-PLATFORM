@@ -82,8 +82,9 @@ const themes = await (async () => {
 if (!themes.length) throw new Error("no themes to check");
 
 for (const theme of themes) {
-  // en-CA, desktop size; the cookie banner is part of the page and is checked too.
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: "en-CA" });
+  // en-CA, desktop size; the cookie banner is part of the page and is checked too. Reduced motion, so sections that
+  // fade in as shoppers scroll (Style › Sections appear as you scroll) are on screen and checked, not skipped.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: "en-CA", reducedMotion: "reduce" });
   const { page, crashes } = await openPage(context);
   const open = async (path, ready) => {
     await page.goto(`${base}/a11y-fixture.html?theme=${encodeURIComponent(theme)}&path=${encodeURIComponent(path)}`);
