@@ -23,7 +23,8 @@ const SET = { templateOutlineColor: "#123456", templateOutlineWidth: 3, template
 // Where each button is: the newsletter sign-up sits under every page but the home page and book pages.
 const PAGES = [
   ["/books/night-songs", ".fm-pdp-title", { "bag button": ".fm-hdr-cart", "Add to bag": "button.custom-btn" }],
-  ["/collections/zines", ".fm-newsletter-btn", { "newsletter button": ".fm-newsletter-btn" }],
+  // Starters hide this sign-up when the home page has its own (hideNewsletter); turn it back on to test its button.
+  ["/collections/zines", ".fm-newsletter-btn", { "newsletter button": ".fm-newsletter-btn" }, { hideNewsletter: false }],
   // The home page with a newsletter section and a pop-up sign-up section, as a press adds them in Studio.
   ["/", "form .fm-newsletter-btn", { "home newsletter section button": ["form .fm-newsletter-btn", 0], "pop-up sign-up button": ["form .fm-newsletter-btn", 1] },
     { homepageSections: [{ id: "nl", type: "NewsletterSection", settings: {} }, { id: "pop", type: "NewsletterPopupSection", settings: {} }] }],
