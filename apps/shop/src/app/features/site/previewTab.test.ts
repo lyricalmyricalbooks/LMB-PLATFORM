@@ -105,6 +105,15 @@ describe("rememberPreviewSnapshot", () => {
     stop();
   });
 
+  it("keeps a starter preview's sample services, team and shipping rule (Online store › Preview walks every page)", () => {
+    const { win } = fakeWindow("?preview=true", true);
+    const stop = rememberPreviewSnapshot(win);
+    const data = { type: "STUDIO_PREVIEW_STATE", design: {}, settings: {}, books: [], pages: [], starterServices: [{ id: "s" }], starterTeam: [{ id: "t" }], shippingProfiles: [{ id: "r" }] };
+    win.dispatchEvent({ origin: "https://shop.example", source: win.parent, data } as any);
+    expect(win.__studioPreviewState).toMatchObject({ starterServices: [{ id: "s" }], starterTeam: [{ id: "t" }], shippingProfiles: [{ id: "r" }] });
+    stop();
+  });
+
   it("ignores other senders and does nothing outside the preview", () => {
     const { win } = fakeWindow("?preview=true", true);
     rememberPreviewSnapshot(win);

@@ -96,3 +96,4 @@ Details of each feature live in [`docs/agent-notes/studio.md`](../../../../docs/
 - Starter footers and the missing page (27 November 2026, plan "Starters on par", step 7)
 - Starter fade-in and more home sections (27 November 2026, plan "Starters on par", step 8)
 - Starter check, page by page (27 November 2026, plan "Starters on par", step 9)
+- Website preview walks every page (27 November 2026)

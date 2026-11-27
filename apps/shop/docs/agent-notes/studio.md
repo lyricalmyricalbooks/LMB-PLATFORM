@@ -1338,3 +1338,16 @@ Squarespace demos). Step 1 fixed what was broken:
   and today's look in the body font, or Section heading in the heading font); starters use Section heading.
 - Numbered cards (`cardTypography.ts` "numbered") count on the title and reset at every `section` and `.fm-shop-grid`:
   the card-level increment lost to looks that number rows (`counter-increment:row`), and every card read "00".
+
+## Website preview walks every page (27 November 2026)
+
+- Online store › Preview (`admin/StarterPreview.tsx`) now hands the frame what the live demo shops hand theirs, from one
+  helper both use (`studio/starterWalkthrough.ts`): the starter's own pages published (About, Contact, and Shipping &
+  returns for starters that sell things), its sample shelves as menu categories, its made-up brand's name (`siteName`
+  and `info.name`) and footer line, its sample services and team (`bookingsLive` when it has services and isn't shown as
+  Products), and a sample shipping rule for the bag. Before, the preview had no pages (About, Contact and Shipping opened
+  "Page not found"), the shop's own name and Publications/Zines menu, and no Book a time services.
+- The preview message (`features/site/previewTab.ts`) carries `starterServices`, `starterTeam` and `shippingProfiles`
+  into `__studioPreviewState`, where `bookTimePreview.ts` and `shippingProfilesLoad.ts` already read them for the demo.
+- `demoShop.ts` keeps `demoPages`/`demoShipping` as names for the shared helpers. Keep the preview and the demo on the
+  helper so a page added to one shows in the other.

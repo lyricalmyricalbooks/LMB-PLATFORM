@@ -6,8 +6,10 @@ import { Monitor, Smartphone, X } from "lucide-react";
 import { IconButton, PrimaryButton, SecondaryButton } from "./riso/components";
 import { applyStarter, starterForShop, type LeadSide, type StarterKind } from "./studio/starterDesign";
 import { starterSampleBooks } from "./studio/presetContent";
+import { sampleShopBooks } from "../../designFirst/beforeShop";
 import { starterPhotos } from "./studio/starterPhotos";
 import { buildPreviewState, deliverPreviewState } from "./studio/studioWorkflow";
+import { sampleShipping, starterBookingSamples, starterSamplePages, starterShelves } from "./studio/starterWalkthrough";
 import { styledName } from "./studio/starterStyles";
 import { withStarterWords } from "./sells";
 import { wordsFor } from "../../shared/shopSells";
@@ -39,15 +41,37 @@ export function StarterPreview({ id, style: firstStyle, showAs: firstShowAs, set
   const theme = useMemo(() => starterTheme(id, style), [id, style]);
   const name = theme ? styledName(theme) : "";
 
-  // The starter as this shop would get it: its words for what the shop sells, its sample products (none for services).
+  // The starter as a finished shop of this kind: its design with the shop's words, its sample products (none for services),
+  // and, like the live demo shops, its made-up brand's name, its own pages, its shelves in the menu, its sample services and
+  // team, and a sample shipping rule, so every page a shopper can reach opens (starterWalkthrough.ts).
   const state = useMemo(() => {
     if (!theme) return null;
     const w = wordsFor(sells);
     const shaped = starterForShop(theme, showAs.kind, showAs.lead);
+    // A starter made for appointments has no products of its own: shown as Products or Both it borrows a general sample
+    // set, as the demo's Both shops do, so its shop page and product pages open with something on them.
+    const own = starterSampleBooks(theme);
+    const books = showAs.kind === "services" ? [] : own.length ? own : sampleShopBooks("other");
+    const brand = theme.content?.sampleBrand || settings?.info?.name || "";
+    const shelves = starterShelves(books);
+    const brandLine = typeof theme.global?.catalogIntro === "string" ? { footerAbout: theme.global.catalogIntro } : {};
+    const applied = applyStarter(settings?.design || {}, shaped, getSectionMeta, w, starterPhotos(sells));
     // A shop that isn't open yet has its "under construction" wall on: the preview shows the website behind it.
-    const design = { ...withStarterWords(applyStarter(settings?.design || {}, shaped, getSectionMeta, w, starterPhotos(sells)), sells), showUnderConstruction: false };
-    const books = showAs.kind === "services" ? [] : starterSampleBooks(theme);
-    return buildPreviewState({ ...settings, ...(showAs.kind === "both" ? { sellsProducts: true } : {}) }, design, [], books);
+    const design = {
+      ...withStarterWords({ ...applied, copy: { ...(applied.copy || {}), ...brandLine, ...(brand ? { siteName: brand } : {}) } }, sells),
+      // The menu lists the sample shelves; a shop with nothing to sell lists none (not the shop's own shelves).
+      categories: shelves,
+      showUnderConstruction: false,
+    };
+    const bookings = showAs.kind === "products" ? { starterServices: [], starterTeam: [] } : starterBookingSamples(theme);
+    const takesBookings = bookings.starterServices.length > 0;
+    const shown = {
+      ...settings,
+      ...(showAs.kind === "both" ? { sellsProducts: true } : {}),
+      ...(takesBookings ? { bookingsLive: true } : {}),
+      ...(brand ? { info: { ...(settings?.info || {}), name: brand } } : {}),
+    };
+    return { ...buildPreviewState(shown, design, starterSamplePages(shaped), books), ...bookings, shippingProfiles: sampleShipping(books) };
   }, [theme, showAs, settings, sells]);
 
   useEffect(() => {
@@ -73,7 +97,7 @@ export function StarterPreview({ id, style: firstStyle, showAs: firstShowAs, set
       <div className="rp-starter-preview-bar">
         <div className="rp-starter-preview-name">
           <strong>{name}</strong>
-          <span className="rp-hint">Sample products and photos. Your own replace them.</span>
+          <span className="rp-hint">A sample shop: its name, products, photos and pages. Yours replace them.</span>
         </div>
         <div className="rp-starter-preview-controls">
           {colours.length > 1 && (
