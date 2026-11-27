@@ -1468,7 +1468,7 @@ export default function BookDetail() {
               onClick={() => (location.key === "default" ? navigate("/") : navigate(-1))}
               aria-label={getCopy(settings?.design, "backToCatalog")}
               data-studio-target="style:productCard|copy:Product page" data-studio-label="Back link"
-              className="fm-pdp-meta mt-4 mb-2 inline-flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity"
+              className="fm-pdp-meta mt-4 mb-2 inline-flex items-center gap-2 hover:underline underline-offset-4"
             >
               {pdpShowBackArrow && <ArrowLeft size={13} aria-hidden="true" />}
               {getCopy(settings?.design, "backToCatalog")}
