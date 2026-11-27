@@ -9,7 +9,6 @@ import { starterSampleBooks } from "./presetContent";
 import { MAX_OPTIONS, productOptions } from "../../../shared/productOptions";
 
 const STARTERS = THEME_LIBRARY.filter((t: any) => t.homeLayoutTemplate && t.content?.sections && (t.id.startsWith("starter-") || t.id.startsWith("juniper-") || t.id === "aurel-editorial"));
-const SERVICES_ONLY = ["starter-salon", "starter-workshop"];
 const FORM_WORDS = /Your (headline|big|story|first|second|third|delivery|returns|help|opening|featured|season|shop\b|studio|space|kitchen|products)|Example |Write a short|Tell (shoppers|people|your)|Say (what|how|which|whether|in one)|Share (who|how)|Introduce (your|this)|Join our letter|A short (line|caption|label|detail)|\$00/;
 const BRANDS = /\b(aurel|juniper)\b/i;
 
@@ -44,7 +43,6 @@ describe.each(STARTERS.map((t: any) => [t.id, t]))("starter %s is a finished sam
   });
   it("sells real-sounding products with a shelf, two sentences and working options", () => {
     const list = look.content.sampleProducts || [];
-    if (SERVICES_ONLY.includes(id)) return expect(list).toEqual([]); // its price list shows the shop's own services
     expect(list.length).toBeGreaterThanOrEqual(4);
     for (const p of list) {
       expect(p.category, p.title).toMatch(/\S/);

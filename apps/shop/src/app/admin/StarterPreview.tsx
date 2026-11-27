@@ -48,8 +48,8 @@ export function StarterPreview({ id, style: firstStyle, showAs: firstShowAs, set
     if (!theme) return null;
     const w = wordsFor(sells);
     const shaped = starterForShop(theme, showAs.kind, showAs.lead);
-    // A starter made for appointments has no products of its own: shown as Products or Both it borrows a general sample
-    // set, as the demo's Both shops do, so its shop page and product pages open with something on them.
+    // Every starter brings its own sample products (Salon and Workshop too, for Products or Both); the general set is
+    // only a fallback for a look without any.
     const own = starterSampleBooks(theme);
     const books = showAs.kind === "services" ? [] : own.length ? own : sampleShopBooks("other");
     const brand = theme.content?.sampleBrand || settings?.info?.name || "";

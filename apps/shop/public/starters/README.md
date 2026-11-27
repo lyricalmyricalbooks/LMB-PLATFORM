@@ -14,7 +14,9 @@ website" pictures (`scripts/starter-thumbs.mjs`).
 | warehouse/ | Warehouse (Northline Supply) | 26 November 2026 |
 | larder/ | Larder (Rye & Salt) | 26 November 2026 |
 | commission/ | Commission (Hollis & Pine Joinery) | 26 November 2026 |
+| salon/ | Salon (Rosewater Studio) products | 27 November 2026 |
+| workshop/ | Workshop (Clayhouse Studio) products | 27 November 2026 |
 
 Every sample product has a second photo, `<name>-2.jpg` (a close-up or the product in use, made 26 November 2026 in the
-same light as its first), listed as `morePhotos`; `sampleShops.test.ts` checks every file exists. Keep each product photo under about 150 KB (an opening photo under about 260 KB). Salon and Workshop use the licensed
-sample sets in `public/samples/` (see its LICENSE.md).
+same light as its first), listed as `morePhotos`; `sampleShops.test.ts` checks every file exists. Keep each product photo under about 150 KB (an opening photo under about 260 KB). Salon and Workshop's opening and page photos use the licensed
+sample sets in `public/samples/` (see its LICENSE.md); their sample products use `salon/` and `workshop/`.
