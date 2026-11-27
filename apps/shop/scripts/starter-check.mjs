@@ -39,6 +39,7 @@ await server.listen();
 const base = server.resolvedUrls.local[0].replace(/\/$/, "");
 const origin = new URL(base).origin;
 const { THEME_LIBRARY } = await server.ssrLoadModule("/src/app/admin/studio/themeLibrary.ts");
+const { STARTER_INFO } = await server.ssrLoadModule("/src/demoShop/starterLibrary.ts");
 const only = (process.env.STARTERS || "").split(",").map((s) => s.trim()).filter(Boolean);
 const starters = THEME_LIBRARY.filter((t) => t.content?.sampleBrand && (!only.length || only.includes(t.id)));
 if (!starters.length) throw new Error("no starters to check");
@@ -60,7 +61,10 @@ for (const starter of starters) {
     await page.route("**/*", (r) => (new URL(r.request().url()).origin === origin || r.request().url().startsWith("data:") ? r.continue() : r.abort()));
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
-    await page.goto(`${base}/demo.html?starter=${starter.id}&frame=1`);
+    // A starter made only for services opens its demo as a services shop, which sells nothing: when it has sample
+    // products (Salon, Workshop), check it as Both so its shop and product pages are walked too.
+    const servicesOnly = !(STARTER_INFO[starter.id]?.kinds || ["products"]).includes("products");
+    await page.goto(`${base}/demo.html?starter=${starter.id}&frame=1${sells && servicesOnly ? "&kind=both" : ""}`);
     await page.waitForSelector("header", { timeout: 60000 });
     let productPath = null;
     for (const p of PAGES) {

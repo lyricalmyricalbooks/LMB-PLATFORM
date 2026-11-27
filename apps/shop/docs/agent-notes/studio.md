@@ -1366,3 +1366,4 @@ Squarespace demos). Step 1 fixed what was broken:
   exempts them; `demoShop.test.ts` checks their Products and Both demos use their own photos.
 - A services shop's version of any starter (`servicesVersion`) drops `shipping` from `starterPages`: nothing ships, so
   no Shipping & returns page. Both keeps it (`bothVersion` restores the starter's list). `starterDesign.test.ts`.
+- `scripts/starter-check.mjs` opens a services-only starter that has sample products as Both (`&kind=both`), so its shop and product pages are checked.
