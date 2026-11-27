@@ -3,11 +3,14 @@ export function safeRichHref(value:string):boolean {
  const text=value.trim(); return !/[\u0000-\u0020\u007f]/.test(text) && (/^(https?:|mailto:|tel:)/i.test(text) || /^(\/|#|\?|\.\.?\/)/.test(text) && !text.startsWith("//") || !/[:\\]/.test(text));
 }
 const styleValues:Record<string,string[]>={"text-align":["left","center","right","justify"],"font-weight":["bold","normal","700"],"font-style":["italic","normal"],"text-decoration":["underline","line-through","none"]};
+// Newer CSS engines list a shorthand by its longhands (text-align as text-align-all + text-align-last, text-decoration as
+// text-decoration-line/-style/-color/-thickness), so a longhand is checked through the shorthand it belongs to.
+const allowedStyleProp=(key:string)=>key.startsWith("text-align")?"text-align":key.startsWith("text-decoration")?"text-decoration":key;
 function allowedAttribute(element:Element, attr:Attr):boolean {
  if(attr.name==="href")return element.tagName==="A"&&safeRichHref(attr.value);
  if(attr.name==="title")return element.tagName==="A";
  if(attr.name==="class")return attr.value.split(/\s+/).every(v=>/^ql-(align-(left|center|right|justify)|indent-[1-8])$/.test(v));
- if(attr.name==="style")return Array.from((element as HTMLElement).style).every(key=>styleValues[key]?.includes((element as HTMLElement).style.getPropertyValue(key).trim()));
+ if(attr.name==="style")return Array.from((element as HTMLElement).style).every(key=>{const prop=allowedStyleProp(key);return styleValues[prop]?.includes((element as HTMLElement).style.getPropertyValue(prop).trim());});
  return false;
 }
 export function canInlineFormat(html:string):boolean {
