@@ -96,6 +96,16 @@ describe("the booking starters show their own price list and team", () => {
     }
     expect(demoDesign(demoChoice({ starter: "aurel-editorial" }), "/demo/").bookingSamples.starterServices).toEqual([]);
   });
+  it("Salon and Workshop shown as Products or Both sell their own sample products, never the general examples", () => {
+    for (const starter of ["starter-salon", "starter-workshop"]) for (const kind of ["products", "both"]) {
+      const { books } = demoDesign(demoChoice({ starter, kind }), "/demo/");
+      expect(books.length, starter).toBeGreaterThanOrEqual(4);
+      for (const b of books) {
+        expect(b.title, starter).not.toMatch(/example|sample/i);
+        expect(b.photos[0].url, starter).toMatch(new RegExp(`^/demo/starters/${starter.replace("starter-", "")}/`));
+      }
+    }
+  });
 });
 
 describe("the demo bag's sample free-shipping rule", () => {

@@ -1355,3 +1355,14 @@ Squarespace demos). Step 1 fixed what was broken:
   into `__studioPreviewState`, where `bookTimePreview.ts` and `shippingProfilesLoad.ts` already read them for the demo.
 - `demoShop.ts` keeps `demoPages`/`demoShipping` as names for the shared helpers. Keep the preview and the demo on the
   helper so a page added to one shows in the other.
+
+## Salon and Workshop sample products (27 November 2026)
+
+- Salon (Rosewater Studio: hair care) and Workshop (Clayhouse Studio: pottery and a clay kit) now have `sampleProducts`
+  like every other starter, photos in `public/starters/salon/` and `public/starters/workshop/` (Figma AI, 900 px JPG, two
+  per product). Shown as Products or Both in Online store › Preview and the demo they sell these, never the general
+  "Example …" set; shown as Services they still sell nothing (`StarterPreview.tsx`, `demoProducts`).
+- Both now list `shipping` in `starterPages`, with their own words in `starterPages.ts`. `sampleShops.test.ts` no longer
+  exempts them; `demoShop.test.ts` checks their Products and Both demos use their own photos.
+- A services shop's version of any starter (`servicesVersion`) drops `shipping` from `starterPages`: nothing ships, so
+  no Shipping & returns page. Both keeps it (`bothVersion` restores the starter's list). `starterDesign.test.ts`.

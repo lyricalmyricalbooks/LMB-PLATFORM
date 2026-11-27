@@ -1,7 +1,7 @@
 import { isGroupSurface } from "../../features/site/sectionGroups";
 import { describe, expect, it } from "vitest";
 import { getSectionMeta } from "../ThemeEditorExtensions";
-import { applyStarter, starterContents, starterPagesToAdd } from "./starterDesign";
+import { applyStarter, starterContents, starterForShop, starterPagesToAdd } from "./starterDesign";
 import { themeProblems } from "./themeCheck";
 import { THEME_LIBRARY } from "./themeLibrary";
 import { presetSections } from "./presetContent";
@@ -52,6 +52,14 @@ describe("starter designs", () => {
     const all = starterPagesToAdd(theme, []);
     expect(all.every((p) => p.status === "draft")).toBe(true);
     expect(starterPagesToAdd(theme, all)).toEqual([]);
+  });
+  it("gives a services shop no Shipping & returns page, and keeps it for products and Both", () => {
+    for (const [, theme] of LIBRARY.filter(([, t]) => t.content?.starterPages?.includes("shipping"))) {
+      expect(starterForShop(theme, "services").content.starterPages).not.toContain("shipping");
+      expect(starterForShop(theme, "services").content.starterPages).toEqual(expect.arrayContaining(["about", "contact"]));
+      expect(starterForShop(theme, "products").content.starterPages).toContain("shipping");
+      expect(starterForShop(theme, "both").content.starterPages).toContain("shipping");
+    }
   });
 });
 

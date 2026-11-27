@@ -137,8 +137,10 @@ function servicesVersion<T>(theme: T): T {
     sections[id] = next;
   }
   const t = theme as any;
-  // Nothing to buy: the header starts without a bag (Studio › Style › Header shows it again).
-  return { ...t, global: { ...(t.global || {}), hideCartButton: true }, content: { ...(t.content || {}), sections } } as T;
+  // Nothing to buy: the header starts without a bag (Studio › Style › Header shows it again), and nothing ships, so the
+  // starter's Shipping & returns page stays out (About and Contact still come).
+  const pages = Array.isArray(t.content?.starterPages) ? { starterPages: t.content.starterPages.filter((p: string) => p !== "shipping") } : {};
+  return { ...t, global: { ...(t.global || {}), hideCartButton: true }, content: { ...(t.content || {}), sections, ...pages } } as T;
 }
 
 /** The Both design: the lead half as its own design, with one row from the other half after its last row. */
@@ -172,7 +174,9 @@ function bothVersion<T>(theme: T, lead?: LeadSide | null): T {
   // Both sells things, so the bag stays (the services half's header setting is not carried over).
   const global = { ...(base.global || {}) };
   if (side === "services") { if ((t.global || {}).hideCartButton === undefined) delete global.hideCartButton; else global.hideCartButton = t.global.hideCartButton; }
-  return { ...base, global, content: { ...(base.content || {}), sections } } as T;
+  // …and so does its Shipping & returns page.
+  const pages = t.content?.starterPages ? { starterPages: t.content.starterPages } : {};
+  return { ...base, global, content: { ...(base.content || {}), sections, ...pages } } as T;
 }
 
 /**

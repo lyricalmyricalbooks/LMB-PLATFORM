@@ -937,8 +937,14 @@ export const THEME_LIBRARY = withStarterPages([
     palettePreset: "salon", font: "Nunito", buttonStyle: "solid", productCardStyle: "minimal", productHoverEffect: "zoom", imageAspectRatio: "4:5",
     productColumnsDesktop: 3, productColumnsMobile: 2, cardRadius: 0, productCTA: "Add to bag", catalogLayoutStyle: "modern", showCatalogControls: true, homeLayoutTemplate: "starter-salon",
     content: {
-      starterPages: ["about", "contact"],
+      starterPages: ["about", "shipping", "contact"],
       sampleBrand: "Rosewater Studio",
+      sampleProducts: [
+        { title: "Everyday wash", price: 32, photo: "/starters/salon/shampoo.jpg", morePhotos: ["/starters/salon/shampoo-2.jpg"], category: "Hair care", description: "The gentle shampoo we use at the basin, made for colour-treated hair. A little goes a long way: one bottle lasts most people three months." },
+        { title: "Soft conditioner", price: 34, photo: "/starters/salon/conditioner.jpg", morePhotos: ["/starters/salon/conditioner-2.jpg"], category: "Hair care", description: "A light conditioner that smooths without weighing hair down. Leave it on for two minutes, rinse with cool water." },
+        { title: "Finishing oil", price: 38, photo: "/starters/salon/hair-oil.jpg", morePhotos: ["/starters/salon/hair-oil-2.jpg"], category: "Styling", description: "Two drops through dry ends for shine and less frizz. It's the last thing we use before you leave the chair." },
+        { title: "Wide-tooth comb", price: 18, photo: "/starters/salon/comb.jpg", morePhotos: ["/starters/salon/comb-2.jpg"], category: "Tools", description: "A beech-wood comb that works through wet hair without snagging. Made by a small woodworker in Ontario." },
+      ],
       sections: {
         heroPage: [
           { type: "ImageBannerSection", settings: { eyebrow: "Hair studio \u00b7 Dundas West", title: "Good hair, no rush.", body: "Cuts, colour and care in a bright studio with four chairs. Every visit starts with a proper chat.", imageUrl: "/samples/beauty/opening.webp", imageAlt: "A stylist finishing a client's hair in a bright studio", height: "full", contentPosition: "bottom-left", textAlign: "left", overlayOpacity: 0.5, overlayStyle: "fade", colorSchemeId: "scheme-inverse", ctaText: "Book a time", ctaUrl: "/book", secondaryCtaText: "" } },
@@ -967,8 +973,14 @@ export const THEME_LIBRARY = withStarterPages([
     palettePreset: "workshop", font: "Work Sans", buttonStyle: "solid", productCardStyle: "minimal", productHoverEffect: "lift", imageAspectRatio: "1:1",
     productColumnsDesktop: 3, productColumnsMobile: 2, cardRadius: 16, productCTA: "Add to bag", catalogLayoutStyle: "modern", showCatalogControls: true, homeLayoutTemplate: "starter-workshop",
     content: {
-      starterPages: ["about", "contact"],
+      starterPages: ["about", "shipping", "contact"],
       sampleBrand: "Clayhouse Studio",
+      sampleProducts: [
+        { title: "Studio mug", price: 42, photo: "/starters/workshop/mug.jpg", morePhotos: ["/starters/workshop/mug-2.jpg"], category: "Pottery", description: "Thrown on the wheel in the studio and glazed in our sunny speckled yellow. Holds a generous cup and is safe in the dishwasher." },
+        { title: "Serving bowl", price: 68, photo: "/starters/workshop/serving-bowl.jpg", morePhotos: ["/starters/workshop/serving-bowl-2.jpg"], category: "Pottery", description: "A wide bowl for salads and pasta, with a raw clay outside and a glossy glaze within. Each one is a little different." },
+        { title: "Planter with saucer", price: 54, photo: "/starters/workshop/planter.jpg", morePhotos: ["/starters/workshop/planter-2.jpg"], category: "Pottery", description: "A hand-thrown planter with a drainage hole and its own saucer. Fits a plant from a 12 cm nursery pot." },
+        { title: "Make-at-home clay kit", price: 45, photo: "/starters/workshop/clay-kit.jpg", morePhotos: ["/starters/workshop/clay-kit-2.jpg"], category: "Kits", description: "Air-dry clay, three wooden tools and a sponge, with our step-by-step guide to a pinch pot. No kiln needed." },
+      ],
       sections: {
         heroPage: [
           { type: "BigIntroSection", settings: { eyebrow: "Pottery classes in the east end", title: "Learn something,\nmake something.", body: "Wheel and hand-building classes for complete beginners and old hands. Eight people at most, clay and firing included." } },
