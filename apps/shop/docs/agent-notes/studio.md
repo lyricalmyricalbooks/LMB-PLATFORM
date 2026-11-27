@@ -1336,3 +1336,5 @@ Squarespace demos). Step 1 fixed what was broken:
   Salon's `font` is Nunito, its body font; the missing page's sections sit outside the centred column (they ran 38px past
   a phone screen). New Style control `relatedHeadingStyle` (Book page › Related row heading: Small label, the default
   and today's look in the body font, or Section heading in the heading font); starters use Section heading.
+- Numbered cards (`cardTypography.ts` "numbered") count on the title and reset at every `section` and `.fm-shop-grid`:
+  the card-level increment lost to looks that number rows (`counter-increment:row`), and every card read "00".

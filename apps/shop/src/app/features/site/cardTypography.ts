@@ -116,8 +116,10 @@ export function cardDesignCss(d: any): string {
         + `${S} .fm-card .fm-card-price-wrap{align-items:center;}`;
     case "numbered":
       // Numbered in each section of the page: the counter starts again at every section (home sections, the shop grid).
-      return `${S} section{counter-reset:fm-card;}`
-        + `${S} .fm-card{counter-increment:fm-card;}`
+      // The title counts, not the card: looks that number their rows (`counter-increment:row` on the card) replaced the
+      // card's increment, and every product read "00".
+      return `${S} :is(section,.fm-shop-grid){counter-reset:fm-card;}`
+        + `${S} .fm-card .fm-card-title{counter-increment:fm-card;}`
         + `${meta}{flex-direction:column;align-items:flex-start;gap:4px;}`
         + `${S} .fm-card .fm-card-title::before{content:counter(fm-card, decimal-leading-zero);display:block;margin-bottom:6px;font-size:11px;letter-spacing:.14em;font-variant-numeric:tabular-nums;opacity:.6;}`;
     default:
