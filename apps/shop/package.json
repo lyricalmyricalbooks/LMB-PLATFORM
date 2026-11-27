@@ -21,6 +21,7 @@
     "test:admin-phone": "node scripts/admin-phone-check.mjs",
     "test:move": "node scripts/move-check.mjs",
     "test:speed": "node scripts/speed-check.mjs",
+    "test:starters": "node scripts/starter-check.mjs",
     "test:studio-controls": "AUDIT_CHECK=1 node scripts/studio-control-audit.mjs",
     "test:template-buttons": "node scripts/template-buttons-check.mjs"
   },

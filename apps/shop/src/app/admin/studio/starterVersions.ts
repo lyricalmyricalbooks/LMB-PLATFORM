@@ -32,8 +32,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 10, date: "2026-11-26", note: "Product pages: a sticky Add to bag bar on phones, details that fold open on phones and “You may also like”; Northline Supply adds a size guide." },
       { version: 11, date: "2026-11-26", note: "Footers: the brand's line, a plain Help heading, social and card icons when set up, a readable copyright line; the missing page offers search and four products." },
       { version: 12, date: "2026-11-27", note: "Sections now fade and zoom gently into view as shoppers scroll, and the shorter home pages gained a few more sections." },
+      { version: 13, date: "2026-11-27", note: "Product pages use the starter's own fonts, with You may also like as a proper heading, and the shop page no longer shows a second sign-up box." },
     ],
-    looks: { terracotta: "1s0926w", sage: "qvxho7", night: "1pc3i0v" },
+    looks: { terracotta: "6oln3j", sage: "opq30q", night: "5oyfo6" },
   },
   "juniper-catalogue": {
     releases: [
@@ -46,8 +47,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 7, date: "2026-11-26", note: "Product pages: a sticky Add to bag bar on phones, details that fold open on phones and “You may also like”; Northline Supply adds a size guide." },
       { version: 8, date: "2026-11-26", note: "Footers: the brand's line, a plain Help heading, social and card icons when set up, a readable copyright line; the missing page offers search and four products." },
       { version: 9, date: "2026-11-27", note: "Sections now fade and zoom gently into view as shoppers scroll, and the shorter home pages gained a few more sections." },
+      { version: 10, date: "2026-11-27", note: "Product pages use the starter's own fonts, with You may also like as a proper heading, and the shop page no longer shows a second sign-up box." },
     ],
-    looks: { acid: "n4j9wz", blueprint: "1gpcp5e", night: "1fho1ed" },
+    looks: { acid: "1z01t8i", blueprint: "1mk2uyp", night: "neb9s4" },
   },
   "aurel-editorial": {
     releases: [
@@ -62,8 +64,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 9, date: "2026-11-26", note: "Product pages: a sticky Add to bag bar on phones, details that fold open on phones and “You may also like”; Northline Supply adds a size guide." },
       { version: 10, date: "2026-11-26", note: "Footers: the brand's line, a plain Help heading, social and card icons when set up, a readable copyright line; the missing page offers search and four products." },
       { version: 11, date: "2026-11-27", note: "Sections now fade and zoom gently into view as shoppers scroll, and the shorter home pages gained a few more sections." },
+      { version: 12, date: "2026-11-27", note: "Product pages use the starter's own fonts, with You may also like as a proper heading, and the shop page no longer shows a second sign-up box." },
     ],
-    looks: { cobalt: "g3w6vt", sand: "10navbp", night: "259ozx" },
+    looks: { cobalt: "pdqolk", sand: "7so6rc", night: "638qfw" },
   },
   "starter-gallery": {
     releases: [
@@ -80,8 +83,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 11, date: "2026-11-26", note: "Product pages: a sticky Add to bag bar on phones, details that fold open on phones and “You may also like”; Northline Supply adds a size guide." },
       { version: 12, date: "2026-11-26", note: "Footers: the brand's line, a plain Help heading, social and card icons when set up, a readable copyright line; the missing page offers search and four products." },
       { version: 13, date: "2026-11-27", note: "Sections now fade and zoom gently into view as shoppers scroll, and the shorter home pages gained a few more sections." },
+      { version: 14, date: "2026-11-27", note: "Product pages use the starter's own fonts, with You may also like as a proper heading, and the shop page no longer shows a second sign-up box." },
     ],
-    looks: { linen: "w8tiov", stone: "1dqoa59", night: "av7aki" },
+    looks: { linen: "i9px0u", stone: "hzykvg", night: "1vjftd" },
   },
   "starter-warehouse": {
     releases: [
@@ -99,8 +103,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 12, date: "2026-11-26", note: "Product pages: a sticky Add to bag bar on phones, details that fold open on phones and “You may also like”; Northline Supply adds a size guide." },
       { version: 13, date: "2026-11-26", note: "Footers: the brand's line, a plain Help heading, social and card icons when set up, a readable copyright line; the missing page offers search and four products." },
       { version: 14, date: "2026-11-27", note: "Sections now fade and zoom gently into view as shoppers scroll, and the shorter home pages gained a few more sections." },
+      { version: 15, date: "2026-11-27", note: "Product pages use the starter's own fonts, with You may also like as a proper heading, and the shop page no longer shows a second sign-up box." },
     ],
-    looks: { signal: "rpldrc", cobalt: "aidxx7", night: "a83un6" },
+    looks: { signal: "lrkzrf", cobalt: "a06hsu", night: "kfqo3p" },
   },
   "starter-larder": {
     releases: [
@@ -118,8 +123,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 12, date: "2026-11-26", note: "Product pages: a sticky Add to bag bar on phones, details that fold open on phones and “You may also like”; Northline Supply adds a size guide." },
       { version: 13, date: "2026-11-26", note: "Footers: the brand's line, a plain Help heading, social and card icons when set up, a readable copyright line; the missing page offers search and four products." },
       { version: 14, date: "2026-11-27", note: "Sections now fade and zoom gently into view as shoppers scroll, and the shorter home pages gained a few more sections." },
+      { version: 15, date: "2026-11-27", note: "Product pages use the starter's own fonts, with You may also like as a proper heading, and the shop page no longer shows a second sign-up box." },
     ],
-    looks: { harvest: "rvlj5r", olive: "1bf728v", night: "mljf6k" },
+    looks: { harvest: "1r81u7q", olive: "8bk79k", night: "1o5rnlf" },
   },
   "starter-salon": {
     releases: [
@@ -134,8 +140,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 9, date: "2026-11-26", note: "Product pages: a sticky Add to bag bar on phones and details that fold open on phones." },
       { version: 10, date: "2026-11-26", note: "Footers: a plain Help heading, social and card icons when set up, a readable copyright line; the missing page offers search." },
       { version: 11, date: "2026-11-27", note: "Sections now fade and zoom gently into view as clients scroll, and the home page answers first-visit questions." },
+      { version: 12, date: "2026-11-27", note: "Pages use the starter's own text font, and the shop page no longer shows a second sign-up box." },
     ],
-    looks: { blush: "1xcislv", sage: "1yzc8sj", night: "14rl6cf" },
+    looks: { blush: "x80omb", sage: "forjjn", night: "16ft1jj" },
   },
   "starter-workshop": {
     releases: [
@@ -150,8 +157,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 9, date: "2026-11-26", note: "Product pages: a sticky Add to bag bar on phones and details that fold open on phones." },
       { version: 10, date: "2026-11-26", note: "Footers: a plain Help heading, social and card icons when set up, a readable copyright line; the missing page offers search." },
       { version: 11, date: "2026-11-27", note: "Sections now fade and zoom gently into view as clients scroll, and the home page answers first-visit questions." },
+      { version: 12, date: "2026-11-27", note: "Pages use the starter's own text font, and the shop page no longer shows a second sign-up box." },
     ],
-    looks: { sunny: "73bcx8", mint: "frddjy", night: "1h8hvmu" },
+    looks: { sunny: "od8w6f", mint: "1dcjmzi", night: "mgm881" },
   },
   "starter-commission": {
     releases: [
@@ -167,8 +175,9 @@ export const STARTER_VERSIONS: Record<string, StarterVersions> = {
       { version: 10, date: "2026-11-26", note: "Product pages: a sticky Add to bag bar on phones, details that fold open on phones and “You may also like”; Northline Supply adds a size guide." },
       { version: 11, date: "2026-11-26", note: "Footers: the brand's line, a plain Help heading, social and card icons when set up, a readable copyright line; the missing page offers search and four products." },
       { version: 12, date: "2026-11-27", note: "Sections now fade and zoom gently into view as shoppers scroll, and the shorter home pages gained a few more sections." },
+      { version: 13, date: "2026-11-27", note: "Product pages use the starter's own fonts, with You may also like as a proper heading, and the shop page no longer shows a second sign-up box." },
     ],
-    looks: { walnut: "1vqf596", chalk: "k02v0j", night: "9jfoep" },
+    looks: { walnut: "shdc21", chalk: "1vld71x", night: "6m4ffk" },
   },
 };
 

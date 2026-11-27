@@ -171,8 +171,12 @@ export function withStyle<T>(theme: T, styleId?: string | null): T {
       ? list.map((s: any) => (patch[s?.type] ? { ...s, settings: { ...(s.settings || {}), ...patch[s.type] } } : s))
       : list;
   }
+  // The look's Website font (`font`) wins over Body font on the shop, so a style that brings its own body font moves
+  // the Website font with it; otherwise the style's body font never shows.
+  const bodyFont = (style.global as any)?.bodyFont;
   return {
     ...t,
+    ...(bodyFont ? { font: bodyFont } : {}),
     styleId: style.id,
     styleName: style.name,
     global: { ...(t.global || {}), ...(style.global || {}) },
