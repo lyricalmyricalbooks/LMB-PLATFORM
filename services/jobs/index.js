@@ -32,7 +32,7 @@ const DAY = 24 * 60;
 /** Every scheduled job in the platform's code. `every` is the intended gap, in minutes. */
 export const JOBS = Object.freeze([
   { name: "health-checks", words: "Health checks of every shop, and the status page", every: 15, code: "services/health/run.js checks" },
-  { name: "shop-maker", words: "Make the shops waiting in the sign-up line", every: 1, code: "signup/shopMaker.js sweep" },
+  { name: "shop-maker", words: "Make the shops waiting in the sign-up line", every: 5, code: "signup/shopMaker.js sweep" },
   { name: "web-addresses", words: "Check web addresses: new ones until they work, and each one once a day (still working, and when it runs out)", every: 10, code: "services/domains/domains.js checkAll" },
   { name: "nightly-backups", words: "Nightly backups of every shop and the stockroom", every: DAY, code: "services/health/run.js nightly" },
   { name: "keep-times", words: "Remove records past the time they are kept", every: DAY, code: "services/retention/run.js" },
@@ -52,7 +52,7 @@ export const JOBS = Object.freeze([
   { name: "bank-feed", words: "Disconnect the banks of paused and closed shops, and put last month's bank feed add-on on each shop's next bill", every: DAY, code: "services/bankfeed/index.js runBankFeed" },
   { name: "texts", words: "Put last month's text-message reminders on each shop's next bill, at cost", every: DAY, code: "services/texts/index.js runTexts" },
   { name: "income-record", words: "Write down the night's income, and remind presses a month before their card runs out", every: DAY, code: "control-room/nightly.js runBusinessNightly" },
-  { name: "app-alerts", words: "Tell installed apps about new orders, sent orders, refunds, product and stock changes", every: 1, code: "services/apps/alerts.js sweep" },
+  { name: "app-alerts", words: "Tell installed apps about new orders, sent orders, refunds, product and stock changes", every: 5, code: "services/apps/alerts.js sweep" },
   { name: "chitchats-tracking", words: "Mark orders sent once Chit Chats has their tracking numbers", every: 10, code: "services/chitchats/app.js sweep" },
   { name: "mailchimp-sync", words: "Add confirmed newsletter readers to each press's Mailchimp audience and carry unsubscribes both ways", every: 15, code: "services/mailchimp/app.js sweep" },
   { name: "press-messages", words: "Take ended messages off shop admins, and reach shops opened since", every: 60, code: "control-room/messages.js sweep" },
@@ -91,11 +91,25 @@ export function summaryOf(result) {
 export function createJobs({ store, email = null, alertTo = null, now = () => new Date() }) {
   if (!store) throw new Error("the jobs page needs its run log");
 
-  /** `newestOnly` reads just each job's last run (enough to tell late from on time): what the late check uses. */
-  async function jobsStatus({ now: at = now(), newestOnly = false } = {}) {
+  async function statusRows(at, newestOnly, prefetchedSummaries = null) {
     const nowMs = at.getTime();
+    const summaries = prefetchedSummaries ?? (newestOnly && typeof store.getAllSummaries === "function" ? await store.getAllSummaries() : null);
     const rows = [];
     for (const job of JOBS) {
+      if (summaries) {
+        const entry = summaries[job.name] ?? null;
+        const last = entry?.lastRun ?? null;
+        const late = Boolean(last) && nowMs - Date.parse(last.startedAt) > LATE_TIMES * job.every * 60_000;
+        rows.push({
+          name: job.name, words: job.words, every: job.every,
+          lastRun: last ? { startedAt: last.startedAt, finishedAt: last.finishedAt, ms: last.ms, ok: last.ok, error: last.error ?? null, summary: last.summary ?? "" } : null,
+          lastSuccessAt: entry?.lastSuccessAt ?? null,
+          late,
+          never: !last,
+          runs: last ? 1 : 0,
+        });
+        continue;
+      }
       const runs = await store.list(job.name, { limit: newestOnly ? 1 : KEEP_RUNS });
       const last = runs[0] ?? null;
       const lastOk = runs.find((run) => run.ok) ?? null;
@@ -112,13 +126,20 @@ export function createJobs({ store, email = null, alertTo = null, now = () => ne
     return rows;
   }
 
+  /** `newestOnly` reads just each job's last run (enough to tell late from on time): what the late check uses. */
+  async function jobsStatus({ now: at = now(), newestOnly = false } = {}) {
+    return statusRows(at, newestOnly);
+  }
+
   async function alertLate({ now: at = now() } = {}) {
     const sent = [];
-    for (const row of await jobsStatus({ now: at, newestOnly: true })) {
-      const state = (await store.getState(row.name)) ?? {};
+    const summaries = typeof store.getAllSummaries === "function" ? await store.getAllSummaries() : null;
+    const rows = await statusRows(at, true, summaries);
+    for (const row of rows) {
+      const state = summaries ? (summaries[row.name] ?? {}) : ((await store.getState(row.name)) ?? {});
       if (!row.late) {
         // Back on time: the next time it goes late is a new alert.
-        if (state.lateAlertedAt) await store.setState(row.name, { ...state, lateAlertedAt: null, backOnTimeAt: at.toISOString() });
+        if (state.lateAlertedAt) await store.setState(row.name, { ...(summaries ? ((await store.getState(row.name)) ?? {}) : state), lateAlertedAt: null, backOnTimeAt: at.toISOString() });
         continue;
       }
       if (state.lateAlertedAt || !email || !alertTo) continue;
@@ -132,7 +153,8 @@ export function createJobs({ store, email = null, alertTo = null, now = () => ne
         console.error(`couldn't send the late alert for ${row.name}: ${plainError(failure)}`);
         continue;
       }
-      await store.setState(row.name, { ...state, lateAlertedAt: at.toISOString() });
+      const latestState = summaries ? ((await store.getState(row.name)) ?? {}) : state;
+      await store.setState(row.name, { ...latestState, lateAlertedAt: at.toISOString() });
       sent.push(row.name);
     }
     return { alerted: sent };

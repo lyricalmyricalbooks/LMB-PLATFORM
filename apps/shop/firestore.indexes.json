@@ -175,6 +175,34 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "start",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "courseLastStart",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [
@@ -217,6 +245,41 @@
     {
       "collectionGroup": "systemStatus",
       "fieldPath": "orders",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "books",
+      "fieldPath": "description",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "books",
+      "fieldPath": "priceHistory",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "books",
+      "fieldPath": "images",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "pages",
+      "fieldPath": "sections",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "pages",
+      "fieldPath": "content",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "theme-versions",
+      "fieldPath": "theme",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "theme-versions",
+      "fieldPath": "snapshot",
       "indexes": []
     }
   ]

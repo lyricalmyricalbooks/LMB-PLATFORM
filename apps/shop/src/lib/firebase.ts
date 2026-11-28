@@ -1,5 +1,5 @@
 import { connectAuthEmulator, getAuth, GoogleAuthProvider } from "firebase/auth";
-import { connectFirestoreEmulator, doc, getFirestore } from "firebase/firestore";
+import { connectFirestoreEmulator, doc, getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 
 import { emulators, emulatorUrl } from "./emulators";
 import { app, appCheck, authState } from "./firebaseApp";
@@ -9,7 +9,13 @@ import { shopProfile } from "./shopProfile";
 // App Check is initialized in ./firebaseApp before Firestore and Auth, as it must be.
 export { app, appCheck };
 /** The whole database (shared by every shop): only for batches, transactions and the emulator. Never read paths from it. */
-export const firestore = getFirestore(app);
+export const firestore = (() => {
+  try {
+    return initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+  } catch {
+    return getFirestore(app);
+  }
+})();
 /**
  * This shop's folder (`shops/<shopId>`, ./shopFolder). `collection(db, "books")` and `doc(db, "settings/website")` read and
  * write inside it, so no page can reach another shop's data by naming a path.

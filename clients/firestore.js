@@ -142,6 +142,24 @@ export function firestoreClient({ fetch, token, projectId, database = "(default)
     return (Array.isArray(rows) ? rows : []).filter((row) => row.document).map((row) => decode(row.document));
   }
 
+  async function count(collection, { where = [] } = {}) {
+    checkPath(collection, "collection");
+    const parts = collection.split("/");
+    const parent = parts.length > 1 ? `${root}/${parts.slice(0, -1).map(encodeURIComponent).join("/")}` : root;
+    const filters = where.map(([field, op, value]) => {
+      if (!OPS[op]) throw new Error(`unknown query operator ${op}`);
+      return { fieldFilter: { field: { fieldPath: field }, op: OPS[op], value: toValue(value) } };
+    });
+    const structuredQuery = {
+      from: [{ collectionId: parts.at(-1) }],
+      ...(filters.length === 1 ? { where: filters[0] } : filters.length ? { where: { compositeFilter: { op: "AND", filters } } } : {}),
+    };
+    const answer = await call("POST", `${url(parent)}:runAggregationQuery`, {
+      body: { structuredAggregationQuery: { structuredQuery, aggregations: [{ alias: "n", count: {} }] } },
+    });
+    return Number(answer?.[0]?.result?.aggregateFields?.n?.integerValue ?? 0);
+  }
+
   // Firestore turns a transaction away (ABORTED) when someone else wrote the same documents; it is tried again.
   async function transaction(work, { attempts = 5 } = {}) {
     for (let attempt = 1; ; attempt += 1) {
@@ -165,5 +183,5 @@ export function firestoreClient({ fetch, token, projectId, database = "(default)
     }
   }
 
-  return { projectId, database, folder, get, create, set, remove, query, transaction };
+  return { projectId, database, folder, get, create, set, remove, query, count, transaction };
 }

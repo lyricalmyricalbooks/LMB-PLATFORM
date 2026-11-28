@@ -222,14 +222,19 @@ describe("AI writing assistant on a Colophon shop (plan 16.4)", () => {
   const { generateVertex } = createRequire(import.meta.url)("./aiWriter");
   const platformAi = async () => ({ projectId: "moth-press", accessToken: "server-token" });
 
-  it("writes through the shop's own project with no key saved, and keeps no key", async () => {
+  it("writes through the shop's own project with no key saved, uses lite models for lightweight tasks, and keeps full Flash for creative tasks", async () => {
     const fetchImpl = vi.fn(async () => answer({ metaTitle: "Salt, a book about salt and the sea", metaDescription: "A book about salt." }));
     const out = await handleAiWrite({ task: "bookSeo", input: { title: "Salt" } }, deps({ readSettings: async () => ({}), fetchImpl, platformAi }));
     expect(out.status).toBe(200);
     const [url, init] = fetchImpl.mock.calls[0];
-    expect(url).toMatch(/^https:\/\/aiplatform\.googleapis\.com\/v1\/projects\/moth-press\/locations\/global\/publishers\/google\/models\/gemini-2\.5-flash:generateContent$/);
+    expect(url).toMatch(/^https:\/\/aiplatform\.googleapis\.com\/v1\/projects\/moth-press\/locations\/global\/publishers\/google\/models\/gemini-2\.5-flash-lite:generateContent$/);
     expect(init.headers.Authorization).toBe("Bearer server-token");
     expect(init.headers["x-goog-api-key"]).toBeUndefined();
+
+    const creativeFetch = vi.fn(async () => answer({ description: "Sea poems in risograph." }));
+    const creative = await handleAiWrite({ task: "bookDescription", input: { title: "Salt" } }, deps({ readSettings: async () => ({}), fetchImpl: creativeFetch, platformAi }));
+    expect(creative.status).toBe(200);
+    expect(creativeFetch.mock.calls[0][0]).toMatch(/\/models\/gemini-2\.5-flash:generateContent$/);
   });
 
   it("a shop that saved its own key keeps using it", async () => {

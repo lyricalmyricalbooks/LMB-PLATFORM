@@ -37,6 +37,12 @@ const TYPES = {
 };
 const ADDRESS_TTL_MS = 60 * 1000;
 const SHELL_TTL_MS = 5 * 60 * 1000;
+const FILE_CACHE_TTL_MS = 60 * 1000;
+const FILE_MISS_TTL_MS = 30 * 1000;
+const FILE_CACHE_MAX_BYTES = 16 * 1024 * 1024;
+const FILE_CACHE_MAX_ENTRIES = 2000;
+const PUBLIC_PAGE_CACHE = "public, max-age=60, s-maxage=300, stale-while-revalidate=86400";
+const PUBLIC_FILE_CACHE = "public, max-age=60, s-maxage=300, stale-while-revalidate=3600";
 /** The app's own script a page loads ("index-abc123.js"), or null when it names none. */
 const appScript = (html) => /<script[^>]+src="[^"]*\/assets\/(index-[\w-]+\.js)"/.exec(String(html ?? ""))?.[1] ?? null;
 
@@ -147,21 +153,30 @@ function pathOf(req, pathname) {
 // as about 15 KB. Brotli where the browser or crawler takes it (Googlebot does), else gzip; small or binary bodies as is.
 const SQUEEZE_MIN = 1024;
 const SQUEEZABLE = /^(text\/|application\/(json|xml|javascript))/;
-function squeeze(req, type, body) {
-  if (body == null || !SQUEEZABLE.test(type)) return null;
-  const raw = Buffer.isBuffer(body) ? body : Buffer.from(String(body));
-  if (raw.length < SQUEEZE_MIN) return null;
+function preferredEncoding(req) {
   const accepts = String(req.get?.("accept-encoding") || req.headers?.["accept-encoding"] || "").toLowerCase();
   const takes = (name) => accepts.split(",").some((part) => {
     const [coding, ...params] = part.split(";").map((x) => x.trim());
     const q = params.find((x) => x.startsWith("q="));
     return coding === name && !(q && Number(q.slice(2)) === 0);
   });
-  if (takes("br")) {
-    return { encoding: "br", body: zlib.brotliCompressSync(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5, [zlib.constants.BROTLI_PARAM_MODE]: zlib.constants.BROTLI_MODE_TEXT, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length } }) };
-  }
-  if (takes("gzip")) return { encoding: "gzip", body: zlib.gzipSync(raw, { level: 6 }) };
-  return null;
+  if (takes("br")) return "br";
+  if (takes("gzip")) return "gzip";
+  return "";
+}
+
+function squeeze(req, type, body, cached = null) {
+  if (body == null || !SQUEEZABLE.test(type)) return null;
+  const raw = Buffer.isBuffer(body) ? body : Buffer.from(String(body));
+  if (raw.length < SQUEEZE_MIN) return null;
+  const coding = preferredEncoding(req);
+  if (!coding) return null;
+  if (cached?.[coding]) return { encoding: coding, body: cached[coding] };
+  const compressed = coding === "br"
+    ? zlib.brotliCompressSync(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5, [zlib.constants.BROTLI_PARAM_MODE]: zlib.constants.BROTLI_MODE_TEXT, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length } })
+    : zlib.gzipSync(raw, { level: 6 });
+  if (cached) cached[coding] = compressed;
+  return { encoding: coding, body: compressed };
 }
 
 /** robots.txt for a shop that hasn't published its own yet: the same lines its publish run writes (scripts/sitemapData.mjs). */
@@ -171,6 +186,8 @@ function defaultRobots(site) {
 
 function frontDoor({ rootDb, bucket, loadShop, shellUrl, routeCheck = null, calendarFeed = null, bookingCalendar = null, fetch = globalThis.fetch, now = () => Date.now(), log = console, usage = usageLine }) {
   const addresses = new Map();
+  const files = new Map();
+  let fileCacheBytes = 0;
   let shell = null;
 
   async function shopIdFor(host) {
@@ -183,16 +200,41 @@ function frontDoor({ rootDb, bucket, loadShop, shellUrl, routeCheck = null, cale
     return id;
   }
 
-  /** The shop's own published file, or null when it has none. */
-  async function siteFile(shopId, name) {
-    const file = bucket().file(`shops/${shopId}/site/${name}`);
-    try {
-      const [body] = await file.download();
-      return body;
-    } catch (err) {
-      if (err?.code === 404 || /No such object/i.test(String(err?.message))) return null;
-      throw err;
+  /** The shop's own published file (cached briefly in memory with pre-compressed variants), or null when missing. */
+  async function siteFileEntry(shopId, name) {
+    const key = `${shopId}/${name}`;
+    const hit = files.get(key);
+    const ttl = hit?.body == null ? FILE_MISS_TTL_MS : FILE_CACHE_TTL_MS;
+    if (hit && now() - hit.at < ttl) {
+      files.delete(key);
+      files.set(key, hit);
+      return hit;
     }
+    if (hit) {
+      fileCacheBytes -= hit.bytes;
+      files.delete(key);
+    }
+    const file = bucket().file(`shops/${shopId}/site/${name}`);
+    let body = null;
+    try {
+      const [downloaded] = await file.download();
+      body = downloaded;
+    } catch (err) {
+      if (!(err?.code === 404 || /No such object/i.test(String(err?.message)))) throw err;
+    }
+    const bytes = body ? Buffer.byteLength(body) : 0;
+    const entry = { at: now(), body, bytes, br: null, gzip: null };
+    if (bytes <= FILE_CACHE_MAX_BYTES / 4) {
+      while (files.size >= FILE_CACHE_MAX_ENTRIES || fileCacheBytes + bytes > FILE_CACHE_MAX_BYTES) {
+        const oldest = files.keys().next().value;
+        if (!oldest) break;
+        fileCacheBytes -= files.get(oldest).bytes;
+        files.delete(oldest);
+      }
+      files.set(key, entry);
+      fileCacheBytes += bytes;
+    }
+    return entry;
   }
 
   /** The app's blank page, read from the shared site and kept five minutes. */
@@ -224,8 +266,8 @@ function frontDoor({ rootDb, bucket, loadShop, shellUrl, routeCheck = null, cale
     let metered = null;
     // Cached an hour, not for ever: an owner who makes another address main later must not meet an old answer.
     const moved = (to) => res.status(301).set("Location", to).set("Cache-Control", "private, max-age=3600").send("");
-    const send = (status, type, body, cache = "no-cache") => {
-      const squeezed = squeeze(req, type, body);
+    const send = (status, type, body, cache = "no-cache", cached = null) => {
+      const squeezed = squeeze(req, type, body, cached);
       if (squeezed) res.set("Content-Encoding", squeezed.encoding);
       if (SQUEEZABLE.test(type)) res.set("Vary", "Accept-Encoding");
       const out = squeezed ? squeezed.body : body;
@@ -250,7 +292,7 @@ function frontDoor({ rootDb, bucket, loadShop, shellUrl, routeCheck = null, cale
         log.error?.(`shop ${shop.id}: its record has no profile for its own id`);
         return send(503, "text/javascript; charset=utf-8", "// This shop's profile isn't ready yet.\n");
       }
-      return send(200, "text/javascript; charset=utf-8", profileScript({ ...profile, ...(shop.tenant ? { tenant: shop.tenant } : {}) }));
+      return send(200, "text/javascript; charset=utf-8", profileScript({ ...profile, ...(shop.tenant ? { tenant: shop.tenant } : {}) }), PUBLIC_FILE_CACHE);
     }
 
     const one = BOOKING_CALENDAR_PATH.exec(pathname);
@@ -267,16 +309,16 @@ function frontDoor({ rootDb, bucket, loadShop, shellUrl, routeCheck = null, cale
 
     const name = pathname.replace(/^\/+/, "");
     if (SITE_FILES.has(name)) {
-      const body = await siteFile(shop.id, name);
+      const entry = await siteFileEntry(shop.id, name);
       const type = TYPES[name.slice(name.lastIndexOf("."))];
-      if (body) return send(200, type, body);
-      if (name === "robots.txt") return send(200, type, defaultRobots(siteOf(shop.record?.profile) || `https://${host}`));
+      if (entry.body) return send(200, type, entry.body, PUBLIC_FILE_CACHE, entry);
+      if (name === "robots.txt") return send(200, type, defaultRobots(siteOf(shop.record?.profile) || `https://${host}`), PUBLIC_FILE_CACHE);
       return send(404, TYPES[".txt"], "Not published yet.");
     }
 
     if (VERIFICATION_FILE.test(name)) {
-      const body = await siteFile(shop.id, name);
-      return body ? send(200, TYPES[".html"], body) : send(404, TYPES[".txt"], "Not published.");
+      const entry = await siteFileEntry(shop.id, name);
+      return entry.body ? send(200, TYPES[".html"], entry.body, PUBLIC_FILE_CACHE, entry) : send(404, TYPES[".txt"], "Not published.");
     }
 
     const snapshot = snapshotFile(pathname);
@@ -300,8 +342,8 @@ function frontDoor({ rootDb, bucket, loadShop, shellUrl, routeCheck = null, cale
         return moved((away ? site : `https://${host}`) + (slash ? pathname.replace(/\/+$/, "") : pathname) + query);
       }
     }
-    const body = snapshot ? await siteFile(shop.id, snapshot) : null;
-    if (body && (await sameApp(body))) return send(200, TYPES[".html"], body);
+    const entry = snapshot ? await siteFileEntry(shop.id, snapshot) : null;
+    if (entry?.body && (await sameApp(entry.body))) return send(200, TYPES[".html"], entry.body, ownerView ? "no-cache" : PUBLIC_PAGE_CACHE, entry);
     // Not drawn yet: a product added since the last publish run (blank page, 200), or one that isn't there (404).
     const check = snapshot && snapshot !== "index.html" && routeCheck && !ownerView ? await routeCheck(shop, pathname) : { state: "unknown" };
     if (check.state === "missing" && check.to) {
@@ -309,8 +351,8 @@ function frontDoor({ rootDb, bucket, loadShop, shellUrl, routeCheck = null, cale
       return moved(to);
     }
     const missing = check.state === "missing";
-    return send(missing ? 404 : 200, TYPES[".html"], shopShell(await blankPage(), profile, pathname, { missing }));
+    return send(missing ? 404 : 200, TYPES[".html"], shopShell(await blankPage(), profile, pathname, { missing }), missing || ownerView ? "no-cache" : PUBLIC_PAGE_CACHE);
   };
 }
 
-module.exports = { appScript, shopShell, siteOf, defaultRobots, TEMPLATE_NAME, BOOKING_CALENDAR_PATH, CALENDAR_PATH, frontDoor, hostOf, snapshotFile, safeSlug, profileScript, SITE_FILES, TYPES, ADDRESS_TTL_MS, VERIFICATION_FILE };
+module.exports = { appScript, shopShell, siteOf, defaultRobots, TEMPLATE_NAME, BOOKING_CALENDAR_PATH, CALENDAR_PATH, frontDoor, hostOf, snapshotFile, safeSlug, profileScript, SITE_FILES, TYPES, ADDRESS_TTL_MS, VERIFICATION_FILE, PUBLIC_PAGE_CACHE, PUBLIC_FILE_CACHE };

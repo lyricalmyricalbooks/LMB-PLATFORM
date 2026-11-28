@@ -135,4 +135,12 @@ test("the Firestore stores keep the outbox and each shop's last look", async () 
   const result = await w.alerts.sweep();
   assert.equal(result.sent, 1, JSON.stringify(result));
   assert.ok((await db.get("appAlertState/moth-press")).cursor);
+
+  // An idle sweep two minutes later does not rewrite appAlertState.
+  const callsBefore = fs.calls;
+  w.tick(2);
+  await w.alerts.scan();
+  const writes = fs.calls - callsBefore;
+  // 1 listActive + 1 get state + 2 shopData.find (fake) — 0 writes to appAlertState.
+  assert.equal(writes, 2);
 });

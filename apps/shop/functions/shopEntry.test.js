@@ -141,4 +141,11 @@ describe("usage", () => {
       { shop: "press-b", kind: "event", ms: 2 },
     ]);
   });
+  it("skips writing a tick usage line for idle shops when logIdle is false", async () => {
+    const lines = [];
+    let t = 1000;
+    const entry = shopEntries({ rootDb: rootWith(records).rootDb, env: {}, log: quiet, now: () => t, usage: line => lines.push(line) });
+    await entry.eachShop(async shop => { t += 10; return shop.id === "press-a" ? ["job1"] : []; }, { logIdle: false, concurrency: 1 });
+    expect(lines).toEqual([{ shop: "press-a", kind: "tick", ms: 10 }]);
+  });
 });

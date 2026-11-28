@@ -39,9 +39,10 @@ export async function runHealth({ registry, checks, notify, config = {}, now = (
   if (!config.alertTo) throw new Error("the health run needs an address to send alerts to (HEALTH_ALERT_TO)");
   const rows = (await registry.listShops()).filter((row) => !notLive(row));
   const summary = [];
+  const sharedProbes = new Map();
   for (const row of rows) {
     const at = now().toISOString();
-    const results = await checkShop(row, checks, { now });
+    const results = await checkShop(row, checks, { now, sharedProbes });
     const before = row.health?.checks ?? {};
     const after = {};
     const alerts = [];

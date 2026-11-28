@@ -31,6 +31,7 @@ test("each service is told its role and test mode, and gets only the keys it nee
   assert.ok(jobs.args.includes("--no-allow-unauthenticated"), "the jobs server is private");
   assert.ok(api.args.includes(`--image=${image}`) && jobs.args.includes(`--image=${image}`), "one image, two services");
   assert.ok(api.args.includes("--region=northamerica-northeast1"));
+  assert.ok(api.args.includes("--memory=256Mi") && jobs.args.includes("--memory=256Mi"));
   assert.ok(api.args.includes("--service-account=platform-api@lmb-platform-prod.iam.gserviceaccount.com"));
   assert.ok(jobs.args.includes("--timeout=1800"));
   const secretsOf = (step) => step.args.find((a) => a.startsWith("--set-secrets=")).slice("--set-secrets=".length).split(",");

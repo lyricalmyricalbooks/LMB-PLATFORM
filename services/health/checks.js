@@ -59,20 +59,29 @@ export const shopUrl = (row) => `https://${ownAddress(row)}`;
 
 export function healthChecks({ siteCheck, fetch, shopDb }) {
   return {
-    async pages(row) {
+    async pages(row, { sharedProbes } = {}) {
       const apps = appsOf(row);
       const urls = [];
-      if (apps.includes("shop")) urls.push(shopUrl(row), `${shopUrl(row)}/admin`, `${shopUrl(row)}/shop-profile.js`);
-      if (apps.includes("stockroom")) urls.push(shopPlaces(row).stockroom);
+      const sharedKey = row.shared === true ? (row.projectId ?? "shared") : null;
+      const checkSharedApp = !sharedKey || !sharedProbes?.has(`app:${sharedKey}`);
+      if (apps.includes("shop")) {
+        urls.push(shopUrl(row));
+        if (checkSharedApp) urls.push(`${shopUrl(row)}/admin`);
+        urls.push(`${shopUrl(row)}/shop-profile.js`);
+      }
+      if (apps.includes("stockroom") && checkSharedApp) urls.push(shopPlaces(row).stockroom);
       const bad = [];
       for (const url of urls) {
         const { status, problems = [] } = await siteCheck.get(url);
         if (status !== 200 || problems.length) bad.push(`${url} answered ${status}${problems.length ? ` (${problems.join("; ")})` : ""}`);
       }
+      if (sharedKey && checkSharedApp) sharedProbes?.set(`app:${sharedKey}`, bad.length ? { ok: false, detail: bad.join("; ") } : { ok: true });
       return bad.length ? { ok: false, detail: bad.join("; ") } : { ok: true };
     },
 
-    async checkout(row) {
+    async checkout(row, { sharedProbes } = {}) {
+      const sharedKey = row.shared === true ? `checkout:${row.projectId ?? "shared"}` : null;
+      if (sharedKey && sharedProbes?.has(sharedKey)) return sharedProbes.get(sharedKey);
       const origin = shopUrl(row);
       const url = shopPlaces({ region: REGION, ...row }).fn?.("createStripeCheckoutSession");
       if (!url) return { ok: false, detail: "couldn't check: the registry has no region for this shop" };
@@ -81,11 +90,13 @@ export function healthChecks({ siteCheck, fetch, shopDb }) {
         headers: { Origin: origin, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type" },
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
-      if (response.status !== 204) return { ok: false, detail: `the checkout answered ${response.status}` };
-      if (response.headers.get("access-control-allow-origin") !== origin) {
-        return { ok: false, detail: `the checkout doesn't accept the shop's own pages (${origin})` };
-      }
-      return { ok: true };
+      const result = response.status !== 204
+        ? { ok: false, detail: `the checkout answered ${response.status}` }
+        : response.headers.get("access-control-allow-origin") !== origin
+          ? { ok: false, detail: `the checkout doesn't accept the shop's own pages (${origin})` }
+          : { ok: true };
+      if (sharedKey) sharedProbes?.set(sharedKey, result);
+      return result;
     },
 
     async webhook(row, { now }) {
@@ -146,11 +157,11 @@ export function healthChecks({ siteCheck, fetch, shopDb }) {
 }
 
 /** Runs the checks that apply to one shop. Every check runs, even after one fails. */
-export async function checkShop(row, checks, { now = () => new Date() } = {}) {
+export async function checkShop(row, checks, { now = () => new Date(), sharedProbes = null } = {}) {
   const results = {};
   for (const name of checksFor(row)) {
     try {
-      results[name] = await checks[name](row, { now, previous: row.health?.checks?.[name] });
+      results[name] = await checks[name](row, { now, previous: row.health?.checks?.[name], sharedProbes });
     } catch (error) {
       // The whole answer goes to the run's log; the row keeps plain words only.
       console.error(`${row.shopId}: the ${name} check couldn't be made: ${message(error)}`);

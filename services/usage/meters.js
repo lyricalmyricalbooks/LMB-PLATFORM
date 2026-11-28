@@ -148,8 +148,11 @@ export async function runUsageMeters({ registry, meters, sources, costs = null, 
   };
 
   await write(month, true);
-  // Last month: counted again in full (the logs of its last hours arrive late), its storage kept from its own days.
-  const lastRecords = await write(last, false);
+  // Last month: counted again until reconciled (logs of its last hours arrive late); once every shop is reconciled,
+  // skip re-reading Cloud Monitoring and email logs for last month.
+  const existingLast = Object.fromEntries(await Promise.all(ids.map(async (shopId) => [shopId, await meters.get(shopId, last)])));
+  const allLastReconciled = ids.length > 0 && ids.every((shopId) => existingLast[shopId]?.reconciled === true);
+  const lastRecords = allLastReconciled ? existingLast : await write(last, false);
   let reconciled = null;
   let waiting = null;
   if (ids.length && Object.values(lastRecords).some((r) => r.reconciled !== true)) {
