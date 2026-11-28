@@ -101,13 +101,17 @@ export function createAppAlerts({ apps, installs, outbox, state, shopData, fetch
     return out;
   }
 
+  const CURSOR_WRITE_MS = 15 * 60_000;
+
   async function scanShop(shopId, byShop) {
     const seen = (await state.get(shopId)) ?? { cursor: null, orders: {}, stock: {} };
     const since = seen.cursor ?? (byShop.get(shopId) ?? []).map((i) => i.installedAt).sort()[0] ?? at();
     const started = at();
+    let dirty = !seen.cursor;
     let queued = 0;
 
     const changedOrders = await shopData.find(shopId, "orders", { where: [["updatedAt", ">=", since]], limit: 1000 });
+    if (changedOrders.length) dirty = true;
     for (const { id, data } of changedOrders) {
       if (!data || data.isTest === true) continue;
       const before = new Set(seen.orders[id]?.marks ?? []);
@@ -122,6 +126,7 @@ export function createAppAlerts({ apps, installs, outbox, state, shopData, fetch
     }
 
     const changedProducts = await shopData.find(shopId, "books", { where: [["updatedAt", ">=", since]], limit: 1000 });
+    if (changedProducts.length) dirty = true;
     for (const { id, data } of changedProducts) {
       if (!data) continue;
       for (const install of await wanting(byShop, shopId, "products/changed")) {
@@ -139,11 +144,19 @@ export function createAppAlerts({ apps, installs, outbox, state, shopData, fetch
 
     // Forget orders not touched for a while, so the record stays small.
     const oldest = new Date(now().getTime() - KEEP_MARKS_DAYS * 24 * 3600_000).toISOString();
-    for (const [id, entry] of Object.entries(seen.orders)) if (entry.at < oldest) delete seen.orders[id];
-    // The next look starts a minute before this one did: a write landing while we read is seen twice, never missed
-    // (the outbox drops the repeat).
-    seen.cursor = new Date(Date.parse(started) - 60_000).toISOString();
-    await state.put(shopId, seen);
+    for (const [id, entry] of Object.entries(seen.orders)) {
+      if (entry.at < oldest) {
+        delete seen.orders[id];
+        dirty = true;
+      }
+    }
+    const cursorAge = seen.cursor ? Date.parse(started) - Date.parse(seen.cursor) : Infinity;
+    if (dirty || cursorAge >= CURSOR_WRITE_MS) {
+      // The next look starts a minute before this one did: a write landing while we read is seen twice, never missed
+      // (the outbox drops the repeat).
+      seen.cursor = new Date(Date.parse(started) - 60_000).toISOString();
+      await state.put(shopId, seen);
+    }
     return queued;
   }
 
@@ -187,6 +200,7 @@ export function createAppAlerts({ apps, installs, outbox, state, shopData, fetch
   const api = {
     async scan() {
       const active = await installs.listActive();
+      if (!active.length) return { shops: 0, queued: 0, problems: [] };
       const byShop = new Map();
       for (const install of active) {
         if (!byShop.has(install.shopId)) byShop.set(install.shopId, []);

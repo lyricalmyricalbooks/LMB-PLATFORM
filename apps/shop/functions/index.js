@@ -3552,41 +3552,41 @@ async function shopSellsAnswer() {
 }
 
 /**
- * When the owner changes what the shop sells, the shop's and the stockroom's words follow (plan 12.14). The answer is
- * copied to the public settings/website `sells`, where the storefront reads it (admin/sells.ts withShopWordsFor), and
- * to the stockroom. A shop without a stockroom is fine.
+ * firstWeek/start trigger (merged):
+ * 1. Syncs what the shop sells (`sells` and `shopKind`) to settings/website and the stockroom (plan 12.14).
+ * 2. Sends one email when the last part of a move from the old shop is ticked (plan 23.20).
  */
-exports.syncStockroomWords = onDocumentWritten("firstWeek/start", async event => {
-  const website = db.collection("settings").doc("website");
-  await require("./sellsSync").syncSells({
-    before: event.data?.before?.data?.(),
-    after: event.data?.after?.data?.(),
-    readWebsiteSells: async () => (await website.get()).get("sells"),
-    writeWebsiteSells: answer => website.set({ sells: answer }, { merge: true }),
-    writeStockroomWords: answer => require("./inventoryLinkStore").writeSellsWords(answer),
-    readWebsiteKind: async () => (await website.get()).get("shopKind"),
-    writeWebsiteKind: kind => website.set({ shopKind: kind }, { merge: true }),
-  });
-});
-
-/** Your move so far (plan 23.20): the owner gets one email when the last part of the move from the old shop is ticked. */
-exports.onMoveFinished = onDocumentUpdated("firstWeek/start", async event => {
-  const { justFinished, moveCounts, moveDoneEmail } = require("./moveDone");
-  const before = event.data?.before?.data?.();
-  const after = event.data?.after?.data?.();
-  // Counted only for the one change that finishes the move (plan 23.24); every other edit of the doc stops here.
-  if (!justFinished(before, after)) return;
-  const message = moveDoneEmail({
-    before, after, counts: await moveCounts(db),
-    ownerEmail: ADMIN_TO(), shopName: shopConfig.senderName, adminLink: siteLink("/admin"),
-  });
-  if (!message) return;
-  try {
-    await sendEmail({ queue: "moveFinished", ...message, secret: resendSecretValue() });
-  } catch (err) {
-    console.warn("Couldn't send the move-finished email:", err?.message || err);
-  }
-});
+exports.onMoveFinished = onDocumentWritten(
+  { document: "firstWeek/start", secrets: withPlatformKey([RESEND_API_KEY]) },
+  async event => {
+    const before = event.data?.before?.data?.();
+    const after = event.data?.after?.data?.();
+    const website = db.collection("settings").doc("website");
+    await require("./sellsSync").syncSells({
+      before,
+      after,
+      readWebsiteSells: async () => (await website.get()).get("sells"),
+      writeWebsiteSells: answer => website.set({ sells: answer }, { merge: true }),
+      writeStockroomWords: answer => require("./inventoryLinkStore").writeSellsWords(answer),
+      readWebsiteKind: async () => (await website.get()).get("shopKind"),
+      writeWebsiteKind: kind => website.set({ shopKind: kind }, { merge: true }),
+    });
+    if (!before || !after) return;
+    const { justFinished, moveCounts, moveDoneEmail } = require("./moveDone");
+    // Counted only for the one change that finishes the move (plan 23.24); every other edit of the doc stops here.
+    if (!justFinished(before, after)) return;
+    const message = moveDoneEmail({
+      before, after, counts: await moveCounts(db),
+      ownerEmail: ADMIN_TO(), shopName: shopConfig.senderName, adminLink: siteLink("/admin"),
+    });
+    if (!message) return;
+    try {
+      await sendEmail({ queue: "moveFinished", ...message, secret: resendSecretValue() });
+    } catch (err) {
+      console.warn("Couldn't send the move-finished email:", err?.message || err);
+    }
+  },
+);
 
 // Your move so far (plan 23.26): one reminder when a move from the old shop has seen nothing new for a week. The mark
 // is written before sending, so a failed send is never repeated daily.
@@ -5110,7 +5110,7 @@ exports.onAppRequest = onDocumentCreated({ document: "appRequests/{requestId}", 
 
 // The link's regular check: labels bought in the inventory app, missed or failed pushes, past orders,
 // and (every 15 minutes, once the owner switched it on) linked books' stock.
-exports.inventoryLinkSweep = onSchedule({ schedule: "every 5 minutes", name: "inventoryLinkSweep", timeoutSeconds: 300 }, async () => {
+exports.inventoryLinkSweep = onSchedule({ schedule: "every 15 minutes", name: "inventoryLinkSweep", timeoutSeconds: 300 }, async () => {
   const out = await require("./inventoryLinkJobs").runSweep(inventoryLinkDeps(), { stock: "auto" });
   if (out.error) console.error("inventoryLinkSweep:", out.error);
 });
@@ -5129,56 +5129,72 @@ exports.bankFeedSweep = onSchedule({ schedule: "every 3 hours", name: "bankFeedS
 
 // Bookings (beta): a paid booking's hold is confirmed once paid, or its time freed when the hold runs out (bookings.js).
 exports.bookingSweep = onSchedule({ schedule: "every 5 minutes", name: "bookingSweep", timeoutSeconds: 120, secrets: withPlatformKey([RESEND_API_KEY]) }, async () => {
-  const out = await bookingDesk.sweepHolds();
-  if (out.confirmed || out.freed) console.log(`bookingSweep: ${out.confirmed} confirmed, ${out.freed} freed`);
-  const sent = await bookingDesk.sweepReminders();
-  if (sent.reminded) console.log(`bookingSweep: ${sent.reminded} reminders sent`);
-  const soon = await bookingDesk.sweepSecondReminders();
-  if (soon.reminded) console.log(`bookingSweep: ${soon.reminded} second reminders sent`);
-  // Clients' answers to reminder texts (Y, C, M), taken from the platform and answered by text.
-  const answered = await bookingDesk.sweepTextReplies().catch(err => { console.warn("bookingSweep: text replies failed:", err?.message || err); return {}; });
-  if (answered.answered) console.log(`bookingSweep: ${answered.answered} text replies answered`);
-  const summary = await bookingDesk.sweepSummary();
-  if (summary.sent) console.log(`bookingSweep: day summary for ${summary.day} sent`);
-  const staffDays = await bookingDesk.sweepStaffDays();
-  if (staffDays.sent) console.log(`bookingSweep: ${staffDays.sent} team day lists sent`);
-  await bookingDesk.sweepWaitlist();
-  const tips = await bookingDesk.sweepTips();
-  if (tips.asked) console.log(`bookingSweep: ${tips.asked} tip emails sent`);
-  const thanks = await bookingDesk.sweepThanks();
-  if (thanks.thanked) console.log(`bookingSweep: ${thanks.thanked} thank-you emails sent`);
-  const rebook = await bookingDesk.sweepRebook();
-  if (rebook.reminded) console.log(`bookingSweep: ${rebook.reminded} rebook reminders sent`);
-  // Keep in touch (plan 4, 5.4): welcome, birthday and "we miss you" emails.
-  const kept = await bookingDesk.sweepKeepInTouch().catch(err => { console.warn("bookingSweep: keep in touch failed:", err?.message || err); return {}; });
-  if (kept.welcomed || kept.birthdays || kept.missed) console.log(`bookingSweep: ${kept.welcomed} welcome, ${kept.birthdays} birthday, ${kept.missed} we-miss-you emails sent`);
-  // Loyalty points (plan 4, 5.5): visits and paid orders earn once each; rewards go out as one-use codes.
-  const points = await bookingDesk.sweepLoyalty().catch(err => { console.warn("bookingSweep: loyalty points failed:", err?.message || err); return {}; });
-  if (points.visits || points.orders || points.rewards) console.log(`bookingSweep: points for ${points.visits} visits and ${points.orders} orders, ${points.rewards} rewards sent`);
-  // Each team member's own Google Calendar: their busy times close those times for them (at most every 15 minutes).
-  const team = await bookingDesk.sweepTeamCalendars().catch(err => { console.warn("bookingSweep: team calendars failed:", err?.message || err); return {}; });
-  if (team.days) console.log(`bookingSweep: team busy times changed on ${team.days} days`);
-  // Outlook, Apple and other calendars (plan 4, 5.7): their busy times close those times (at most every 15 minutes).
-  const feeds = await bookingDesk.sweepOtherCalendars().catch(err => { console.warn("bookingSweep: other calendars failed:", err?.message || err); return {}; });
-  if (feeds.days) console.log(`bookingSweep: other calendars' busy times changed on ${feeds.days} days`);
-  // Send bookings to other apps (plan 4, 5.8): deliveries that failed go again.
-  const hookOut = await bookingDesk.sweepBookingHooks().catch(err => { console.warn("bookingSweep: other apps failed:", err?.message || err); return {}; });
-  if (hookOut.sent || hookOut.dropped) console.log(`bookingSweep: ${hookOut.sent || 0} bookings sent to other apps, ${hookOut.dropped || 0} given up`);
-  // Classes with a minimum number to run: decided once, cancelled and refunded when too few signed up.
-  const minimum = await bookingDesk.sweepMinimum();
-  if (minimum.cancelled || minimum.ran) console.log(`bookingSweep: ${minimum.ran} class times run, ${minimum.cancelled} cancelled for too few people`);
+  const every15 = Math.floor(Date.now() / 60_000) % 15 < 5;
+  if (await bookingDesk.featureOn()) {
+    const out = await bookingDesk.sweepHolds();
+    if (out.confirmed || out.freed) console.log(`bookingSweep: ${out.confirmed} confirmed, ${out.freed} freed`);
+    const sent = await bookingDesk.sweepReminders();
+    if (sent.reminded) console.log(`bookingSweep: ${sent.reminded} reminders sent`);
+    const soon = await bookingDesk.sweepSecondReminders();
+    if (soon.reminded) console.log(`bookingSweep: ${soon.reminded} second reminders sent`);
+    // Clients' answers to reminder texts (Y, C, M), taken from the platform and answered by text.
+    const answered = await bookingDesk.sweepTextReplies().catch(err => { console.warn("bookingSweep: text replies failed:", err?.message || err); return {}; });
+    if (answered.answered) console.log(`bookingSweep: ${answered.answered} text replies answered`);
+    await bookingDesk.sweepWaitlist();
+    // Each team member's own Google Calendar: their busy times close those times for them (at most every 15 minutes).
+    const team = await bookingDesk.sweepTeamCalendars().catch(err => { console.warn("bookingSweep: team calendars failed:", err?.message || err); return {}; });
+    if (team.days) console.log(`bookingSweep: team busy times changed on ${team.days} days`);
+    // Outlook, Apple and other calendars (plan 4, 5.7): their busy times close those times (at most every 15 minutes).
+    const feeds = await bookingDesk.sweepOtherCalendars().catch(err => { console.warn("bookingSweep: other calendars failed:", err?.message || err); return {}; });
+    if (feeds.days) console.log(`bookingSweep: other calendars' busy times changed on ${feeds.days} days`);
+    // Send bookings to other apps (plan 4, 5.8): deliveries that failed go again.
+    const hookOut = await bookingDesk.sweepBookingHooks().catch(err => { console.warn("bookingSweep: other apps failed:", err?.message || err); return {}; });
+    if (hookOut.sent || hookOut.dropped) console.log(`bookingSweep: ${hookOut.sent || 0} bookings sent to other apps, ${hookOut.dropped || 0} given up`);
+    // Classes with a minimum number to run: decided once, cancelled and refunded when too few signed up.
+    const minimum = await bookingDesk.sweepMinimum();
+    if (minimum.cancelled || minimum.ran) console.log(`bookingSweep: ${minimum.ran} class times run, ${minimum.cancelled} cancelled for too few people`);
+    if (every15) {
+      const summary = await bookingDesk.sweepSummary();
+      if (summary.sent) console.log(`bookingSweep: day summary for ${summary.day} sent`);
+      const staffDays = await bookingDesk.sweepStaffDays();
+      if (staffDays.sent) console.log(`bookingSweep: ${staffDays.sent} team day lists sent`);
+      const tips = await bookingDesk.sweepTips();
+      if (tips.asked) console.log(`bookingSweep: ${tips.asked} tip emails sent`);
+      const thanks = await bookingDesk.sweepThanks();
+      if (thanks.thanked) console.log(`bookingSweep: ${thanks.thanked} thank-you emails sent`);
+      const rebook = await bookingDesk.sweepRebook();
+      if (rebook.reminded) console.log(`bookingSweep: ${rebook.reminded} rebook reminders sent`);
+      // Keep in touch (plan 4, 5.4): welcome, birthday and "we miss you" emails.
+      const kept = await bookingDesk.sweepKeepInTouch().catch(err => { console.warn("bookingSweep: keep in touch failed:", err?.message || err); return {}; });
+      if (kept.welcomed || kept.birthdays || kept.missed) console.log(`bookingSweep: ${kept.welcomed} welcome, ${kept.birthdays} birthday, ${kept.missed} we-miss-you emails sent`);
+      // Loyalty points (plan 4, 5.5): visits and paid orders earn once each; rewards go out as one-use codes.
+      const points = await bookingDesk.sweepLoyalty().catch(err => { console.warn("bookingSweep: loyalty points failed:", err?.message || err); return {}; });
+      if (points.visits || points.orders || points.rewards) console.log(`bookingSweep: points for ${points.visits} visits and ${points.orders} orders, ${points.rewards} rewards sent`);
+    }
+  }
+  const [eventsOn, rentalsOn, givingOn, membershipsOn] = await Promise.all([
+    eventDesk.featureOn(), rentalDesk.featureOn(), givingDesk.featureOn(), membershipDesk.featureOn(),
+  ]);
   // Ticket orders (events.js) share this run: a paid hold is confirmed, an unpaid one frees its places.
-  const tickets = await eventDesk.sweep().catch(err => { console.warn("bookingSweep: the ticket orders sweep failed:", err?.message || err); return {}; });
-  if (tickets.confirmed || tickets.freed) console.log(`bookingSweep: ${tickets.confirmed} ticket orders confirmed, ${tickets.freed} freed`);
+  if (eventsOn || every15) {
+    const tickets = await eventDesk.sweep().catch(err => { console.warn("bookingSweep: the ticket orders sweep failed:", err?.message || err); return {}; });
+    if (tickets.confirmed || tickets.freed) console.log(`bookingSweep: ${tickets.confirmed} ticket orders confirmed, ${tickets.freed} freed`);
+  }
   // Rentals (rentals.js): a paid hold is confirmed, an unpaid one frees its unit.
-  const rented = await rentalDesk.sweep().catch(err => { console.warn("bookingSweep: the rentals sweep failed:", err?.message || err); return {}; });
-  if (rented.confirmed || rented.freed) console.log(`bookingSweep: ${rented.confirmed} rentals confirmed, ${rented.freed} freed`);
+  if (rentalsOn || every15) {
+    const rented = await rentalDesk.sweep().catch(err => { console.warn("bookingSweep: the rentals sweep failed:", err?.message || err); return {}; });
+    if (rented.confirmed || rented.freed) console.log(`bookingSweep: ${rented.confirmed} rentals confirmed, ${rented.freed} freed`);
+  }
   // Gifts (giving.js): a paid card page is confirmed, an unpaid one closed.
-  const given = await givingDesk.sweep().catch(err => { console.warn("bookingSweep: the gifts sweep failed:", err?.message || err); return {}; });
-  if (given.confirmed || given.closed) console.log(`bookingSweep: ${given.confirmed} gifts confirmed, ${given.closed} closed`);
+  if (givingOn || every15) {
+    const given = await givingDesk.sweep().catch(err => { console.warn("bookingSweep: the gifts sweep failed:", err?.message || err); return {}; });
+    if (given.confirmed || given.closed) console.log(`bookingSweep: ${given.confirmed} gifts confirmed, ${given.closed} closed`);
+  }
   // Memberships (memberships.js): unfinished card pages closed, memberships due a read read again from the provider.
-  const membered = await membershipDesk.sweep().catch(err => { console.warn("bookingSweep: the memberships sweep failed:", err?.message || err); return {}; });
-  if (membered.read || membered.closed) console.log(`bookingSweep: ${membered.read} memberships read, ${membered.closed} closed`);
+  if (membershipsOn || every15) {
+    const membered = await membershipDesk.sweep().catch(err => { console.warn("bookingSweep: the memberships sweep failed:", err?.message || err); return {}; });
+    if (membered.read || membered.closed) console.log(`bookingSweep: ${membered.read} memberships read, ${membered.closed} closed`);
+  }
 });
 
 // Social posts whose time has come (plan 27.4): each is claimed, then sent once to each of its places.
@@ -5196,30 +5212,35 @@ const catalogChanged = (source, { publishedOnly = false } = {}) => async event =
   try { await catalogVersion.bumpCatalogVersion(db, admin.firestore.FieldValue, `${source}/${Object.values(event.params || {})[0] || ""}`); }
   catch (err) { console.error("catalogVersion: could not record a change:", err.message); throw err; }
 };
-exports.catalogVersionBooks = onDocumentWritten("books/{bookId}", catalogChanged("books", { publishedOnly: true }));
-// A sale's "was" price must be the lowest of the 30 days before it (priceHistory.js): keep each book's earlier prices.
-exports.recordBookPriceHistory = onDocumentWritten("books/{bookId}", async event => {
-  if (!event.data?.after?.exists) return;
-  const history = require("./priceHistory").nextPriceHistory(event.data.before?.data(), event.data.after.data());
-  if (history) await event.data.after.ref.update({ priceHistory: history });
-});
 exports.catalogVersionPages = onDocumentWritten("pages/{pageId}", catalogChanged("pages", { publishedOnly: true }));
 exports.catalogVersionSettings = onDocumentWritten("settings/website", catalogChanged("settings"));
 // The file also carries the public shipping profiles (book pages' shipping figure, the bag's estimate and bar).
 exports.catalogVersionShipping = onDocumentWritten("shipping-profiles/{profileId}", catalogChanged("shipping-profiles"));
 
-exports.storageImageSweep = jobs.storageImageSweep;
+exports.storageImageSweep = onScheduleReal(
+  { schedule: "every 60 minutes", timeoutSeconds: 300, memory: "1GiB" },
+  async () => {
+    await shopEntry.eachShop(() => jobs.storageImageSweep(), { logIdle: false });
+  },
+);
 
 exports.backInStockSweep = jobs.backInStockSweep;
 
 // ──────────────────────────────────────────────────────────────
-// 12. Low Stock Alerts: Email admin when product or variant stock drops below 3 or hits 0
+// 12. Combined books/{bookId} trigger (catalog version, price history, low stock alerts)
 // ──────────────────────────────────────────────────────────────
-exports.onBookUpdated = onDocumentUpdated(
+const catalogChangedBooks = catalogChanged("books", { publishedOnly: true });
+exports.onBookWritten = onDocumentWritten(
   { document: "books/{bookId}", secrets: withPlatformKey([RESEND_API_KEY]) },
   async event => {
-    const before = event.data?.before?.data() || {};
-    const after = event.data?.after?.data() || {};
+    await catalogChangedBooks(event);
+    if (!event.data?.after?.exists) return;
+    const history = require("./priceHistory").nextPriceHistory(event.data.before?.data(), event.data.after.data());
+    if (history) await event.data.after.ref.update({ priceHistory: history });
+    if (!event.data?.before?.exists) return;
+
+    const before = event.data.before.data() || {};
+    const after = event.data.after.data() || {};
 
     if (after.isTest === true) return;
     if (!after.trackInventory) return;
@@ -5771,7 +5792,7 @@ async function handleBackupNow(req, res) {
 // The one scheduled job (code plan 15.16, tick.js): every sweep above registered itself with the tick, so a shop has one
 // Cloud Scheduler job instead of ten. It declares every sweep's secrets and the largest memory any sweep asked for.
 exports.tick = onScheduleReal(
-  { schedule: `every ${TICK_EVERY_MINUTES} minutes`, timeoutSeconds: TICK_TIMEOUT_SECONDS, memory: "1GiB", secrets: tickRegistry.secrets() },
+  { schedule: `every ${TICK_EVERY_MINUTES} minutes`, timeoutSeconds: TICK_TIMEOUT_SECONDS, memory: "256MiB", secrets: tickRegistry.secrets() },
   async () => {
     // Once for every shop that isn't closed, each in its own folder (shopEntry.js eachShop): a shop's sweeps read and
     // write only that shop, and one shop's failure never stops the others.
@@ -5779,7 +5800,7 @@ exports.tick = onScheduleReal(
       const { ran } = await runTick({ jobs: tickRegistry.jobs, db });
       if (ran.length) console.log(`tick ran${shop ? ` for ${shop.id}` : ""}:`, ran.join(", "));
       return ran;
-    });
+    }, { logIdle: false });
     const failed = results.filter(r => !r.ok);
     if (failed.length) console.error(`tick failed for ${failed.length} shop(s):`, failed.map(f => f.id).join(", "));
   });

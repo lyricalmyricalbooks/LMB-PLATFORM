@@ -121,6 +121,20 @@ describe("runTick", () => {
     expect(db.doc.jobs.dailyOrderDigest).toMatchObject({ at: at8, ok: true, running: null });
     expect(db.doc.lastTickAt).toBe(at8 + 600000);
   });
+  it("skips writing systemStatus/tick when no sweeps are due", async () => {
+    const reg = createTickRegistry();
+    reg.register({ name: "hourly", schedule: "every 60 minutes" }, async () => {});
+    const t0 = T("2026-11-02T20:00:00Z");
+    const db = fakeDb({ jobs: { hourly: { at: t0, ok: true } }, lastTickAt: t0 });
+    let sets = 0;
+    const trackedDb = {
+      collection: db.collection,
+      runTransaction: fn => db.runTransaction(tx => fn({ get: tx.get, set: (...a) => { sets++; return tx.set(...a); } })),
+    };
+    const res = await runTick({ jobs: reg.jobs, db: trackedDb, now: t0 + 5 * 60_000 });
+    expect(res.ran).toEqual([]);
+    expect(sets).toBe(0);
+  });
   it("refuses an unnamed or duplicate sweep", () => {
     const reg = createTickRegistry();
     expect(() => reg.register({ schedule: "every 5 minutes" }, () => {})).toThrow();
@@ -132,12 +146,13 @@ describe("runTick", () => {
 describe("wiring", () => {
   const index = readFileSync(new URL("./index.js", import.meta.url), "utf8");
   const jobsSrc = readFileSync(new URL("./scheduledJobs.js", import.meta.url), "utf8");
-  it("registers every sweep by name and keeps exactly one real scheduler job", () => {
+  it("registers every sweep by name and keeps only the main tick and hourly image sweep as real scheduler jobs", () => {
     const names = [...(index + jobsSrc).matchAll(/onSchedule\(\s*\{[^}]*?name: "(\w+)"/g)].map(m => m[1]);
     expect(names.sort()).toEqual(["abandonedCartSweep", "backInStockSweep", "bankFeedSweep", "bookingSweep", "dailyOrderDigest", "fairDaySummary", "inventoryLinkSweep",
-      "moveReminder", "nightlyFirestoreBackup", "paymentPageSweep", "receiptInboxSweep", "refreshExchangeRates", "socialPostSweep", "storageImageSweep", "teamExpirySweep", "unpaidPaymentSweep", "weeklySummary"]);
-    expect(index.match(/onScheduleReal\(/g)).toHaveLength(1);
+      "moveReminder", "nightlyFirestoreBackup", "paymentPageSweep", "receiptInboxSweep", "refreshExchangeRates", "socialPostSweep", "teamExpirySweep", "unpaidPaymentSweep", "weeklySummary"]);
+    expect(index.match(/onScheduleReal\(/g)).toHaveLength(2);
     expect(index).toMatch(/exports\.tick = onScheduleReal\(/);
+    expect(index).toMatch(/exports\.storageImageSweep = onScheduleReal\(/);
   });
 });
 

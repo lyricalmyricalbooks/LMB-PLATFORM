@@ -285,10 +285,8 @@ function scheduledJobs({
   // Storage bandwidth (October 2026): book photos still served only as their original get resized WebP copies
   // (srcset), and pictures/videos get a year-long Cache-Control header (functions/imageCopies.js). Additive:
   // no file is deleted or overwritten. Once everything is done a run reads the status doc and recent books only.
-  // Hourly: new uploads make their own copies, so this only catches older photos, and each run starts a 1 GiB machine.
-  const storageImageSweep = onSchedule(
-    { schedule: "every 60 minutes", name: "storageImageSweep", timeoutSeconds: 300, memory: "1GiB" },
-    async () => {
+  // Hourly: runs in its own 1 GiB Cloud Run job (`exports.storageImageSweep`), separate from the lightweight 256 MiB tick.
+  const storageImageSweep = async () => {
       const { runImageCopies, runCacheControl } = require("./imageCopies");
       const sharp = require("sharp");
       sharp.cache(false);
@@ -315,8 +313,7 @@ function scheduledJobs({
         const cache = await runCacheControl({ db, bucket, deadline: Math.max(Date.now() + 20_000, start + 260_000) });
         if (cache.updated) console.log("storageImageSweep: cache headers", cache);
       } catch (err) { console.error("storageImageSweep: cache headers failed:", err.message); }
-    }
-  );
+    };
 
   const backInStockSweep = onSchedule(
     { schedule: "every 15 minutes", name: "backInStockSweep", timeoutSeconds: 300, secrets: withPlatformKey([RESEND_API_KEY]) },

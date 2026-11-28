@@ -14,6 +14,8 @@ const VOICE_MAX = 1000;
 // key is pasted or stored (plan 16.4). The answer has the same shape as Gemini's, so buildRequest and parseResponse are shared.
 const VERTEX_ROOT = "https://aiplatform.googleapis.com/v1/projects/";
 const VERTEX_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"];
+const VERTEX_LITE_MODELS = ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash"];
+const LITE_TASKS = new Set(["bookSeo", "pageSeo", "photoAlt", "receiptRead", "receiptEmail"]);
 
 const clip = (v, max) => (typeof v === "string" ? v.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ").trim().slice(0, max) : "");
 const oneLine = v => String(v || "").replace(/\s+/g, " ").trim();
@@ -529,10 +531,11 @@ async function callVertex({ projectId, accessToken, model, body, fetchImpl }) {
 }
 
 /** One task through the shop's own Google AI: the first model it still serves. */
-async function generateVertex({ projectId, accessToken, task, input, ctx = {}, models = VERTEX_MODELS, fetchImpl = fetch }) {
+async function generateVertex({ projectId, accessToken, task, input, ctx = {}, models, fetchImpl = fetch }) {
+  const chosen = models || (LITE_TASKS.has(task) ? VERTEX_LITE_MODELS : VERTEX_MODELS);
   const pctx = { ...ctx, aiName: "The AI" };
   let lastErr = null;
-  for (const model of models) {
+  for (const model of chosen) {
     try {
       const data = await callVertex({ projectId, accessToken, model, body: buildRequest(task, input, pctx, model), fetchImpl });
       return { ...parseResponse(task, data, pctx), model };
@@ -845,4 +848,4 @@ async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, sit
   }
 }
 
-module.exports = { receiptImage, receiptFile, generateVertex, vertexErrorMessage, VERTEX_MODELS, backupProvider, worthBackup, runWithBackup, resetProviderRest, MODELS, OPENROUTER_MODELS, TASKS, openRouterKeyProblem, openRouterModelProblem, toJsonSchema, buildOpenRouterRequest, fromOpenRouter, openRouterErrorMessage, generateOpenRouter, pickProvider, photoImageUrl, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, HTML_TAGS, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };
+module.exports = { receiptImage, receiptFile, generateVertex, vertexErrorMessage, VERTEX_MODELS, VERTEX_LITE_MODELS, LITE_TASKS, backupProvider, worthBackup, runWithBackup, resetProviderRest, MODELS, OPENROUTER_MODELS, TASKS, openRouterKeyProblem, openRouterModelProblem, toJsonSchema, buildOpenRouterRequest, fromOpenRouter, openRouterErrorMessage, generateOpenRouter, pickProvider, photoImageUrl, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, HTML_TAGS, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };

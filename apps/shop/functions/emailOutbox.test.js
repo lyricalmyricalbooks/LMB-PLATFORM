@@ -761,10 +761,10 @@ describe("notification fixes from the email review", () => {
     const before = { title: "Rock & <Roll>", trackInventory: true, stockLevel: 10, variants: [{ id: "v1", name: "Paper", stock: 10 }] };
     const after = { ...before, variants: [...before.variants, { id: "v2", name: "New <b>", stock: 0 }] };
     const app = harness({ gmailFails: false });
-    await app.exports.onBookUpdated({ data: { before: { data: () => before }, after: { data: () => after } }, params: { bookId: "b1" } });
+    await app.exports.onBookWritten({ data: { before: { exists: true, data: () => before }, after: { exists: true, data: () => after, ref: { update: async () => {} } } }, params: { bookId: "b1" } });
     expect(app.delivered).toHaveLength(0);
     const sold = { ...before, variants: [{ id: "v1", name: "Paper", stock: 0 }] };
-    await app.exports.onBookUpdated({ data: { before: { data: () => before }, after: { data: () => sold } }, params: { bookId: "b1" } });
+    await app.exports.onBookWritten({ data: { before: { exists: true, data: () => before }, after: { exists: true, data: () => sold, ref: { update: async () => {} } } }, params: { bookId: "b1" } });
     expect(app.delivered[0].html).toContain("Rock &amp; &lt;Roll&gt;");
   });
 });

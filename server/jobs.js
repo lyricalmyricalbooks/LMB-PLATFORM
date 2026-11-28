@@ -23,6 +23,7 @@ import { chitChatsNote } from "../control-room/chitChatsNote.js";
 import { controlRoomPeople } from "../control-room/people.js";
 import { NOT_CONNECTED, NotConnected, notConnectedFn } from "./notConnected.js";
 import { runConnectionCheck } from "../control-room/connectionsDesk.js";
+import { isCronDue } from "./schedules.js";
 
 const quiet = () => {};
 /** The platform owner's notes go to PLATFORM_ADMIN_EMAIL, else to the alert address. */
@@ -115,7 +116,31 @@ export function runnerFor(world, name) {
 /** The jobs server's door. */
 export function jobsHandler(world, { log = console.error } = {}) {
   return async function handle(request) {
-    const match = /^\/jobs\/([a-z0-9-]+)\/?$/.exec(String(request?.path ?? ""));
+    const path = String(request?.path ?? "");
+    if (/^\/jobs\/_tick\/?$/.test(path)) {
+      if (request.method !== "POST") return { status: 405, body: { ok: false, message: "Send a POST." } };
+      const nowMs = (world.parts?.now?.() ?? new Date()).getTime();
+      const waiting = waitingJobs(world.parts?.env ?? {});
+      const statuses = new Map((await world.jobs.jobsStatus({ now: new Date(nowMs), newestOnly: true })).map((s) => [s.name, s]));
+      const due = JOBS.filter((job) => {
+        if (waiting[job.name] || !RUNNERS[job.name]) return false;
+        const lastMs = statuses.get(job.name)?.lastRun?.startedAt ? Date.parse(statuses.get(job.name).lastRun.startedAt) : 0;
+        return isCronDue(job, nowMs, lastMs);
+      });
+      const ran = [];
+      let next = 0;
+      const worker = async () => {
+        while (next < due.length) {
+          const job = due[next++];
+          const run = await world.jobs.runJob(job.name, runnerFor(world, job.name));
+          if (!run.ok) log(`job ${job.name} failed: ${run.error}`);
+          ran.push({ name: job.name, ok: run.ok, ms: run.ms });
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(4, due.length) }, worker));
+      return { status: 200, body: { ok: ran.every((r) => r.ok), ran } };
+    }
+    const match = /^\/jobs\/([a-z0-9-]+)\/?$/.exec(path);
     if (!match || !jobNamed(match[1]) || !RUNNERS[match[1]]) return { status: 404, body: { ok: false, message: "There's no job with that name." } };
     if (request.method !== "POST") return { status: 405, body: { ok: false, message: "Send a POST." } };
     const name = match[1];

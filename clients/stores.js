@@ -21,8 +21,22 @@ export function firestoreSentLog(firestore) {
       const rows = await firestore.query("emailSent", { where: [["shopId", "==", shopId], ["status", "==", "sent"]], limit: 20000 });
       return rows.filter((row) => row.data.at >= since).length;
     },
-    // The shop's emails sent in one month ("2026-11"), for its usage meter (services/usage). Same query as countSince.
+    // The shop's emails sent in one month ("2026-11"), for its usage meter (services/usage). Same query as countSince,
+    // subtracting gmail/platform emails via count() aggregation when the index is present.
     async countInMonth(shopId, month) {
+      if (typeof firestore.count === "function" && /^\d{4}-\d{2}$/.test(month ?? "")) {
+        const [y, m] = month.split("-").map(Number);
+        const start = `${month}-01T00:00:00.000Z`;
+        const end = new Date(Date.UTC(y, m, 1)).toISOString();
+        try {
+          const [total, gmail, plat] = await Promise.all([
+            firestore.count("emailSent", { where: [["shopId", "==", shopId], ["status", "==", "sent"], ["at", ">=", start], ["at", "<", end]] }),
+            firestore.count("emailSent", { where: [["shopId", "==", shopId], ["status", "==", "sent"], ["via", "==", "gmail"], ["at", ">=", start], ["at", "<", end]] }),
+            firestore.count("emailSent", { where: [["shopId", "==", shopId], ["status", "==", "sent"], ["platform", "==", true], ["at", ">=", start], ["at", "<", end]] }),
+          ]);
+          return Math.max(0, total - gmail - plat);
+        } catch { /* fall back to equality-only scan if composite index is not yet built */ }
+      }
       const rows = await firestore.query("emailSent", { where: [["shopId", "==", shopId], ["status", "==", "sent"]], limit: 20000 });
       // Only what the platform sent for the shop: not the press's own Gmail, not the platform's emails about the shop.
       return rows.filter((row) => String(row.data.at ?? "").slice(0, 7) === month && row.data.via !== "gmail" && row.data.platform !== true).length;
@@ -315,20 +329,76 @@ export function firestoreIncomeHistory(firestore) {
 
 /**
  * jobRuns/<name>-<startedAt>: the scheduled jobs' runs (services/jobs, plan 19.11), the newest 50 kept per job;
- * jobState/<name>: whether that job's late alert was sent.
+ * jobState/<name>: that job's late-alert state plus its rolling recent runs (avoids scanning jobRuns on every read);
+ * platformState/jobSummary: one-doc summary of every job's newest run and alert state for alertLate().
  */
-export function firestoreJobRuns(firestore, { keep = 50 } = {}) {
+export function firestoreJobRuns(firestore, { keep = 50, retentionDays = 30 } = {}) {
   const id = (name, run) => `${name}-${run.startedAt}`.replace(/[^0-9A-Za-z_-]/g, "_");
   const newestFirst = (a, b) => (a.data.startedAt < b.data.startedAt ? 1 : a.data.startedAt > b.data.startedAt ? -1 : 0);
+  const newestRunFirst = (a, b) => (a.startedAt < b.startedAt ? 1 : a.startedAt > b.startedAt ? -1 : 0);
   const rows = async (name) => (await firestore.query("jobRuns", { where: [["name", "==", name]], limit: 500 })).sort(newestFirst);
+  const DAY_MS = 86_400_000;
+  const SUMMARY_PATH = "platformState/jobSummary";
+
+  async function writeSummaryEntry(name, patch) {
+    const update = (current) => {
+      const jobs = { ...(current?.jobs ?? {}) };
+      jobs[name] = { ...(jobs[name] ?? {}), ...patch };
+      return { jobs };
+    };
+    if (typeof firestore.transaction === "function") {
+      await firestore.transaction(async (tx) => {
+        tx.set(SUMMARY_PATH, update(await tx.get(SUMMARY_PATH)));
+      });
+    } else {
+      await firestore.set(SUMMARY_PATH, update(await firestore.get(SUMMARY_PATH)));
+    }
+  }
+
   return {
     async add(name, run) {
-      await firestore.set(`jobRuns/${id(name, run)}`, { ...run, name });
-      for (const old of (await rows(name)).slice(keep)) await firestore.remove(`jobRuns/${old.id}`);
+      const atMs = Date.parse(run.startedAt);
+      const entry = { ...run, name };
+      const expiresAt = Number.isFinite(atMs) ? new Date(atMs + retentionDays * DAY_MS).toISOString() : undefined;
+      await firestore.set(`jobRuns/${id(name, run)}`, expiresAt ? { ...entry, expiresAt } : entry);
+
+      const prevState = (await firestore.get(`jobState/${name}`)) ?? {};
+      const recent = [entry, ...(Array.isArray(prevState.recent) ? prevState.recent : []).filter((r) => r.startedAt !== run.startedAt)]
+        .sort(newestRunFirst)
+        .slice(0, keep);
+      const lastSuccessAt = run.ok ? run.startedAt : (prevState.lastSuccessAt ?? recent.find((r) => r.ok)?.startedAt ?? null);
+      let prunedAt = prevState.prunedAt ?? null;
+      if (!prunedAt || (Number.isFinite(atMs) && atMs - Date.parse(prunedAt) >= DAY_MS)) {
+        for (const old of (await rows(name)).slice(keep)) await firestore.remove(`jobRuns/${old.id}`);
+        prunedAt = run.startedAt;
+      }
+      await firestore.set(`jobState/${name}`, { ...prevState, lastRun: entry, lastSuccessAt, recent, prunedAt });
+      await writeSummaryEntry(name, {
+        lastRun: entry,
+        lastSuccessAt,
+        lateAlertedAt: prevState.lateAlertedAt ?? null,
+        backOnTimeAt: prevState.backOnTimeAt ?? null,
+      });
     },
-    list: async (name, { limit = keep } = {}) => (await rows(name)).slice(0, limit).map((row) => row.data),
+    async list(name, { limit = keep } = {}) {
+      const state = await firestore.get(`jobState/${name}`);
+      if (Array.isArray(state?.recent)) return state.recent.slice(0, limit);
+      return (await rows(name)).slice(0, limit).map((row) => row.data);
+    },
     getState: (name) => firestore.get(`jobState/${name}`),
-    setState: (name, state) => firestore.set(`jobState/${name}`, state),
+    async setState(name, state) {
+      const prev = (await firestore.get(`jobState/${name}`)) ?? {};
+      const next = { ...prev, ...state };
+      await firestore.set(`jobState/${name}`, next);
+      await writeSummaryEntry(name, {
+        lateAlertedAt: next.lateAlertedAt ?? null,
+        backOnTimeAt: next.backOnTimeAt ?? null,
+      });
+    },
+    async getAllSummaries() {
+      const doc = await firestore.get(SUMMARY_PATH);
+      return doc?.jobs ?? {};
+    },
   };
 }
 

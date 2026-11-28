@@ -53,3 +53,12 @@ test("a shop that isn't live yet is not counted", async () => {
   w.google.world.assessments.set("new-press", 9000);
   assert.equal((await runBotCheckWatch({ ...w, config: {}, now: NOW })).total, 100);
 });
+
+test("shops sharing one project are counted once in total", async () => {
+  const w = await world({});
+  await w.registry.createShop("press-a", { shopId: "press-a", projectId: "demo-shared", shared: true, status: "live" });
+  await w.registry.createShop("press-b", { shopId: "press-b", projectId: "demo-shared", shared: true, status: "live" });
+  w.google.world.assessments.set("demo-shared", 3500);
+  const res = await runBotCheckWatch({ ...w, config: {}, now: NOW });
+  assert.equal(res.total, 3500);
+});

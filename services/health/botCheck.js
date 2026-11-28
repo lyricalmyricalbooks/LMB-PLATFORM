@@ -16,12 +16,19 @@ export async function runBotCheckWatch({ registry, google, platformState, notify
   const from = monthStart(at).toISOString();
   const month = from.slice(0, 7);
   const byShop = {};
+  const byProject = new Map();
   let total = 0;
   const failed = [];
   for (const row of await registry.listShops()) {
     if (row.status !== "live" || row.closing?.stage === "deleted") continue;
+    const projectId = row.projectId ?? row.shopId;
+    if (byProject.has(projectId)) {
+      byShop[row.shopId] = byProject.get(projectId);
+      continue;
+    }
     try {
-      const count = await google.monitoring.assessments(row.projectId ?? row.shopId, { from, to: at.toISOString() });
+      const count = await google.monitoring.assessments(projectId, { from, to: at.toISOString() });
+      byProject.set(projectId, count);
       byShop[row.shopId] = count;
       total += count;
     } catch (error) {

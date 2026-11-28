@@ -96,16 +96,27 @@ function shopEntries({ rootDb, env = process.env, now = () => Date.now(), log = 
   };
 
   /** Runs fn once for every shop that isn't closed, a few at a time; one shop's failure never stops the others. */
-  async function eachShop(fn, { concurrency = 4 } = {}) {
+  async function eachShop(fn, { concurrency = 4, logIdle = true } = {}) {
     if (!foldersOn()) return [{ id: null, ok: true, value: await fn(null) }];
     const shops = await listShops();
     const results = [];
     let next = 0;
+    const isIdle = v => v == null || (Array.isArray(v) && v.length === 0) || v === false;
     const worker = async () => {
       while (next < shops.length) {
         const shop = shops[next++];
         try {
-          results.push({ id: shop.id, ok: true, value: await inShop(shop, "tick", () => fn(currentShop())) });
+          let value;
+          const started = now();
+          if (logIdle) {
+            value = await inShop(shop, "tick", () => fn(currentShop()));
+          } else {
+            value = await runInShop(shop, () => fn(currentShop()));
+            if (!isIdle(value)) {
+              try { usage({ shop: shop.id, kind: "tick", ms: Math.max(0, now() - started) }); } catch { /* a usage line never breaks the work */ }
+            }
+          }
+          results.push({ id: shop.id, ok: true, value });
         } catch (err) {
           log.error?.(`shop ${shop.id}:`, err?.message || err);
           results.push({ id: shop.id, ok: false, error: String(err?.message || err).slice(0, 300) });

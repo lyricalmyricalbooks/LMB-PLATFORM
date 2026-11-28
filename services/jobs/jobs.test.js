@@ -185,3 +185,22 @@ test("the Jobs page: admins only; Run now is logged with its reason, then runs; 
   assert.deepEqual([logged.what, logged.by, logged.detail.job, logged.detail.reason], ["job-run", "admin@example.com", "shop-maker", "a press is waiting on it"]);
   assert.equal((await w.store.list("shop-maker"))[0].reason, "a press is waiting on it");
 });
+
+test("firestoreJobRuns reads only the one-doc summary in alertLate instead of scanning every jobRuns collection", async () => {
+  const { fakeFirestore } = await import("../../clients/fake-firestore.js");
+  const { firestoreClient } = await import("../../clients/firestore.js");
+  const { firestoreJobRuns } = await import("../../clients/stores.js");
+  const { token } = await import("../../clients/fake-fetch.js");
+  const fs = fakeFirestore();
+  const db = firestoreClient({ fetch: fs.fetch, token, projectId: "lmb-platform-prod" });
+  const store = firestoreJobRuns(db);
+  const sent = [];
+  const jobs = createJobs({ store, email: { sendPlatform: async (m) => void sent.push(m) }, alertTo: "alerts@example.com", now: () => new Date(START) });
+  await jobs.runJob("health-checks", async () => ({ ok: true }));
+  const callsBefore = fs.calls;
+  await jobs.alertLate({ now: new Date(START + 35 * 60_000) });
+  // 1 summary read + 1 getState + 1 setState + summary transaction (3) — far below 30 per-job queries.
+  assert.ok(fs.calls - callsBefore <= 8, `expected O(1) Firestore calls in alertLate, got ${fs.calls - callsBefore}`);
+  assert.equal(sent.length, 1);
+  assert.equal((await store.list("health-checks")).length, 1);
+});

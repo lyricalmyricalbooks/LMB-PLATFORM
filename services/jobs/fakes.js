@@ -14,5 +14,18 @@ export function fakeJobRuns() {
     list: async (name, { limit = KEEP_RUNS } = {}) => structuredClone((runs.get(name) ?? []).slice(0, limit)),
     getState: async (name) => structuredClone(states.get(name) ?? null),
     setState: async (name, state) => void states.set(name, structuredClone(state)),
+    async getAllSummaries() {
+      const out = {};
+      for (const [name, list] of runs.entries()) {
+        const last = list[0] ?? null;
+        const lastOk = list.find((r) => r.ok) ?? null;
+        const st = states.get(name) ?? {};
+        out[name] = structuredClone({ lastRun: last, lastSuccessAt: lastOk?.startedAt ?? null, lateAlertedAt: st.lateAlertedAt ?? null, backOnTimeAt: st.backOnTimeAt ?? null });
+      }
+      for (const [name, st] of states.entries()) {
+        if (!out[name]) out[name] = structuredClone({ lastRun: null, lastSuccessAt: null, lateAlertedAt: st.lateAlertedAt ?? null, backOnTimeAt: st.backOnTimeAt ?? null });
+      }
+      return out;
+    },
   };
 }

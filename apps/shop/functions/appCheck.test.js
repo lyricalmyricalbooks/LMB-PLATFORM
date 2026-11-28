@@ -21,10 +21,11 @@ describe("HTTP App Check enforcement", () => {
     expect(app.effects).toEqual([]);
     expect(JSON.stringify(app.logs)).not.toContain("secret-token");
   });
-  it("allows a verified token from the registered storefront app", async () => {
+  it("allows a verified token from the registered storefront app without logging noise", async () => {
     const app = harness({ token: "valid" }); await app.call();
     expect(app.response.body).toEqual({ accepted: true });
     expect(app.effects).toEqual(["purchase"]);
+    expect(app.logs).toEqual([]);
   });
   it("rejects a valid token for another Firebase app", async () => {
     const app = harness({ token: "valid", appId: "another-app" }); await app.call();

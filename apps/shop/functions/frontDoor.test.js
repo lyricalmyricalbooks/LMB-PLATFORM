@@ -2,7 +2,7 @@
 // address answered with its own shop's profile, files and pages, never another's.
 import { gunzipSync, brotliDecompressSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-const { frontDoor, hostOf, snapshotFile, safeSlug, SITE_FILES } = require("./frontDoor");
+const { frontDoor, hostOf, snapshotFile, safeSlug, SITE_FILES, PUBLIC_PAGE_CACHE, PUBLIC_FILE_CACHE } = require("./frontDoor");
 import { PER_SHOP_FILES, frontDoorHosting } from "../scripts/deployConfig.mjs";
 import { safeSlug as prerenderSafeSlug } from "../scripts/routeSafety.mjs";
 
@@ -95,7 +95,7 @@ describe("one site, every shop", () => {
     const a = await ask("press-a.example", "/shop-profile.js");
     expect(a.status).toBe(200);
     expect(a.headers["Content-Type"]).toMatch(/javascript/);
-    expect(a.headers["Cache-Control"]).toBe("no-cache");
+    expect(a.headers["Cache-Control"]).toBe(PUBLIC_FILE_CACHE);
     const profile = JSON.parse(a.body.slice(a.body.indexOf("=") + 1).trim().replace(/;$/, ""));
     expect(profile).toMatchObject({ shopId: "press-a", tenant: "press-a-111111" });
     const b = await ask("www.press-b.example", "/stockroom/shop-profile.js");
@@ -321,6 +321,17 @@ describe("a drawn page from an app that is no longer online", () => {
   it("keeps a drawn page when the blank page names no app", async () => {
     const { ask } = door({ files });
     expect((await ask("press-a.example", "/")).body).toContain("index-OLD123.js");
+  });
+
+  it("caches published files in memory and sets CDN headers for public pages, never for previews or 404s", async () => {
+    const { ask, reads } = door({ routeCheck: async () => ({ state: "missing" }) });
+    const home1 = await ask("press-a.example", "/");
+    const home2 = await ask("press-a.example", "/");
+    expect(home1.headers["Cache-Control"]).toBe(PUBLIC_PAGE_CACHE);
+    expect(home2.body).toBe("<html>A home</html>");
+    expect(reads.files.filter(f => f === "shops/press-a/site/index.html")).toHaveLength(1);
+    expect((await ask("press-a.example", "/", "GET", { url: "/?preview=true" })).headers["Cache-Control"]).toBe("no-cache");
+    expect((await ask("press-a.example", "/books/missing")).headers["Cache-Control"]).toBe("no-cache");
   });
 });
 

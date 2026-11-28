@@ -20,8 +20,7 @@
 import { pathToFileURL } from "node:url";
 import { googleHttp, isNotFound } from "../clients/http.js";
 import { JOBS } from "../services/jobs/index.js";
-import { waitingJobs } from "./jobs.js";
-import { JOBS_SERVICE, REGION, schedulerJob, schedulerJobId } from "./schedules.js";
+import { JOBS_SERVICE, REGION, TICK_JOB_NAME, platformTickJob, schedulerJobId } from "./schedules.js";
 import { DEFAULT_PROJECT } from "./world.js";
 
 export const SCHEDULER = "https://cloudscheduler.googleapis.com/v1";
@@ -47,45 +46,43 @@ export async function jobsServerUrl({ call, project, region = REGION }) {
   throw new Error(`There's no ${JOBS_SERVICE} server in ${project} yet. Run node server/deploy.js --apply first.`);
 }
 
-/** Jobs the code no longer has: their schedules are removed, so nothing calls an address that is gone. */
+/**
+ * Jobs the code no longer schedules directly in Cloud Scheduler: their schedules are removed so only `platform-tick`
+ * remains (1 job inside Google's free 3-job tier).
+ */
 export const RETIRED_JOBS = Object.freeze([
   // Presses' own sending addresses went with Resend (10 November 2026): every email now leaves through Google.
   "own-email-addresses",
+  ...JOBS.map((job) => job.name),
 ]);
 
 /**
- * Reads every job's schedule and makes it match. Returns { actions: [{ job, does: [...] }] }, where `does` lists
- * "create", "update <fields>", "pause", "resume" or is empty ("unchanged").
+ * Ensures the single `platform-tick` dispatcher schedule exists and matches, and removes any retired per-job
+ * schedules. Returns { actions: [{ job, does: [...] }], jobsUrl }.
  */
-export async function setupSchedules({ fetch, token, project = DEFAULT_PROJECT, region = REGION, jobsUrl = null, apply = false, env = {}, print = console.log }) {
-  const WAITING_JOBS = waitingJobs(env);
+export async function setupSchedules({ fetch, token, project = DEFAULT_PROJECT, region = REGION, jobsUrl = null, apply = false, print = console.log }) {
   const call = googleHttp({ fetch, token });
   const base = jobsUrl ?? (await jobsServerUrl({ call, project, region }));
   print(`${apply ? "Making" : "Plan for"} the schedules in ${project} (${region}), calling ${base}`);
   const actions = [];
-  for (const job of JOBS) {
-    const want = schedulerJob({ project, region, job, jobsUrl: base });
-    const waiting = WAITING_JOBS[job.name] ?? null;
-    let have = null;
-    try {
-      have = await call("GET", `${SCHEDULER}/${want.name}`);
-    } catch (error) {
-      if (!isNotFound(error)) throw error;
-    }
-    const does = [];
-    if (!have) {
-      does.push("create");
-      if (waiting) does.push("pause");
-    } else {
-      const fields = changedFields(want, have);
-      if (fields.length) does.push(`update ${fields.join(",")}`);
-      if (waiting && have.state !== "PAUSED") does.push("pause");
-      if (!waiting && have.state === "PAUSED") does.push("resume");
-    }
-    actions.push({ job: job.name, does });
-    const why = waiting ? ` (paused: waits on ${waiting.waitsOn})` : "";
-    print(`  ${job.name.padEnd(20)} ${want.schedule.padEnd(14)} ${does.length ? does.join(", ") : "unchanged"}${why}`);
-    if (!apply) continue;
+  const want = platformTickJob({ project, region, jobsUrl: base });
+  let have = null;
+  try {
+    have = await call("GET", `${SCHEDULER}/${want.name}`);
+  } catch (error) {
+    if (!isNotFound(error)) throw error;
+  }
+  const does = [];
+  if (!have) {
+    does.push("create");
+  } else {
+    const fields = changedFields(want, have);
+    if (fields.length) does.push(`update ${fields.join(",")}`);
+    if (have.state === "PAUSED") does.push("resume");
+  }
+  actions.push({ job: TICK_JOB_NAME, does });
+  print(`  ${TICK_JOB_NAME.padEnd(20)} ${want.schedule.padEnd(14)} ${does.length ? does.join(", ") : "unchanged"}`);
+  if (apply) {
     for (const step of does) {
       if (step === "create") await call("POST", `${SCHEDULER}/projects/${project}/locations/${region}/jobs`, { body: want });
       else if (step.startsWith("update ")) await call("PATCH", `${SCHEDULER}/${want.name}`, { query: { updateMask: step.slice(7) }, body: want });
@@ -94,15 +91,15 @@ export async function setupSchedules({ fetch, token, project = DEFAULT_PROJECT, 
   }
   for (const name of RETIRED_JOBS) {
     const jobName = `projects/${project}/locations/${region}/jobs/${schedulerJobId(name)}`;
-    let have = null;
+    let old = null;
     try {
-      have = await call("GET", `${SCHEDULER}/${jobName}`);
+      old = await call("GET", `${SCHEDULER}/${jobName}`);
     } catch (error) {
       if (!isNotFound(error)) throw error;
     }
-    if (!have) continue;
+    if (!old) continue;
     actions.push({ job: name, does: ["delete"] });
-    print(`  ${name.padEnd(20)} ${"".padEnd(14)} delete (no longer in the code)`);
+    print(`  ${name.padEnd(20)} ${"".padEnd(14)} delete (replaced by platform-tick)`);
     if (apply) await call("DELETE", `${SCHEDULER}/${jobName}`);
   }
   const changes = actions.filter((a) => a.does.length).length;

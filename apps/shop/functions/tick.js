@@ -113,7 +113,9 @@ async function runTick({ jobs, db, now = Date.now(), log = console, zone = shopT
       marks[job.name] = { running: now };
       due.push(job);
     }
-    tx.set(ref, { jobs: marks, lastTickAt: now }, { merge: true });
+    if (due.length > 0 || Object.keys(marks).length > 0) {
+      tx.set(ref, { jobs: marks, lastTickAt: now }, { merge: true });
+    }
     return due;
   });
   const ran = [];

@@ -17,6 +17,7 @@
 // shape projectSteps reads: a shared project holds both apps for every shop.
 import { REGION, WEB_APP_NAME, projectSteps } from "./steps.js";
 import { SERVICE_KEY_SECRET, sharedServiceKeyHash } from "./serviceKey.js";
+import { MAX_TOKEN_MINUTES, botCheckStep } from "./botCheck.js";
 
 const message = (error) => (error instanceof Error ? error.message : String(error));
 
@@ -84,6 +85,13 @@ export function sharedProjectSteps({ google, region = REGION }) {
       check: async ({ shop }) => (await google.buildCleanup.has(shop.shopId, region)) !== false,
       act: ({ shop }) => google.buildCleanup.set(shop.shopId, region),
     },
+    {
+      number: 10,
+      name: "Keep only 30 days of nightly database backups",
+      check: ({ shop }) => google.backupLifecycle.has(shop.shopId),
+      act: ({ shop }) => google.backupLifecycle.set(shop.shopId),
+    },
+    botCheckStep({ number: 11, google, config: { appCheckTokenMinutes: MAX_TOKEN_MINUTES } }),
   ];
 }
 

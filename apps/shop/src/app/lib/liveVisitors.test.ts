@@ -8,10 +8,11 @@ describe("live visitors", () => {
     expect(liveSlot(new Date("2026-11-13T00:00:05Z")).minute).toBe("0");
   });
 
-  it("counts the larger of the last full minute and this one", () => {
+  it("counts the largest reading inside the 3-minute ping window", () => {
     const now = new Date("2026-11-13T10:05:10Z");
     const m = 10 * 60 + 5;
     expect(liveNow({ [String(m - 1)]: 4, [String(m)]: 1 }, now)).toBe(4);
+    expect(liveNow({ [String(m - 2)]: 5 }, now)).toBe(5);
     expect(liveNow({ [String(m)]: 6 }, now)).toBe(6);
     expect(liveNow({ [String(m - 5)]: 9 }, now)).toBe(0);
     expect(liveNow({}, now)).toBe(0);
@@ -23,7 +24,7 @@ describe("live visitors", () => {
     let stop = () => {};
     afterEach(() => { stop(); vi.useRealTimers(); });
 
-    it("pings once per minute while on screen, never when not allowed", async () => {
+    it("pings at most once every 3 minutes while on screen, never when not allowed", async () => {
       vi.useFakeTimers();
       let now = new Date("2026-11-13T10:05:00Z");
       const write = vi.fn(async () => {});
@@ -31,12 +32,13 @@ describe("live visitors", () => {
       await vi.advanceTimersByTimeAsync(0);
       expect(write).toHaveBeenCalledTimes(1);
       expect(write).toHaveBeenLastCalledWith("2026-11-13", String(605));
-      await vi.advanceTimersByTimeAsync(30_000);
-      expect(write).toHaveBeenCalledTimes(1); // same minute
       now = new Date("2026-11-13T10:06:01Z");
-      await vi.advanceTimersByTimeAsync(15_000);
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(write).toHaveBeenCalledTimes(1); // inside 3-minute cooldown
+      now = new Date("2026-11-13T10:08:01Z");
+      await vi.advanceTimersByTimeAsync(30_000);
       expect(write).toHaveBeenCalledTimes(2);
-      expect(write).toHaveBeenLastCalledWith("2026-11-13", String(606));
+      expect(write).toHaveBeenLastCalledWith("2026-11-13", String(608));
       stop();
 
       const quiet = vi.fn(async () => {});

@@ -51,12 +51,28 @@ const FRONT_DOOR_VERIFICATION = "^/google[0-9a-f]{8,32}\\.html$";
 // The owner's private bookings calendar (functions/frontDoor.js CALENDAR_PATH).
 const FRONT_DOOR_CALENDAR = "^/calendar/(?:b/[A-Za-z0-9_-]{6,40}/)?[a-f0-9]{48}\\.ics$";
 
+function stripFrontDoorNoCache(headers = []) {
+  return headers.map((rule) => {
+    const isNoCache = Array.isArray(rule?.headers) && rule.headers.some((h) => h.key === "Cache-Control" && h.value === "no-cache");
+    if (!isNoCache || typeof rule.regex !== "string") return rule;
+    if (rule.regex.startsWith("^/(?:|spa|")) {
+      // Leave /, storefront pages, /shop-profile.js and published site files to frontDoor's own s-maxage CDN headers.
+      return { ...rule, regex: "^/(?:spa|404|(?:account|admin)(?:/.*)?|cart|checkout|track|book|events|classes|support|membership|rentals|wishlist|admin-sw\\.js|asset-manifest\\.txt|.*\\.html)$" };
+    }
+    if (rule.regex.includes("|shop-profile\\.js|")) {
+      return { ...rule, regex: rule.regex.replace("|shop-profile\\.js|", "|") };
+    }
+    return rule;
+  });
+}
+
 /** The Hosting part of the shared site: the per-shop files left out, and their addresses sent to the front door. */
 export function frontDoorHosting(hosting, region) {
   if (!/^[a-z]+-[a-z]+[0-9]$/.test(region || "")) throw new Error(`"${region}" isn't a functions region.`);
   const to = { function: { functionId: FRONT_DOOR, region } };
   return {
     ...hosting,
+    ...(Array.isArray(hosting.headers) ? { headers: stripFrontDoorNoCache(hosting.headers) } : {}),
     ignore: [...new Set([...(hosting.ignore ?? []), ...PER_SHOP_FILES])],
     rewrites: [
       ...FRONT_DOOR_PATHS.map(source => ({ source, ...to })),

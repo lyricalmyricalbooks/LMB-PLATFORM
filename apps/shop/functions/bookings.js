@@ -1145,7 +1145,9 @@ function bookingActions({
     const all = offer ? [...new Set([...days, ...offer.days])] : days;
     // `days` (shop days) lets the admin find a course's people in any week it runs, with one query.
     if (sessions.length > 1) {
-      record.course = { starts: sessions.map((ms) => new Date(ms).toISOString()), days: [...new Set(sessions.map((ms) => dayOf(ms, zone())))] };
+      const startsIso = sessions.map((ms) => new Date(ms).toISOString());
+      record.course = { starts: startsIso, days: [...new Set(sessions.map((ms) => dayOf(ms, zone())))] };
+      record.courseLastStart = startsIso[startsIso.length - 1];
       // Joined late: the dates missed and the whole course's price, for the owner's list and the emails.
       if (service.joining) record.course.joined = { missed: service.joining.missed, of: service.joining.of, fullPriceMinor: service.joining.fullPriceMinor };
     }
@@ -3980,9 +3982,18 @@ function bookingActions({
     const { reminderHours, secondReminderHours } = await readSettings();
     if (!reminderHours && !secondReminderHours) return { reminded: 0 };
     const nowMs = now().getTime();
-    const snap = await bookings().where("status", "==", "confirmed").limit(1000).get();
+    const maxHours = Math.max(Number(reminderHours) || 0, Number(secondReminderHours) || 0);
+    const nowIso = new Date(nowMs).toISOString();
+    const endIso = new Date(nowMs + maxHours * HOUR).toISOString();
+    const [upcoming, courses] = await Promise.all([
+      bookings().where("status", "==", "confirmed").where("start", ">=", nowIso).where("start", "<=", endIso).limit(500).get(),
+      bookings().where("status", "==", "confirmed").where("courseLastStart", ">=", nowIso).limit(200).get(),
+    ]);
+    const docs = new Map();
+    for (const doc of upcoming.docs) docs.set(doc.id, doc);
+    for (const doc of courses.docs) docs.set(doc.id, doc);
     let reminded = 0;
-    for (const doc of snap.docs) {
+    for (const doc of docs.values()) {
       const b = doc.data();
       // A course's later dates get their own reminders (both kinds); its first date goes the usual way below.
       reminded += await remindCourseDates(doc.id, b, { reminderHours, secondReminderHours }, nowMs);

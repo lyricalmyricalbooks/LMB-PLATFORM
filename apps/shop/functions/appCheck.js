@@ -23,8 +23,10 @@ function browserRequestHandler(handler, { mode, appId, emulator, verifyToken, ap
     } else if (token !== undefined && token !== "") {
       status = "invalid";
     }
-    log({ event: "app_check", mode: currentMode, status, path: req.path });
-    if (status !== "valid" && currentMode === "enforce") return res.status(401).json({ code: "APP_CHECK_REQUIRED" });
+    if (status !== "valid") {
+      log({ event: "app_check", mode: currentMode, status, path: req.path });
+      if (currentMode === "enforce") return res.status(401).json({ code: "APP_CHECK_REQUIRED" });
+    }
     return handler(req, res);
   };
 }

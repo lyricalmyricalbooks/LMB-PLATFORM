@@ -23,7 +23,7 @@ const turnOnGoogleSignIn = (google) => google.world.googleSignIns.set(P, { enabl
 test("the shared project's steps are numbered and complete", () => {
   const { steps } = setup();
   assert.deepEqual(stepProblems(steps), []);
-  assert.equal(steps.length, 9);
+  assert.equal(steps.length, 11);
 });
 
 test("a dry run only looks, and says what a real run would do", async () => {
@@ -32,7 +32,7 @@ test("a dry run only looks, and says what a real run would do", async () => {
   assert.equal(result.ok, true);
   assert.equal(result.ready, false);
   assert.deepEqual(google.calls, []);
-  assert.deepEqual(result.ran.map((r) => r.status), Array(9).fill("would-run"));
+  assert.deepEqual(result.ran.map((r) => r.status), Array(11).fill("would-run"));
   assert.match(lines[0], /1\. Add Firebase to the project: would run/);
 });
 
@@ -54,8 +54,9 @@ test("a real run readies the project for shops, and stops in plain words for the
   const second = await run(true);
   assert.equal(second.ok, true, second.error);
   assert.equal(second.ready, true);
-  assert.deepEqual(second.ran.map((r) => r.status), ["already-done", "already-done", "already-done", "already-done", "already-done", "done", "done", "done", "done"]);
+  assert.deepEqual(second.ran.map((r) => r.status), ["already-done", "already-done", "already-done", "already-done", "already-done", "done", "done", "done", "done", "done", "already-done"]);
   assert.ok(google.world.backupPermission.has(P));
+  assert.ok(google.world.backupLifecycle.has(P));
   const key = google.world.secrets.get(`${P} ${SERVICE_KEY_SECRET}`);
   assert.equal(key.length, 1);
 
@@ -63,7 +64,7 @@ test("a real run readies the project for shops, and stops in plain words for the
   const before = google.calls.length;
   const third = await run(true);
   assert.equal(third.ready, true);
-  assert.deepEqual(third.ran.map((r) => r.status), Array(9).fill("already-done"));
+  assert.deepEqual(third.ran.map((r) => r.status), Array(11).fill("already-done"));
   assert.equal(google.calls.length, before);
   assert.equal(google.world.secrets.get(`${P} ${SERVICE_KEY_SECRET}`).length, 1);
 });
@@ -75,11 +76,11 @@ test("the old builds' cleanup rule waits for the first deploy, then is set", asy
   const noRepository = { ...google, buildCleanup: { ...google.buildCleanup, has: async () => null } };
   const early = await runProjectSteps({ projectId: P, steps: sharedProjectSteps({ google: noRepository }), apply: true });
   assert.equal(early.ready, true);
-  assert.equal(early.ran.at(-1).status, "already-done");
+  assert.equal(early.ran.at(-3).status, "already-done");
   assert.equal(google.world.buildCleanup.has(P), false);
   // Once it is there, the next run sets the rule.
   const later = await run(true);
-  assert.equal(later.ran.at(-1).status, "done");
+  assert.equal(later.ran.at(-3).status, "done");
   assert.ok(google.world.buildCleanup.has(P));
 });
 

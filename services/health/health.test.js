@@ -276,3 +276,18 @@ test("in the shared system, one export of the shared project's databases a night
   const rows = await registry.listShops();
   assert.ok(rows.every((r) => r.platformBackup?.shopAt), "each shop's row records the nightly export, which the backup check reads");
 });
+
+test("in the shared system, runHealth checks shared app pages and checkout once per shared project", async () => {
+  const registry = fakeRegistry();
+  const shared = (id) => row(id, { projectId: "lmb-test-shop", shared: true, freeAddress: `${id}.shops.example`, region: "northamerica-northeast1", platformBackup: { shopAt: NOW, stockroomAt: NOW } });
+  for (const r of [shared("press-alpha"), shared("press-bravo")]) await registry.createShop(r.shopId, r);
+  const pages = [];
+  const asked = [];
+  const w = world({ pages: (url) => { pages.push(url); return 200; }, checkout: (url) => { asked.push(url); return { status: 204, allow: "same" }; }, docs: { "press-alpha": goodBackup(), "press-bravo": goodBackup() } });
+  await runHealth({ registry, checks: healthChecks(w), notify: { sendPlatform: async () => {} }, config: { alertTo: "alerts@example.com" }, now: () => new Date(NOW) });
+  assert.equal(asked.length, 1, "checkout preflight checked once for the shared project");
+  assert.deepEqual(pages, [
+    "https://press-alpha.shops.example", "https://press-alpha.shops.example/admin", "https://press-alpha.shops.example/shop-profile.js", "https://press-alpha.shops.example/stockroom",
+    "https://press-bravo.shops.example", "https://press-bravo.shops.example/shop-profile.js",
+  ]);
+});

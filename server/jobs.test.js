@@ -86,3 +86,15 @@ test("with the shared system's two settings, the shop-maker job runs and its sch
   assert.equal(waitingJobs(TEST_ENV)["web-addresses"], undefined, "a press's own domain needs no setting, so the check always runs");
   assert.ok(waitingJobs(shared)["self-checks"], "the others still wait");
 });
+
+test("POST /jobs/_tick runs only due non-waiting jobs and skips waiting ones", async () => {
+  const { handle } = build(TEST_ENV, () => {});
+  const answer = await handle({ method: "POST", path: "/jobs/_tick", headers: {} });
+  assert.equal(answer.status, 200);
+  const names = answer.body.ran.map((r) => r.name);
+  assert.ok(names.includes("health-checks"));
+  assert.ok(!names.includes("shop-maker"), "waiting jobs are skipped");
+  // Calling _tick again right away skips interval jobs that just ran.
+  const second = await handle({ method: "POST", path: "/jobs/_tick", headers: {} });
+  assert.ok(!second.body.ran.some((r) => r.name === "health-checks"));
+});

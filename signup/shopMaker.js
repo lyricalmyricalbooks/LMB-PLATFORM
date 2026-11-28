@@ -352,19 +352,43 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
     async sweep() {
       // Presses waiting for the day's room go first, so a shop let in now is made in this same run (plan 6.13).
       if (line) await line.admitFromLine();
-      const due = (await signups.list()).filter((row) => row.status === "queued" || (row.status === "waiting" && row.nextTryAt && row.nextTryAt <= at()));
+      const nowIso = at();
+      let queued, waiting, ready;
+      if (typeof signups.listByStatus === "function") {
+        [queued, waiting, ready] = await Promise.all([signups.listByStatus("queued"), signups.listByStatus("waiting"), signups.listByStatus("ready")]);
+      } else {
+        const all = await signups.list();
+        queued = all.filter((r) => r.status === "queued");
+        waiting = all.filter((r) => r.status === "waiting");
+        ready = all.filter((r) => r.status === "ready");
+      }
+      const due = [...queued, ...waiting.filter((row) => row.nextTryAt && row.nextTryAt <= nowIso)];
       const done = [];
       for (const row of due) {
         const after = await make(row.shopId);
         done.push({ shopId: row.shopId, status: after?.status });
       }
       // Ready shops whose plan changed since their steps last ran (an app added or dropped), and any own domain from
-      // setup still to connect (a try that failed comes round again here).
-      for (const row of (await signups.list()).filter((r) => r.status === "ready")) {
-        const synced = await syncPlan(row.shopId);
-        if (synced) done.push({ shopId: row.shopId, status: `plan-${synced.status}`, plan: synced.plan });
-        const addressed = await connectAddresses(row.shopId);
-        if (addressed) done.push({ shopId: row.shopId, status: "addresses", free: addressed.freeAddress?.name ?? null, own: addressed.ownDomain?.name ?? null });
+      // setup still to connect (a try that failed comes round again here). Skip shops with nothing pending so idle
+      // sweeps do zero per-shop reads.
+      const shopById = ready.length && typeof registry.listShops === "function"
+        ? new Map((await registry.listShops()).map((s) => [s.shopId, s]))
+        : null;
+      for (const row of ready) {
+        const regRow = shopById ? shopById.get(row.shopId) : await registry.getShop?.(row.shopId);
+        const plan = regRow?.plan in PLANS ? regRow.plan : row.plan;
+        const built = row.builtPlan ?? row.plan;
+        const planPending = plan !== built && !(row.planSync?.nextTryAt && row.planSync.nextTryAt > nowIso) && !(row.planSync?.plan === plan && row.planSync.needsHelp);
+        if (planPending) {
+          const synced = await syncPlan(row.shopId);
+          if (synced) done.push({ shopId: row.shopId, status: `plan-${synced.status}`, plan: synced.plan });
+        }
+        const freePending = Boolean(domains && typeof domains.connectFreeAddress === "function" && !row.freeAddress?.doneAt && !(row.freeAddress?.nextTryAt && row.freeAddress.nextTryAt > nowIso));
+        const ownPending = Boolean(domains && presses && !row.ownDomain?.doneAt && !(row.ownDomain?.nextTryAt && row.ownDomain.nextTryAt > nowIso));
+        if (freePending || ownPending) {
+          const addressed = await connectAddresses(row.shopId);
+          if (addressed) done.push({ shopId: row.shopId, status: "addresses", free: addressed.freeAddress?.name ?? null, own: addressed.ownDomain?.name ?? null });
+        }
       }
       return done;
     },

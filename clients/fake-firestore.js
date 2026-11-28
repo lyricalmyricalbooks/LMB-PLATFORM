@@ -149,6 +149,11 @@ export function fakeFirestore({ token = "test-token" } = {}) {
       return refused ?? answer(200, { commitTime: "2026-11-02T00:00:00Z" });
     }
     if (method === "POST" && name.endsWith(":runQuery")) return answer(200, runQuery(name.slice(0, -":runQuery".length), body.structuredQuery));
+    if (method === "POST" && name.endsWith(":runAggregationQuery")) {
+      const sq = body.structuredAggregationQuery?.structuredQuery;
+      const rows = runQuery(name.slice(0, -":runAggregationQuery".length), sq).filter((r) => r.document);
+      return answer(200, [{ result: { aggregateFields: { n: { integerValue: String(rows.length) } } }, readTime: "2026-11-02T00:00:00Z" }]);
+    }
 
     if (method === "POST") {
       // createDocument: POST {parent}/{collectionId}?documentId=ID

@@ -406,3 +406,19 @@ test("backups: a project whose bucket Firebase doesn't list as the default is fo
   await assert.rejects(google.backups.run(P), /has no storage bucket yet/);
   fetch.done();
 });
+
+test("backup lifecycle: deletes root backups/ after 30 days and preserves existing rules", async () => {
+  const bucket = `https://storage.googleapis.com/storage/v1/b/${BUCKET}`;
+  const rule = { action: { type: "Delete" }, condition: { age: 30, matchesPrefix: ["backups/"] } };
+  const other = { action: { type: "Delete" }, condition: { age: 90, matchesPrefix: ["tmp/"] } };
+  const { fetch, google } = clients([
+    defaultBucket, { method: "GET", url: `${bucket}?fields=lifecycle`, json: {} },
+    defaultBucket, { method: "GET", url: `${bucket}?fields=lifecycle`, json: { lifecycle: { rule: [other] } } },
+    { method: "PATCH", url: bucket, body: { lifecycle: { rule: [other, rule] } }, json: {} },
+    defaultBucket, { method: "GET", url: `${bucket}?fields=lifecycle`, json: { lifecycle: { rule: [other, rule] } } },
+  ]);
+  assert.equal(await google.backupLifecycle.has(P), false);
+  await google.backupLifecycle.set(P);
+  assert.equal(await google.backupLifecycle.has(P), true);
+  fetch.done();
+});

@@ -415,7 +415,7 @@ async function runSweep(deps, opts = {}) {
     const snap = await tx.get(ref);
     const data = snap.exists ? snap.data() : {};
     if (data.lease?.until && Date.parse(data.lease.until) > start.getTime()) return null;
-    tx.set(ref, { lease: { until: iso(new Date(start.getTime() + LEASE_MS)), runId } }, { merge: true });
+    tx.set(ref, { lease: { until: iso(new Date(start.getTime() + LEASE_MS)), startedAt: iso(start), runId } }, { merge: true });
     return data;
   });
   if (!state) return { busy: true };
@@ -423,15 +423,19 @@ async function runSweep(deps, opts = {}) {
   const status = {};
   const out = { ran: true };
   try {
-    const t0 = (await ref.update({ "lease.startedAt": iso(start) })).writeTime;
     if (!linkActive(state)) return { ...out, inactive: true };
 
-    try {
-      await store.heartbeat({ now: start });
-      status.connection = { ...(state.connection || {}), ok: true, checkedAt: iso(start), problem: null, error: null };
-    } catch (err) {
-      status.connection = { ...(state.connection || {}), ok: false, checkedAt: iso(start), error: errText(err) };
-      return { ...out, connection: status.connection };
+    const lastHeartbeat = Date.parse(state.connection?.checkedAt || "");
+    const heartbeatDue = ["force", "apply", "preview"].includes(opts.stock) || !state.connection?.ok
+      || !Number.isFinite(lastHeartbeat) || start.getTime() - lastHeartbeat >= 30 * 60 * 1000;
+    if (heartbeatDue) {
+      try {
+        await store.heartbeat({ now: start });
+        status.connection = { ...(state.connection || {}), ok: true, checkedAt: iso(start), problem: null, error: null };
+      } catch (err) {
+        status.connection = { ...(state.connection || {}), ok: false, checkedAt: iso(start), error: errText(err) };
+        return { ...out, connection: status.connection };
+      }
     }
 
     // The app's own status doc: its to-do and its "Add to the app" requests (docs/INVENTORY_LINK.md › One to-do list).
@@ -588,6 +592,7 @@ async function runSweep(deps, opts = {}) {
         if (mode === "apply" && plan.hash !== opts.confirmHash) {
           out.stock.changed = true; // numbers moved since the preview: show the new preview, write nothing
         } else if (mode !== "preview") {
+          const t0 = (await ref.update({ "lease.startedAt": iso(start) })).writeTime;
           const applied = await applyStock(deps, plan.rows, { t0, mode: mode === "apply" ? "confirmed" : "auto", by: opts.by || "Inventory app link" });
           out.stock.applied = applied;
           status.lastStockAt = iso(start);

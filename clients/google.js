@@ -64,6 +64,7 @@ const IDENTITY = "https://identitytoolkit.googleapis.com/v2";
 /** The repository 2nd-generation functions put their built images in, and the cleanup rule on it (plan 15.16). */
 export const BUILD_REPOSITORY = "gcf-artifacts";
 export const BUILD_CLEANUP_POLICY = Object.freeze({ id: "colophon-delete-old-builds", action: "DELETE", condition: { tagState: "ANY", olderThan: "86400s" } });
+export const BACKUP_LIFECYCLE_RULE = Object.freeze({ action: { type: "Delete" }, condition: { age: 30, matchesPrefix: ["backups/"] } });
 
 /** The role the nightly backup's account needs to export the database (the shop's runScheduledBackup). */
 export const BACKUP_ROLE = "roles/datastore.importExportAdmin";
@@ -556,6 +557,21 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
       async set(projectId) {
         const bucket = await needBucket(projectId);
         await call("PATCH", `${GCS}/b/${bucket}`, { body: { cors: [{ origin: ["*"], method: [...PHOTO_CORS], responseHeader: ["Content-Type"], maxAgeSeconds: 3600 }] } });
+      },
+    },
+    // Deletes nightly root database exports under backups/ after 30 days so storage cost stays bounded.
+    backupLifecycle: {
+      async has(projectId) {
+        const bucket = await needBucket(projectId);
+        const { lifecycle } = await call("GET", `${GCS}/b/${bucket}`, { query: { fields: "lifecycle" } });
+        const rules = lifecycle?.rule ?? [];
+        return rules.some((r) => r?.action?.type === "Delete" && Number(r?.condition?.age) <= BACKUP_LIFECYCLE_RULE.condition.age && (r?.condition?.matchesPrefix ?? []).includes("backups/"));
+      },
+      async set(projectId) {
+        const bucket = await needBucket(projectId);
+        const { lifecycle } = await call("GET", `${GCS}/b/${bucket}`, { query: { fields: "lifecycle" } });
+        const existing = (lifecycle?.rule ?? []).filter((r) => !(r?.action?.type === "Delete" && (r?.condition?.matchesPrefix ?? []).includes("backups/")));
+        await call("PATCH", `${GCS}/b/${bucket}`, { body: { lifecycle: { rule: [...existing, BACKUP_LIFECYCLE_RULE] } } });
       },
     },
     // A shop's published files in the shared bucket (shops/<id>/site/, docs/shared-system.md step 5). Every call

@@ -66,10 +66,12 @@ test("the daily job meters this month and last, splits last month's bill once it
   assert.equal((await meters.get("press-b", "2026-10")).costCents, 250);
   assert.equal((await meters.get("press-b", "2026-10")).reconciled, true);
 
-  // Later runs leave the split month alone, even if the export moves.
+  // Later runs leave the split month alone, even if the export moves, and skip re-reading last month's sources.
+  const askedBefore = asked.length;
   bill = 5000;
   await runUsageMeters({ registry, meters, sources, costs, sharedProject: SHARED, now: () => new Date("2026-11-05T07:00:00Z") });
   assert.equal((await meters.get("press-a", "2026-10")).costCents, 750);
+  assert.deepEqual(asked.slice(askedBefore), [["2026-11", ["press-a", "press-b"], true]]);
   await assert.rejects(runUsageMeters({ registry, meters, sources, costs, now: () => new Date() }), /shared project's id/);
 });
 

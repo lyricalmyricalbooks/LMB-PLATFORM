@@ -325,3 +325,16 @@ test("the throttle's addIfUnder counts and adds like the fake, and refuses at th
     await throttle.count("k", "2026-11-03T08:00:00.000Z"),
   ]);
 });
+
+test("sent log countInMonth uses Firestore count() aggregation and excludes gmail and platform emails", async () => {
+  const { firestoreSentLog } = await import("./stores.js");
+  const { db, fs } = realDb();
+  const log = firestoreSentLog(db);
+  await log.put("k1", { shopId: "s1", status: "sent", at: "2026-11-05T10:00:00Z" });
+  await log.put("k2", { shopId: "s1", status: "sent", at: "2026-11-06T10:00:00Z", via: "gmail" });
+  await log.put("k3", { shopId: "s1", status: "sent", at: "2026-11-07T10:00:00Z", platform: true });
+  await log.put("k4", { shopId: "s1", status: "sent", at: "2026-10-31T23:59:59Z" });
+  const callsBefore = fs.calls;
+  assert.equal(await log.countInMonth("s1", "2026-11"), 1);
+  assert.equal(fs.calls - callsBefore, 3);
+});

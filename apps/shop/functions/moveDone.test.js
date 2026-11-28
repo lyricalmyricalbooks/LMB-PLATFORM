@@ -58,7 +58,7 @@ describe("the move-finished email", () => {
   });
 
   it("is sent from the firstWeek/start trigger", () => {
-    expect(source).toContain('exports.onMoveFinished = onDocumentUpdated("firstWeek/start"');
+    expect(source).toContain("exports.onMoveFinished = onDocumentWritten(");
     expect(source).toContain('queue: "moveFinished"');
     // Counting reads the database, so it waits for the one change that finished the move.
     const trigger = source.slice(source.indexOf("exports.onMoveFinished"));

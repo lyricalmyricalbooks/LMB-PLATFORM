@@ -14,6 +14,8 @@ export const JOBS_SERVICE = "platform-jobs";
 export const schedulerAccount = (project) => `platform-scheduler@${project}.iam.gserviceaccount.com`;
 /** Each job's Cloud Scheduler id. */
 export const schedulerJobId = (name) => `platform-${name}`;
+export const TICK_JOB_NAME = "tick";
+export const TICK_CRON = "*/5 * * * *";
 
 const DAY = 24 * 60;
 
@@ -90,6 +92,81 @@ export function schedulerJob({ project, region = REGION, job, jobsUrl }) {
       oidcToken: { serviceAccountEmail: schedulerAccount(project), audience: base },
     },
   };
+}
+
+/**
+ * One Cloud Scheduler job (`platform-tick`) wakes the jobs server every 5 minutes, keeping Cloud Scheduler inside
+ * Google's free 3-job allowance ($0/mo instead of $2.70/mo for 30 jobs).
+ */
+export function platformTickJob({ project, region = REGION, jobsUrl }) {
+  const base = String(jobsUrl ?? "").replace(/\/+$/, "");
+  if (!/^https:\/\/[^/\s]+$/.test(base)) throw new Error("the jobs server's address must be an https address with no path");
+  return {
+    name: `projects/${project}/locations/${region}/jobs/${schedulerJobId(TICK_JOB_NAME)}`,
+    description: "Runs every scheduled platform job that is due",
+    schedule: TICK_CRON,
+    timeZone: TIME_ZONE,
+    attemptDeadline: "1800s",
+    retryConfig: { retryCount: 0 },
+    httpTarget: {
+      uri: `${base}/jobs/_tick`,
+      httpMethod: "POST",
+      oidcToken: { serviceAccountEmail: schedulerAccount(project), audience: base },
+    },
+  };
+}
+
+function localParts(ms, timeZone) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric",
+  }).formatToParts(new Date(ms)).map((p) => [p.type, p.value]));
+  return { y: Number(parts.year), mo: Number(parts.month), d: Number(parts.day), h: Number(parts.hour), mi: Number(parts.minute) };
+}
+
+function zonedToUtc(y, mo, d, h, mi, timeZone) {
+  const offsetAt = (ms) => {
+    const p = localParts(ms, timeZone);
+    return Date.UTC(p.y, p.mo - 1, p.d, p.h, p.mi) - Math.floor(ms / 60_000) * 60_000;
+  };
+  const guess = Date.UTC(y, mo - 1, d, h, mi);
+  return guess - offsetAt(guess - offsetAt(guess));
+}
+
+/** Latest wall-clock occurrence at or before `nowMs` for a fixed-minute cron (`M H|* *|DOM * *|DOW`). */
+export function latestCronOccurrence(cron, nowMs, timeZone = TIME_ZONE) {
+  const [minStr, hourStr, domStr, , dowStr] = cron.split(" ");
+  const minute = Number(minStr);
+  if (!Number.isInteger(minute)) return 0;
+  const today = localParts(nowMs, timeZone);
+  const hourStep = hourStr === "*" ? 1 : hourStr.startsWith("*/") ? Number(hourStr.slice(2)) : null;
+  const fixedHour = hourStep === null ? Number(hourStr) : null;
+  const dom = domStr === "*" ? null : Number(domStr);
+  const dow = dowStr === "*" ? null : Number(dowStr);
+  const maxDays = dom !== null ? 62 : dow !== null ? 8 : 2;
+  for (let back = 0; back < maxDays; back += 1) {
+    const day = new Date(Date.UTC(today.y, today.mo - 1, today.d - back));
+    if (dom !== null && day.getUTCDate() !== dom) continue;
+    if (dow !== null && day.getUTCDay() !== dow) continue;
+    const hours = hourStep !== null ? Array.from({ length: 24 / hourStep }, (_, i) => i * hourStep).reverse() : [fixedHour];
+    for (const h of hours) {
+      const at = zonedToUtc(day.getUTCFullYear(), day.getUTCMonth() + 1, day.getUTCDate(), h, minute, timeZone);
+      if (at <= nowMs) return at;
+    }
+  }
+  return 0;
+}
+
+/** True when `job` should run at `nowMs` given its last run time (`lastRunMs`, 0 if never run). */
+export function isCronDue(job, nowMs, lastRunMs = 0, timeZone = TIME_ZONE) {
+  const cron = cronFor(job);
+  const [minStr, hourStr] = cron.split(" ");
+  if (hourStr === "*" && (minStr === "*" || minStr.startsWith("*/"))) {
+    return !lastRunMs || nowMs - lastRunMs >= job.every * 60_000 - 30_000;
+  }
+  const latest = latestCronOccurrence(cron, nowMs, timeZone);
+  if (!latest) return false;
+  if (!lastRunMs) return job.every < DAY ? true : nowMs - latest < 15 * 60_000;
+  return latest > lastRunMs;
 }
 
 /** Every job's schedule, for the plan and the README. */
